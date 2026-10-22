@@ -9,6 +9,7 @@ import { collectSources } from "../scripts/collect-corresponding-source.ts";
 test("native reuse verifies source bytes without looking up legacy Git commits", () => {
   const repo = resolve(import.meta.dirname, "..");
   const verified = verifyNativeInputs(repo);
+  assert.ok(verified.binaries.every(input => !input.path.startsWith("runtime/")), "Node has its own version/source validation, independent of old native artifacts");
   const changed = verified.sourceInputs[0].path;
   assert.throws(() => verifyNativeInputs(repo, path => {
     const bytes = readFileSync(join(repo, path));

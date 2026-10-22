@@ -137,10 +137,6 @@
     {
       "path": "ParaBus.exe",
       "sha256": "f6a2eba85d3dbea22d9eb100c4ea670c8ceb4293e5f29343f759fbbe04baa57b"
-    },
-    {
-      "path": "runtime/node.exe",
-      "sha256": "0d0f5e39f9f3d9587bc19f73eab3c2c9c4903fd02d6dbf9c853dd81b3d95fad4"
     }
   ],
   "dependencyManifests": [
