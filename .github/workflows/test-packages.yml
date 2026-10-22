@@ -1,0 +1,174 @@
+name: Build test packages
+
+# Private test ZIPs for real-machine checks. Not a public release (see docs/SOURCE_RELEASE.md).
+on:
+  workflow_dispatch:
+    inputs:
+      windows_only:
+        description: Build only the Windows test package
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: >-
+          ${{ fromJSON(inputs.windows_only
+            && '[{"label":"windows-x64","os":"windows-latest","arch":"x64"}]'
+            || '[{"label":"windows-x64","os":"windows-latest","arch":"x64"},{"label":"macos-intel","os":"macos-15-intel","arch":"x64"},{"label":"macos-apple-silicon","os":"macos-15","arch":"arm64"}]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.4
+          architecture: ${{ matrix.arch }}
+          package-manager-cache: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Build locked dependencies
+        run: npm ci --include=optional --legacy-peer-deps --foreground-scripts
+
+      - name: Test installed Discord voice clock patch
+        run: node --test tests/patch-discord-voice.test.ts
+
+      - name: Build Windows ASIO backend
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-windows-asio.ps1
+
+      - name: Build Windows app launcher
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-windows-launcher.ps1
+
+      - name: Verify native dependencies
+        run: |
+          npm run check:audio-native
+          npm run check:opus-native
+          if [ "$RUNNER_OS" = "Windows" ]; then node scripts/asio-native-check.ts; fi
+
+      - name: Run automated tests
+        if: runner.os == 'Windows'
+        run: |
+          npm run typecheck
+          npm test
+          npm run test:rust
+          npm run test:core-ipc
+
+      - name: Stage audited release files
+        run: npm run stage:release
+
+      - name: Assemble self-contained package
+        run: |
+          set -euo pipefail
+          stage=$(find target/release-stage -maxdepth 1 -type d -name 'stage-*' ! -name '*-pending' | head -n 1)
+          test -n "$stage"
+          npm prune --omit=dev --legacy-peer-deps
+          rm -rf node_modules/.bin
+          name="ParaBus-${{ matrix.label }}-${GITHUB_SHA::12}"
+          dist="target/dist/$name"
+          mkdir -p target/dist
+          cp -R "$stage" "$dist"
+          cp -R node_modules "$dist/node_modules"
+          node scripts/omit-crash-diagnostics.ts "$dist"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp -R target/windows-asio/source-bundle "$dist/native-source"
+            cp target/release/ParaBus.exe "$dist/ParaBus.exe"
+          fi
+          node_bin=$(node -p "process.execPath")
+          if command -v cygpath >/dev/null; then node_bin=$(cygpath -u "$node_bin"); fi
+          mkdir -p "$dist/runtime"
+          cp "$node_bin" "$dist/runtime/"
+          for license in "$(dirname "$node_bin")/LICENSE" "$(dirname "$node_bin")/../LICENSE"; do
+            if [ -f "$license" ]; then cp "$license" "$dist/runtime/NODE_LICENSE"; break; fi
+          done
+          chmod +x "$dist/start-router.command"
+          if [ "$RUNNER_OS" = "macOS" ]; then node scripts/build-macos-app.ts "$dist"; fi
+          cat > "$dist/README-TEST.txt" <<EOF
+          ParaBus 実機テスト用パッケージ（非公開・テスト専用）
+          Build commit: $GITHUB_SHA
+          Platform: ${{ matrix.label }}
+          Node.js は同梱済みです（runtime/）。別途インストールは不要です。
+
+          [Windows]
+          1. ZIP を専用フォルダーへ展開し、ParaBus.exe をダブルクリックします。
+          2. タスクトレイの ParaBus から画面を開きます。
+          ※ SmartScreen が出たら、取得元を確認したうえで「詳細情報」→「実行」を選びます。
+          ※ ASIO対応DLLを同梱しています。機器メーカーの64bit ASIOドライバーは別途必要です。
+
+          [macOS]
+          ZIP は専用フォルダーへ展開します。アプリだけでなく同梱ファイルを一緒に置いてください。
+          1. ParaBus.app をダブルクリック → 警告が出たら「完了」で閉じます。
+          2. システム設定 →「プライバシーとセキュリティ」→「このまま開く」で許可します。
+          3. 必要ならもう一度ダブルクリックします。同じフォルダーでは通常、2回目以降の許可は不要です。
+          ※ Apple Developer署名・公証は行っていません。初回準備で展開フォルダー内だけの隔離属性を解除します。
+          ※ OSの隔離実行で同梱ファイルが見つからない場合だけ、展開フォルダーを選択してください。
+          ※ ASIO は Windows 専用です。macOS は CoreAudio で動作します。
+
+          [共通]
+          - 終了: 実行PCの SETUP →「ParaBus を終了」。設定ロックOFF・障害確認済み・録音保存完了が必要です。
+          - ブラウザーを閉じるだけでは停止しません。LANの別PCからは終了できません。
+          - start-router.cmd / start-router.command は互換用に残しています。
+          - .env.example と discord-bots.example.json を参考に設定してください（docs/DISCORD_RX.md）。
+          - 障害時は実行フォルダーではなく、診断画面の Support Bundle を共有してください。
+
+          ParaBus — Developed by Adil Azka
+          Built with Codex and Claude Code
+          EOF
+          echo "PACKAGE_NAME=$name" >> "$GITHUB_ENV"
+          echo "PACKAGE_EXE=runtime/$(basename "$node_bin")" >> "$GITHUB_ENV"
+
+      - name: Smoke test package
+        run: |
+          set -euo pipefail
+          smoke="$RUNNER_TEMP/parabus-smoke"
+          cp -R "target/dist/$PACKAGE_NAME" "$smoke"
+          cd "$smoke"
+          "$PACKAGE_EXE" -e "require('node:assert/strict').equal(process.versions.node, '22.23.4')"
+          "$PACKAGE_EXE" scripts/audio-native-check.ts
+          "$PACKAGE_EXE" scripts/opus-native-check.ts
+          if [ "$RUNNER_OS" = "Windows" ]; then "$PACKAGE_EXE" scripts/asio-native-check.ts; fi
+          "$PACKAGE_EXE" "$GITHUB_WORKSPACE/scripts/app-smoke-test.ts" "$smoke"
+
+      - name: Create ZIP
+        run: |
+          set -euo pipefail
+          cd target/dist
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "$PACKAGE_NAME" "$PACKAGE_NAME.zip"
+            zipinfo -l "$PACKAGE_NAME.zip" "$PACKAGE_NAME/ParaBus.app/Contents/MacOS/ParaBus" | grep '^-rwx'
+            unzip -p "$PACKAGE_NAME.zip" "$PACKAGE_NAME/ParaBus.app/Contents/Info.plist" | grep '<string>ParaBus</string>'
+          else
+            7z a -tzip -mx=9 "$PACKAGE_NAME.zip" "$PACKAGE_NAME" > /dev/null
+            7z l -slt "$PACKAGE_NAME.zip" | tr '\\' '/' | grep -F "Path = $PACKAGE_NAME/ParaBus.exe"
+          fi
+          ls -lh "$PACKAGE_NAME.zip"
+
+      - name: Upload private test package
+        # Public binaries need the complete corresponding-source bundle first.
+        if: github.event.repository.private == true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: target/dist/${{ env.PACKAGE_NAME }}.zip
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

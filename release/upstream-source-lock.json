@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-22",
+  "sources": [
+    {
+      "url": "https://codeload.github.com/cryspen/hpke-rs/tar.gz/f3463e7530771d7f7116635335c25e7d2d11e861",
+      "sha256": "af1b86d2b98ec1e3ecc028d9d68de96e6ca51b038aeca8fb1615d491250650be"
+    },
+    {
+      "url": "https://codeload.github.com/Snazzah/davey/tar.gz/a1e2e741bea06bc3b7167a5c3792844b8975993c",
+      "sha256": "f13c2a22426df6ffed133c403da0abcc8fa4ca4d2672bc7916408633e8b032ba"
+    },
+    {
+      "url": "https://nodejs.org/dist/v22.23.4/SHASUMS256.txt",
+      "sha256": "c90c3f1478fda8308b22cc1a1b0dc536169196444e67ee8b5c582fd351d02bce"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bytecodealliance/wasi-rs/06ce201370fcde0d1b0d47cac8ecb1b0b312c9f9/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bytecodealliance/wasi-rs/06ce201370fcde0d1b0d47cac8ecb1b0b312c9f9/LICENSE-Apache-2.0_WITH_LLVM-exception",
+      "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bytecodealliance/wasi-rs/06ce201370fcde0d1b0d47cac8ecb1b0b312c9f9/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/d4e317f22c3bace76cb3205003bcc34b4929037d/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/d4e317f22c3bace76cb3205003bcc34b4929037d/LICENSE-Apache-2.0_WITH_LLVM-exception",
+      "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/d4e317f22c3bace76cb3205003bcc34b4929037d/LICENSE-MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/026a87ab6d88ad3626b9fbbf3710d1e0483c1849/LICENSE",
+      "sha256": "c517c468fc7f8d83319dd8b3743923f6891e0dfbaf7c57a874758c8f39b98564"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/026a87ab6d88ad3626b9fbbf3710d1e0483c1849/LICENSE-MIT",
+      "sha256": "e40d41f94826514279cc7648088180e19621f7acd281dd394a0534d535da51fd"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/316fcd6c19c2e33bd0429e1319b6557d91038512/LICENSE",
+      "sha256": "c517c468fc7f8d83319dd8b3743923f6891e0dfbaf7c57a874758c8f39b98564"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/316fcd6c19c2e33bd0429e1319b6557d91038512/LICENSE-MIT",
+      "sha256": "e40d41f94826514279cc7648088180e19621f7acd281dd394a0534d535da51fd"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/5732f8d113972da8ce19d3f9dd7763a0409b1c25/LICENSE",
+      "sha256": "c517c468fc7f8d83319dd8b3743923f6891e0dfbaf7c57a874758c8f39b98564"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/5732f8d113972da8ce19d3f9dd7763a0409b1c25/LICENSE-MIT",
+      "sha256": "e40d41f94826514279cc7648088180e19621f7acd281dd394a0534d535da51fd"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/8ebe73237378c80b86a953ec8a77bdd3299918e7/LICENSE",
+      "sha256": "c517c468fc7f8d83319dd8b3743923f6891e0dfbaf7c57a874758c8f39b98564"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/8ebe73237378c80b86a953ec8a77bdd3299918e7/LICENSE-MIT",
+      "sha256": "e40d41f94826514279cc7648088180e19621f7acd281dd394a0534d535da51fd"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/a0b2887b1b22b5d502f97787f0c3f99a598b1a89/LICENSE",
+      "sha256": "c517c468fc7f8d83319dd8b3743923f6891e0dfbaf7c57a874758c8f39b98564"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/a0b2887b1b22b5d502f97787f0c3f99a598b1a89/LICENSE-MIT",
+      "sha256": "e40d41f94826514279cc7648088180e19621f7acd281dd394a0534d535da51fd"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/f0c2b0a9506bdb28e3ecfeed07c64532da542b21/LICENSE",
+      "sha256": "c517c468fc7f8d83319dd8b3743923f6891e0dfbaf7c57a874758c8f39b98564"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/cryspen/libcrux/f0c2b0a9506bdb28e3ecfeed07c64532da542b21/LICENSE-MIT",
+      "sha256": "e40d41f94826514279cc7648088180e19621f7acd281dd394a0534d535da51fd"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/hacspec/hax/87ba96831ecfeb7dbb54efcf97036fbc5f25bc71/.github/workflows/licenses.yml",
+      "sha256": "5a304b2697df101624b3ca475b137633cb6c160cc8bb74ca3a34f44583c4525f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/hacspec/hax/87ba96831ecfeb7dbb54efcf97036fbc5f25bc71/LICENSE",
+      "sha256": "9a50bad5a51e0ad726ea3a7f4b7b758e1b4d1784e6abefe1367f5bf01e972725"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/jsdom/tr46/3a6f29721e7063b9ffd421e461a54beae6170001/index.js",
+      "sha256": "8194f9425ce9ab06ea9aebcd64a85ec064d95d61bb349f8f1c98762ad256638e"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/jsdom/tr46/3a6f29721e7063b9ffd421e461a54beae6170001/LICENSE.md",
+      "sha256": "eeed1ca176eebad5c73870e233cfff03981fecd319c969475dfa3633036c336b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/jsdom/tr46/3a6f29721e7063b9ffd421e461a54beae6170001/package.json",
+      "sha256": "615087f58ee138fd35c2b414c355b72e36e5919725b8aecc1c34f6a5585b9779"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/0b80be8d9e64ba6c1733fcf31533e4f58bfc46b4/cli/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/0b80be8d9e64ba6c1733fcf31533e4f58bfc46b4/crates/sys/LICENSE",
+      "sha256": "cb9560e9740c8ea359aa852a14ebfdffe856c0518da5917b321a3042bc805052"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/0b80be8d9e64ba6c1733fcf31533e4f58bfc46b4/LICENSE",
+      "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/0b80be8d9e64ba6c1733fcf31533e4f58bfc46b4/triples/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/67e711d69b7e681807d157ea85cf8173fd923537/cli/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/67e711d69b7e681807d157ea85cf8173fd923537/crates/sys/LICENSE",
+      "sha256": "cb9560e9740c8ea359aa852a14ebfdffe856c0518da5917b321a3042bc805052"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/67e711d69b7e681807d157ea85cf8173fd923537/LICENSE",
+      "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/67e711d69b7e681807d157ea85cf8173fd923537/triples/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/7f65844403ae5c23ec30e05f0480e1f468c4b65b/cli/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/7f65844403ae5c23ec30e05f0480e1f468c4b65b/crates/sys/LICENSE",
+      "sha256": "cb9560e9740c8ea359aa852a14ebfdffe856c0518da5917b321a3042bc805052"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/7f65844403ae5c23ec30e05f0480e1f468c4b65b/LICENSE",
+      "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/7f65844403ae5c23ec30e05f0480e1f468c4b65b/triples/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/be4b16ca00aa2cecd19be6ffe6de59495b471b14/cli/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/be4b16ca00aa2cecd19be6ffe6de59495b471b14/crates/sys/LICENSE",
+      "sha256": "cb9560e9740c8ea359aa852a14ebfdffe856c0518da5917b321a3042bc805052"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/be4b16ca00aa2cecd19be6ffe6de59495b471b14/LICENSE",
+      "sha256": "3f1ce66533302df3a32edbfdfc0b78f0dd34659e4c1f5817162e5ea3c2297215"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/napi-rs/napi-rs/be4b16ca00aa2cecd19be6ffe6de59495b471b14/triples/LICENSE",
+      "sha256": "7b34e99bc43641767fded49f7f03563ffd50c689b1f3b0d50700b4727bc4ae24"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmls/openmls/47dbedecad0c1fd8eb5368d582250ebfcc1e1ce6/LICENSE",
+      "sha256": "43e5e3c4b5cca67f9ea912f7e1929702a848aa765d3b3e14f25d3838a5a5565d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmls/openmls/6b85f0edc560b4fe0f5b9266092947a774614f3f/LICENSE",
+      "sha256": "43e5e3c4b5cca67f9ea912f7e1929702a848aa765d3b3e14f25d3838a5a5565d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/i686/Cargo.toml",
+      "sha256": "2b366e86c69e5c0ca208cb244ad2aaf9c97a7f9310b711dd722f8db827b64c9f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/i686/LICENSE-APACHE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/i686/LICENSE-MIT",
+      "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-APACHE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-MIT",
+      "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/x86_64/Cargo.toml",
+      "sha256": "bfae0ed252a110efdc81caa66355772db19cf2a3619d591118e7bc271a661d26"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/x86_64/LICENSE-APACHE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/x86_64/LICENSE-MIT",
+      "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/sapphiredev/utilities/36268acb83cc613e06836f6ebbdafeeba99c2365/LICENSE.md",
+      "sha256": "9a022e629657a7e9753e631ac112bb4260e71267b9ccff1fa72240eb167e2eeb"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/sapphiredev/utilities/dd52b66fc63099b2f95163eebd4df23c26b1cd16/LICENSE.md",
+      "sha256": "9a022e629657a7e9753e631ac112bb4260e71267b9ccff1fa72240eb167e2eeb"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Snazzah/davey/a1e2e741bea06bc3b7167a5c3792844b8975993c/LICENSE",
+      "sha256": "90760006b6e6c76a67476de39bee25e42e584679eac5d608765355d5d54e8afa"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE",
+      "sha256": "ed60d479b8fd1f64e9cbc3de449a16a53ac1b3d1b6aeb9bf9d190a8e93061b44"
+    },
+    {
+      "url": "https://www.mozilla.org/media/MPL/2.0/index.txt",
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+    },
+    {
+      "url": "https://www.unicode.org/license.txt",
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+    }
+  ]
+}

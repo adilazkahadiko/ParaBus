@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "bots": [
+    {
+      "id": "RX01",
+      "label": "RX TEAM 01",
+      "role": "RX",
+      "tokenEnv": "DISCORD_BOT_TOKEN_RX01",
+      "guildId": "000000000000000001",
+      "voiceChannelId": "000000000000000101",
+      "enabled": true
+    },
+    {
+      "id": "RX02",
+      "label": "RX TEAM 02",
+      "role": "RX",
+      "tokenEnv": "DISCORD_BOT_TOKEN_RX02",
+      "guildId": "000000000000000001",
+      "voiceChannelId": "000000000000000102",
+      "enabled": false
+    },
+    {
+      "id": "TX_GAME01",
+      "label": "TX GAME",
+      "role": "TX",
+      "txSubtype": "GAME",
+      "txAudioMode": "STEREO",
+      "tokenEnv": "DISCORD_BOT_TOKEN_TX_GAME01",
+      "guildId": "000000000000000001",
+      "voiceChannelId": "000000000000000101",
+      "enabled": false
+    },
+    {
+      "id": "TX_CASTER01",
+      "label": "TX CASTER",
+      "role": "TX",
+      "txSubtype": "CASTER",
+      "txAudioMode": "MONO",
+      "tokenEnv": "DISCORD_BOT_TOKEN_TX_CASTER01",
+      "guildId": "000000000000000001",
+      "voiceChannelId": "000000000000000101",
+      "enabled": false
+    },
+    {
+      "id": "TX_COMMENTARY01",
+      "label": "TX COMMENTARY",
+      "role": "TX",
+      "txSubtype": "COMMENTARY",
+      "txAudioMode": "MONO",
+      "tokenEnv": "DISCORD_BOT_TOKEN_TX_COMMENTARY01",
+      "guildId": "000000000000000001",
+      "voiceChannelId": "000000000000000101",
+      "enabled": false
+    },
+    {
+      "id": "TX_IFB01",
+      "label": "TX IFB",
+      "role": "TX",
+      "txSubtype": "IFB",
+      "txAudioMode": "MONO",
+      "tokenEnv": "DISCORD_BOT_TOKEN_TX_IFB01",
+      "guildId": "000000000000000001",
+      "voiceChannelId": "000000000000000101",
+      "enabled": false
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+name: Bug report / 不具合報告
+description: Report a problem with ParaBus. Do not include tokens, real settings or recordings.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issues or reports that may contain confidential information: see [SECURITY.md](../blob/main/SECURITY.md) instead.
+        セキュリティ・機密を含む可能性がある報告は公開Issueではなく SECURITY.md の手順で報告してください。
+  - type: input
+    id: version
+    attributes:
+      label: Version (BUILD COMMIT) / 版
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audio setup / 音声構成
+      description: Main / Cue host API, driver, sample rate, channel count, number of Discord participants.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened / 症状
+      description: What you expected, what happened instead, and when (time) it happened.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 再現手順
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy / 秘密情報
+      options:
+        - label: I have not included bot tokens, real settings, recordings or raw logs. / Token・実設定・録音・生ログを含めていません。
+          required: true

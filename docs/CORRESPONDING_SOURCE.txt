@@ -1,0 +1,67 @@
+ParaBus 実行用ZIPの対応ソースと第三者表記
+
+このファイルは実行用ZIPに同梱する案内です。
+使用した実行ファイルの版・SHA-256は候補内のcomponent-provenance.jsonを参照してください。
+アプリの表示commitだけで、同梱EXE・DLLのすべてを再ビルドしたとは表示しません。
+
+提供するソース
+外側のレビュー用ZIPに、ParaBusフォルダーと「corresponding-source.zip」を収録します。
+受領者には外側のZIPをそのまま提供してください。SHA256SUMS.txtも内包します。
+
+source.zip内の構成
+・app/：候補のTypeScript、Rust、UI、lockfile、build script、test、原文ライセンス。
+・binary-origin/：元CIとバイト照合したRustソース・lockfile・native/launcher生成scriptと照合表。
+・native-source/：PortAudio、ASIO SDK、生成変更とbuild記録。
+・npm/：同梱npm packageの固定archive（naudiodon2、Opusのbinding sourceと元表記を含む）。
+・davey/：DAVE固定commitのsource archive、HPKE固定source、lockfileのcrate archive一式。
+・parabus-crates/：アプリのCargo.lockに対応するcrate archive。
+・upstream-notices/：crateから省略されていた原文を、そのVCS commitの上流から補足したもの。
+・SOURCE_INVENTORY.json：各提供ファイルのSHA-256。取得元はSOURCE_DOWNLOADS.json等を参照。
+
+HPKEの取得方法
+DAVE 0.1.12内のHPKE対象ソースはMPL-2.0で提供されます。
+同梱のhpke-rs-f3463e75.tar.gzと各crate archiveを展開して取得できます。
+固定上流: https://github.com/cryspen/hpke-rs/tree/f3463e7530771d7f7116635335c25e7d2d11e861
+MPL本文はdocs/THIRD_PARTY_LICENSES.mdとupstream-notices内に保持しています。
+原文中のExhibit Bを転載すること自体は、非互換指定の追加を意味しません。
+ParaBus側ではこのHPKEソースに変更を加えていません。
+lockfile一式には他platform・開発用も含まれ、すべてがWindows binaryに組み込まれるとは限りません。
+
+DAVEの再ビルド
+1. davey内の固定source archiveを展開し、Rust stable、Node、pnpmを用意します。
+2. davey-nodeでpnpm install --frozen-lockfileを実行します。
+3. 上流のnode-ci.ymlとpackage.jsonのbuild定義に従い、Windows x64向けにbuildします。
+4. Cargo.lockの変更がないこと、native load、Discordの実接続を確認します。
+この候補はnpm公式prebuiltを再利用しています。上流build logは取得期限切れです。
+bit単位で同じbinaryを作れること、使用された全featuresの独立検証は完了していません。
+
+アプリとASIOの再ビルド
+app/docs/SOURCE_RELEASE.mdとapp/docs/ASIO_BUILD.mdを参照してください。
+再利用EXEのbuild入力はbinary-originに分け、現在のapp sourceと区別しています。
+release/native-input-lock.jsonのhashで元CIのsourceとの一致を確認します。
+元CIのcommitは取得元の記録として残しますが、元のprivate Git履歴をcloneする必要はありません。
+MSVC、Windows SDK、Rust standard library等の通常の開発環境は別途用意します。
+既存の運用フォルダーに対してnpm ciやnative buildを行わないでください。
+
+Node.js
+runtime/NODE_LICENSEを保持します。使用版はcomponent-provenance.jsonを参照してください。
+公式source: https://nodejs.org/dist/v22.23.4/node-v22.23.4.tar.xz
+
+2026-10-22 個別レビュー用パッケージ
+・任意のsegfault-handler/StackWalkerクラッシュ診断hookとnative packageを除外します。
+  古いStackWalkerの許諾を別版のBSD表記から推定して配布することはしません。
+  naudiodon2の変更箇所と日付はJS内のコメントとapp/scriptsのpatchに保持します。
+・DAVE lockfileのregistry由来234 crateとParaBusのCargo.lock、同梱npm packageのarchiveは
+  lockfileのchecksum/integrityを照合します。他platform・開発用を含めた保守的なsource集合です。
+・元archive内のLICENSE / COPYING / NOTICE / AUTHORSを抽出し、欠落する本文は固定VCSから補います。
+  MPL本文とHPKEの完全なcrate/VCS sourceを添付します。本文・copyrightを改変しません。
+・Node.js 22.23.4の公式source archiveと同じ版のNODE_LICENSEを含めます。
+・source取得先とchecksumはSOURCE_DOWNLOADS.json、補足原文はSUPPLEMENTAL_NOTICES.json、
+  全ファイルの最終hashはSOURCE_INVENTORY.jsonに記録します。
+・Windows実機で約1時間の音声・録音・Discord送信を確認しました。
+  任意の診断hookを除いた候補ではnative読み込みと、別ポートでのNode launcher起動・通常終了を確認しました。
+  稼働中アプリの二重起動防止が働いたため、その状態で新EXEからのGUI起動は完了していません。
+  再作成したZIPの個別の検査結果は配布時の確認記録を参照してください。
+・上流prebuiltの全featuresとbit単位の再現性を独立検証したとは扱いません。
+  以前の一瞬のTX異常は原因未特定で、今回の長時間試験では問題報告なしです。
+・配布するZIPは新規作成し、実設定・Token・録音・Support Bundleを含めません。

@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>ParaBus 操作マニュアル</title>
+  <style>
+    :root {
+      --bg: #090d11; --panel: #111820; --panel2: #16212a; --line: #2a3945;
+      --text: #e8f0f5; --muted: #9aacb8; --cyan: #4dc8e8; --green: #66df91;
+      --amber: #f2b85b; --red: #ff6473; --code: #0a1117; --max: 1180px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.78 "Yu Gothic UI", "Meiryo", system-ui, sans-serif; }
+    a { color: var(--cyan); text-decoration: none; } a:hover { text-decoration: underline; }
+    code, pre, kbd { font-family: Consolas, "Cascadia Mono", monospace; }
+    code { padding: .12em .38em; border: 1px solid #2a3c48; border-radius: 4px; background: var(--code); color: #c9f4ff; }
+    kbd { padding: .15em .45em; border: 1px solid #53616b; border-bottom-width: 2px; border-radius: 4px; background: #202a32; }
+    .layout { width: min(100%, var(--max)); margin: auto; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 30px; padding: 24px; }
+    aside { position: sticky; top: 18px; align-self: start; max-height: calc(100vh - 36px); overflow: auto; border: 1px solid var(--line); background: #0d141a; }
+    .brand { padding: 20px; border-bottom: 1px solid var(--line); }
+    .logo { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 12px; border: 2px solid var(--cyan); color: var(--cyan); font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+    .brand strong { display: block; font-size: 14px; }.brand small { color: var(--muted); }
+    nav { padding: 12px; } nav a { display: block; padding: 8px 10px; border-left: 2px solid transparent; color: var(--muted); font-size: 13px; }
+    nav a:hover, nav a.active { border-color: var(--cyan); background: #14212a; color: var(--text); text-decoration: none; }
+    .side-actions { display: grid; gap: 7px; padding: 12px; border-top: 1px solid var(--line); }
+    button { padding: 9px 12px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); cursor: pointer; }
+    button:hover { border-color: var(--cyan); }
+    main { min-width: 0; }
+    .hero { padding: 34px; border: 1px solid var(--line); background: radial-gradient(circle at 92% 5%, #153744 0, transparent 33%), linear-gradient(145deg, #111b23, #0c1217); }
+    .eyebrow { color: var(--cyan); font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { max-width: 740px; margin: 7px 0 12px; font-size: clamp(28px, 5vw, 46px); line-height: 1.18; }
+    .lead { max-width: 750px; margin: 0; color: #b8c8d2; font-size: 17px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 21px; }
+    .badge { padding: 5px 9px; border: 1px solid #34505e; color: #cdeef6; font-size: 11px; }
+    section { margin-top: 36px; }
+    h2 { margin: 0 0 14px; padding-bottom: 9px; border-bottom: 1px solid var(--line); font-size: 25px; }
+    h3 { margin: 25px 0 8px; font-size: 18px; } p { margin: 8px 0 13px; }
+    .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .step, .card { padding: 18px; border: 1px solid var(--line); background: var(--panel); }
+    .step .number { width: 29px; height: 29px; display: grid; place-items: center; margin-bottom: 10px; border-radius: 50%; background: var(--cyan); color: #061015; font-weight: 900; }
+    .step strong { display: block; font-size: 16px; }.step p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+    .callout { margin: 16px 0; padding: 14px 16px; border-left: 4px solid var(--cyan); background: #101c23; }
+    .callout.warning { border-color: var(--amber); background: #211b12; }.callout.danger { border-color: var(--red); background: #251418; }
+    .callout strong { display: block; margin-bottom: 3px; }
+    .menu-demo { max-width: 360px; overflow: hidden; border: 1px solid #46535d; border-radius: 5px; background: #f4f4f4; color: #171717; box-shadow: 0 15px 40px #0007; }
+    .menu-demo div { padding: 8px 22px; border-bottom: 1px solid #ddd; }.menu-demo div:last-child { border: 0; }.menu-demo b { color: #0b677d; }
+    pre { overflow-x: auto; padding: 15px; border: 1px solid var(--line); background: var(--code); color: #c8e5ee; line-height: 1.55; }
+    .flow { display: flex; align-items: stretch; gap: 8px; overflow-x: auto; padding: 10px 0 4px; }
+    .flow div { min-width: 135px; padding: 14px; border: 1px solid var(--line); background: var(--panel); text-align: center; font-size: 13px; }
+    .flow span { align-self: center; color: var(--cyan); font-size: 20px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; background: var(--panel); }
+    th, td { padding: 11px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #17232c; color: #ccebf3; } td:first-child { white-space: nowrap; }
+    ul, ol { padding-left: 1.4em; } li { margin: 5px 0; }
+    .meter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .meter-card { padding: 16px; border: 1px solid var(--line); background: var(--panel); }
+    .meter-card strong { display: block; color: var(--green); font: 22px Consolas, monospace; }.meter-card small { color: var(--muted); }
+    .check { list-style: none; padding: 0; }.check li { position: relative; padding-left: 25px; }.check li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 900; }
+    .footer { margin: 45px 0 20px; padding: 20px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .search { width: 100%; padding: 9px 10px; border: 1px solid var(--line); outline: none; background: var(--code); color: var(--text); }
+    [data-hidden="true"] { display: none; }
+    @media (max-width: 850px) {
+      .layout { display: block; padding: 12px; } aside { position: static; max-height: none; margin-bottom: 18px; } nav { columns: 2; }
+      .quick, .meter-grid { grid-template-columns: 1fr; }.hero { padding: 24px; } table { font-size: 13px; } th, td { padding: 8px; }
+    }
+    @media print {
+      :root { color-scheme: light; --bg:#fff; --panel:#fff; --panel2:#fff; --line:#bbb; --text:#111; --muted:#444; --code:#f4f4f4; }
+      body { font-size: 11pt; }.layout { display: block; max-width: none; padding: 0; } aside, .side-actions { display: none; }
+      section { break-inside: avoid; } .hero { background: none; } a { color: #111; text-decoration: underline; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside aria-label="目次">
+      <div class="brand"><div class="logo">PB</div><strong>ParaBus</strong><small>操作マニュアル v0.1</small></div>
+      <div style="padding:12px 12px 0"><input id="search" class="search" type="search" placeholder="マニュアル内を絞り込み" aria-label="マニュアル内を検索"></div>
+      <nav id="toc">
+        <a href="#quick">まず起動する</a><a href="#tray">常駐アイコン</a><a href="#discord">Discord設定</a><a href="#settings">設定ページ</a>
+        <a href="#tablet">Tablet Control</a><a href="#screen">画面の見方</a><a href="#monitor-log">Monitor / Log</a><a href="#bots">Bot Rack</a><a href="#vcmix">VC Quick Mix</a><a href="#returns">Discord Return</a><a href="#recorder">Recorder</a><a href="#scenes">Sceneと安全操作</a><a href="#io">出力デバイス</a><a href="#matrix">出力マッピング</a>
+        <a href="#meter">メーター</a><a href="#mix">ミキサー操作</a>
+        <a href="#safety">安全機能</a><a href="#trouble">困ったとき</a><a href="#shutdown">終了・ログ</a>
+        <a href="#limits">現在の範囲</a>
+      </nav>
+      <div class="side-actions"><button id="print">印刷 / PDF保存</button></div>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <div class="eyebrow">Operator manual</div>
+        <h1>ParaBus<br>操作マニュアル</h1>
+        <p class="lead">起動、Discord接続、音量調整、ラウドネス確認、トラブル対応をこの1ページにまとめています。</p>
+        <div class="badges"><span class="badge">Windows</span><span class="badge">48 kHz</span><span class="badge">最大80 RX</span><span class="badge">64 Outputs</span><span class="badge">DAVE対応</span><span class="badge">Broadcast Safety</span></div>
+      </header>
+
+      <section id="quick" data-search-section>
+        <h2>まず起動する</h2>
+        <div class="quick">
+          <div class="step"><div class="number">1</div><strong>ParaBus.exeをダブルクリック</strong><p>WindowsのテストZIPを専用フォルダーへ展開し、<code>ParaBus.exe</code>を開きます。アプリだけを別の場所へ移さないでください。</p></div>
+          <div class="step"><div class="number">2</div><strong>ParaBusアイコンを確認</strong><p>タスクバー右端の通知領域にParaBusアイコンが残れば起動中です。</p></div>
+          <div class="step"><div class="number">3</div><strong>UIを開く</strong><p>ParaBusアイコンをダブルクリックします。既定ブラウザーで操作画面が開きます。</p></div>
+        </div>
+        <div class="callout"><strong>Windowsはコンソール窓を出しません</strong>本体は通知領域で動作します。アイコンが見えない場合は通知領域の <code>^</code> を押してください。SmartScreenが出たら、取得元を確認したうえで<strong>詳細情報 → 実行</strong>を選びます。Botは未接続で待機するため、SETUPから対象Botを接続します。互換用の<code>start-router.cmd</code>も使用できます。</div>
+        <h3>Macの初回起動</h3>
+        <p>ZIPは書き込み可能な専用フォルダーへ展開します。<code>ParaBus.app</code>だけを移動せず、runtime・scriptsなどと一緒に置きます。</p>
+        <ol><li><strong>ParaBus.appをダブルクリック</strong>。警告が出たら<strong>完了</strong>で閉じます。</li><li><strong>システム設定 → プライバシーとセキュリティ → このまま開く</strong>で、信頼できるParaBusの起動を許可します。</li><li>必要ならもう一度ダブルクリックします。同じ展開フォルダーでは通常、2回目以降の許可は不要です。ブラウザーに操作画面が開きます。</li></ol>
+        <p>Apple Developerの署名・公証は行いません。許可手順は<a href="https://support.apple.com/ja-jp/102445">Appleの初回起動案内</a>も参照してください。OS更新や管理ポリシーによっては再確認が必要です。</p>
+        <p>初回起動後、展開フォルダー内だけの<code>com.apple.quarantine</code>属性を解除します。Gatekeeper全体は変更しません。OSの隔離実行で隣のファイルが見えない場合は、runtime・scripts・ParaBus.appが入った<strong>展開フォルダーを選択</strong>してください。互換用の<code>start-router.command</code>も残しています。</p>
+      </section>
+
+      <section id="tablet" data-search-section>
+        <h2>タブレットから操作する</h2>
+        <ol><li>Desktopの<strong>SETUP → Tablet Control</strong>を開きます。</li><li><strong>Tablet Controlを有効にする</strong>へチェックし、通常はLAN PORT <code>4174</code>のまま、Bot設定と共通の<strong>設定を保存</strong>を押します。</li><li>停止できるタイミングでSETUPの<strong>ParaBus本体を再起動</strong>を押します。有効化・Port変更は再起動後に反映されます。</li><li><strong>接続情報を更新</strong>で表示された<code>http://PCのIP:4174</code>をTabletまたは別ブラウザーで開きます。</li><li>Desktopに表示された8桁のペアリングコードを入力します。再起動前の古いDesktopタブは閉じ、最新画面を開き直してください。</li></ol>
+        <p>Tabletには専用の<strong>クイックミックス・監視・録音監視・シーン</strong>画面が表示されます。VC SendとBus Masterはフェーダーでも数値でも入力でき、現在値はdBFS、Bus loudnessはLUFS-Mで確認できます。</p>
+        <table><thead><tr><th>Tabletで可能</th><th>Desktopのみ</th></tr></thead><tbody><tr><td>VC Send、Mute、PFL、Bus Master / Mute、LUFS Reset、確認付きScene Recall</td><td>Bot / Token、Device、Matrix構造、TX開始停止、録音開始停止、Emergency Mute解除</td></tr><tr><td>Bot / TX / Recorder状態の監視</td><td>Scene保存・削除、Recall Safe、管理設定</td></tr></tbody></table>
+        <div class="callout danger"><strong>信頼できるLANだけで使う</strong>SoundGrid専用NICではなくControl / Internet側LANを使ってください。公衆Wi-Fi、ポート開放、インターネットへの直接公開は行わないでください。</div>
+        <div class="callout"><strong>Tabletが切れても音は継続</strong>接続が切れると操作画面を無効化しますが、現在のFader・Mute・配信・録音状態は変更しません。再接続すると最新状態へ戻ります。</div>
+        <p>ペアリングコードは起動ごとに変わり、sessionはCoreのmemory内だけに保持されます。Bot Token、Discord内部ID、録音Folder / file名、管理設定はTabletへ送られません。</p>
+      </section>
+
+      <section id="tray" data-search-section>
+        <h2>通知領域のParaBusアイコン</h2>
+        <p>ParaBusアイコンがアプリの起動状態と操作入口です。二重起動は自動的に防止されます。</p>
+        <div class="menu-demo" aria-label="トレイメニューの例">
+          <div><b>UIを開く</b></div><div>マニュアルを開く</div><div>Discord Bot設定を開く</div><div>設定ファイルを直接開く</div><div>再起動</div><div>ログを開く</div><div>終了</div>
+        </div>
+        <table><thead><tr><th>操作</th><th>結果</th></tr></thead><tbody>
+          <tr><td>アイコンをダブルクリック</td><td>ミキサーUIを開く</td></tr>
+          <tr><td>UIを開く</td><td><code>http://127.0.0.1:4173</code> を開く</td></tr>
+          <tr><td>マニュアルを開く</td><td>Core起動中は <code>http://127.0.0.1:4173/manual</code> でこのマニュアルを開く</td></tr>
+          <tr><td>Discord Bot設定を開く</td><td>日本語の設定ページを開く</td></tr>
+          <tr><td>設定ファイルを直接開く</td><td><code>discord-bots.json</code>をメモ帳で開く上級者向け操作</td></tr>
+          <tr><td>再起動</td><td>CoreとDiscord接続を安全に起動し直す</td></tr>
+          <tr><td>ログを開く</td><td><code>logs/router.log</code> を開く</td></tr>
+          <tr><td>終了</td><td>CoreとAdapterをまとめて終了する</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="discord" data-search-section>
+        <h2>Discord接続を設定する</h2>
+        <ol><li><strong>SETUP → Bots</strong>を開き、<strong>＋ Bot</strong>または役割別の追加ボタンを押します。</li><li>カードの<strong>詳細</strong>で名前・役割・Server ID・VC ID・Tokenを入力し、<strong>使用</strong>へチェックします。</li><li><strong>設定を保存</strong>を押します。保存だけでは接続しません。</li><li>各Botの<strong>接続</strong> / <strong>切断</strong>を明示的に押して操作します。</li></ol>
+        <p>20台などを登録するときは<strong>Bot Token をまとめて追加</strong>へ1行1Tokenで貼り付けます。空行・重複・形式不正行は飛ばし、合計24台までRXとして追加します。Server IDだけ1枚目から引き継ぎ、VC IDは事故防止のため空欄です。各VCを設定してから保存してください。</p>
+        <div class="callout danger"><strong>Botトークンを共有しない</strong>スクリーンショット、チャット、ソースコード、ログへ貼らないでください。設定ページのBOT TOKEN欄だけへ入力します。</div>
+        <h3>IDをコピーできない場合</h3>
+        <p>Discordの開発者モードを有効にすると、サーバーやボイスチャンネルの右クリックメニューからIDをコピーできます。Botには対象チャンネルの表示・接続・発言権限が必要です。</p>
+        <p>Discordを使わず画面だけ試す場合は3項目を空欄にします。16チャンネルのテスト音声で起動します。</p>
+        <h3>まず1 Botで送受信</h3>
+        <p>通常はRoleを<strong>RX+TX（双方向）</strong>にします。1 Bot・1 VoiceConnectionでDiscord音声の受信とGAME Stemの送信ができます。同じTokenをRXとTXへ重複登録しないでください。</p>
+        <h3>複数Bot / RX最大24・TX最大22・合計最大24</h3>
+        <p>設定ページの<strong>+ 送受信Bot</strong>、<strong>+ RX Bot</strong>または<strong>+ TX Bot</strong>で追加します。TX / 双方向BotはGAME / CASTER / COMMENTARY / IFBとMONO / STEREOを選べます。</p>
+        <p>1 PCあたりRX最大24 Bot、TX最大22 Bot、合計最大24 Botです。DUPLEXはRX枠・TX枠を各1つ消費し、合計では1 Botと数えます。APEX 20チームはRX PCとTX PCを分離する設計です。すべて別のBot tokenを使い、チャットやJSONへtoken本体を貼らず、<code>.env</code>だけへ保存してください。</p>
+      </section>
+
+      <section id="settings" data-search-section>
+        <h2>設定ページの使い方</h2>
+        <table><thead><tr><th>項目</th><th>内容</th></tr></thead><tbody>
+          <tr><td>PROFILE ID</td><td>ParaBus内でBotを識別する英数字・<code>_</code>・<code>-</code>の名前</td></tr>
+          <tr><td>BOT表示名</td><td>BOT RACKやRETURNSに表示する分かりやすい名前</td></tr>
+          <tr><td>ROLE</td><td>1 Bot送受信はRX+TX（双方向）、受信専用はRX、送信専用はTX</td></tr>
+          <tr><td>TX MODE</td><td>TXまたは双方向で使用。MONOは入力1ch、STEREOは連続する入力2ch</td></tr>
+          <tr><td>GUILD ID</td><td>DiscordサーバーID。17〜20桁</td></tr>
+          <tr><td>VOICE CHANNEL ID</td><td>接続するボイスチャンネルID。17〜20桁</td></tr>
+          <tr><td>BOT TOKEN</td><td>未設定時または変更時だけ入力。既存値は再表示されない</td></tr>
+          <tr><td>VCへ接続</td><td>保存済みの有効なBotだけを接続する。ON AIR中は安全のため拒否される</td></tr>
+          <tr><td>VCから切断</td><td>確認後、そのBotの受信・送信を停止して切断する。ほかのBotは維持する</td></tr>
+        </tbody></table>
+        <div class="callout"><strong>「設定済み」なら空欄でよい</strong>Token欄を空欄のまま保存すると、現在のTokenを保持します。保存後も欄は空になります。</div>
+        <div class="callout warning"><strong>設定変更中は先に保存</strong>Guild / VC IDやTokenを変えた場合は保存後に対象Botを一度切断し、再接続します。起動・本体再起動時は有効なBotも未接続で待機するため、SETUPから接続してください。接続後の通信断からの自動復帰は維持します。Tablet Controlの有効化・Port変更はParaBus再起動後に反映されます。</div>
+      </section>
+
+      <section id="screen" data-search-section>
+        <h2>画面の見方</h2>
+        <p>操作画面はMIX・ROUTE・STATUS・SESSION・SETUPへ統一しました。実装ファイルは<code>index.html / app.js / styles.css</code>です。操作画面は<code>/</code>から開いてください。<code>/index.html</code>からも<code>/</code>へ移動します。</p>
+        <table><thead><tr><th>画面</th><th>詳細操作の場所</th></tr></thead><tbody>
+          <tr><td>MIX</td><td>参加者検索、受信INメーター、ALLOW、VC MIX送信ON/OFF・音量、CUE、全VC Master。VC Master名を押すと、そのVCの参加者へ表示を切り替えます。</td></tr>
+          <tr><td>ROUTE</td><td>VC MIX・VC MIX BUS（グループ）・参加者Direct Out → Main OUTのマトリクス。Input Ch → TX Botのマトリクス（MONO / STEREO）。送信音量・ON/OFFはMIXのTX MASTERSで操作します。送信先VCはSETUPのBot設定で指定します。</td></tr>
+          <tr><td>STATUS</td><td>Main/Cue・Bot/User・録音状態、イベントのlevel/text検索と確認付き消去、Support Bundle。<strong>詳細診断</strong>でCPU・メモリ・ネットワーク・RX/TX・Rust Shadow情報。</td></tr>
+          <tr><td>SESSION</td><td>録音対象選択・開始/停止、Scene保存/上書き/削除、Preview→確認して適用、検索付き<strong>Recall Safe</strong>。</td></tr>
+          <tr><td>SETUP</td><td>Main/Cue/Input機器、必要時のWindows endpoint手動指定、テストトーン、Tablet設定・ペアリング情報、LAN公開、共通Server ID、Bot設定の読み書き、一括Token追加、本体再起動。</td></tr>
+        </tbody></table>
+        <details class="callout"><summary>別PCからメインUIを操作する · LAN公開（任意）</summary>
+          <ol>
+            <li>実行PCの<strong>SETUP → LAN公開</strong>を有効にして保存します。従来どおり実行フォルダの<code>.env</code>へ<code>DBR_LAN_ACCESS=1</code>を記入する方法も使えます。</li>
+            <li>ParaBusを再起動し、SETUPに表示された<code>LAN公開中: http://&lt;IP&gt;:4173</code>を確認します。PORTを変更した場合はその番号になります。</li>
+            <li>Windowsファイアウォールで、ParaBusのNodeを<strong>プライベートネットワークのみ</strong>許可します。ファイアウォールを無効化したり、パブリックネットワークを許可したりしないでください。</li>
+            <li>同じLANの別PCのブラウザーから、表示されたURLを開きます。</li>
+          </ol>
+          <p><strong>同じLANの誰でも操作できる。共有LANでは使わない。</strong>ユーザー認証や通信の暗号化はありません。信頼できる専用LANでのみ有効にしてください。NonceとOriginの検査は、ログイン認証の代わりにはなりません。</p>
+          <p>Bot / Token設定、Tablet管理、本体再起動、Support Bundleは別PCから操作できません。実行PCの<code>http://127.0.0.1:4173</code>で行います。実行PC自身でLAN URLを開いた場合も、設定は制限されます。</p>
+          <p>無効化は<code>DBR_LAN_ACCESS=0</code>またはその行を削除して再起動します。既定は127.0.0.1だけです。<code>HOST=0.0.0.0</code>だけでは公開しません。LAN URLと許可するOriginは起動時のIPv4一覧で決まり、IPが変わったら再起動してください。</p>
+        </details>
+        <details class="callout"><summary>共通Server・Bot設定ファイル・ドライバ別の機器選択</summary>
+          <p>初回のBot一覧は空です。共通Server IDを入力すると、未設定または前の共通IDを使っているBotへ反映します。別Serverを個別指定したBotは維持します。Serverが変わったBotのVCは空になるため、接続先を選び直してください。</p>
+          <p>Bot名は自由に変更できます。内部Profile IDは接続・Token・Sceneの参照に使うため、非表示の固定IDとして保持します。Bot設定の書き出しにはTokenを含めませんが、Server / VC IDは含みます。読み込みは編集一覧の置換だけで、自動保存・接続はしません。</p>
+          <p>機器選択はASIO / WASAPIなどのドライバ別に区切ります。「稼働中」に表示された機器とドライバが実際の使用先です。選択だけでは切り替わりません。</p>
+        </details>
+        <details class="callout"><summary>Mainと同じ機器でCueを出す（ASIOも対応）</summary>
+          <p>SETUPのCue設定で<strong>Mainの空き出力ch</strong>を指定します。Mainと同じストリームを使うため、同じ機器を二重に開きません。Main本線・Direct Outと共有しない空きchと、そのchにつながったヘッドホン設備が必要です。2出力しかない機器で本線が1/2を使っている場合は共有Cueを作れません。</p>
+          <p>独立Cueデバイスを停止してから、SETUP中に設定してください。別のASIO機器を独立Cueとして同時に開く機能ではありません。Physical InputのASIOは既存のMainとの共有ストリーム方式を使います。</p>
+        </details>
+        <details class="callout"><summary>赤／青などのグループBusとDirect Out</summary>
+          <p>ROUTEのグループBusでVCを選びます。各VC MIXのフェーダー・MUTE後の音声を合算し、さらにグループのフェーダー・MUTEを通します。グループもマトリクスからOutputへ割り当てられます。グループの入れ子には対応しません。</p>
+          <p><strong>元のVCの出力先は自動では解除しません。</strong>二重に出したくない経路はマトリクスで解除してください。グループ構成は現在のセッション限りです。再起動後は作り直してください。Sceneだけで構成の復元はできません。</p>
+          <p>マトリクスのVC名を押すと参加者のDirect Out行が開きます。DirectはMONO表示で割り当て、既存のPRE/POSTを維持します（未設定はPRE）。PREのDirect OutはMIXのVC MIX送信ON/OFF・音量から独立しています。InputのTX送信は別のInput → TX Botマトリクスで設定し、物理OUTは使いません。</p>
+          <p>MIXではVCマスターの名前を押すと、そのVCの参加者へ切り替わります。1本だけのマスターも横いっぱいには広がりません。</p>
+        </details>
+        <table><thead><tr><th>場所</th><th>内容</th></tr></thead><tbody>
+          <tr><td>CONNECTED</td><td>ブラウザーとRouter Coreの制御接続</td></tr>
+          <tr><td>DISCORD RX 1</td><td>Discord Adapterが接続され、VC受信可能</td></tr>
+          <tr><td>RX SOURCES</td><td>現在生成されている入力チャンネル数</td></tr>
+          <tr><td>ACTIVE</td><td>現在音声が検出されているチャンネル数</td></tr>
+          <tr><td>CALLBACK LOAD</td><td>10 ms処理時間に対するDSP負荷</td></tr>
+          <tr><td>XRUNS</td><td>10 msの処理締切を超えた回数。通常は0</td></tr>
+          <tr><td>入力チャンネル</td><td>Discord Userごとのmeter、fader、send、mute、PFL</td></tr>
+          <tr><td>VC BUS</td><td>配信用mono mix、LUFS、master、limiter</td></tr>
+          <tr><td>EVENT LOG</td><td>状態変更、mute、faultなどの履歴</td></tr>
+          <tr><td>I/O</td><td>Mock / Windows実出力deviceの選択、device情報、output test tone</td></tr>
+          <tr><td>MATRIX</td><td>Discord UserごとのOutput ch、PRE / POST、gain、mute</td></tr>
+          <tr><td>BOT RACK</td><td>RX最大24・TX最大22・合計最大24 BotのGateway、Voice、Ping、再接続、User RX状態</td></tr>
+          <tr><td>VC MIX</td><td>VC別の参加者Send、Mute、PFL、Bus Master、Policy、Compressor</td></tr>
+          <tr><td>SCENES</td><td>Scene保存、差分Preview、Recall Safe、Safety状態、Event Log</td></tr>
+          <tr><td>RETURNS</td><td>4 TX Stem、Studio input、TX Bot Pool / VC、送信meter・frame・drop</td></tr>
+          <tr><td>RECORDER</td><td>Program / VC Bus / User個別WAV、disk free、Queue / drop、録音FAULT</td></tr>
+          <tr><td>MONITOR</td><td>Audio Engine、Discord、Output、Recorder、Rust shadow、WASAPI management、Alert、PC資源の統合監視</td></tr>
+          <tr><td>LOG</td><td>Event件数、INFO / WARNING / CRITICAL、レベル・文字列filter、確認付き消去</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="monitor-log" data-search-section>
+        <h2>稼働状況とEventを確認する（STATUS）</h2>
+        <h3>MONITOR</h3>
+        <p><strong>STATUS</strong>でMain/Cue、Audio Engine、Discord、Input、Recorderを確認します。詳細なCPU・メモリ・ネットワーク・Rust Shadow・RX/TX統計は<strong>詳細診断</strong>を開きます。緑は正常、黄は注意、赤は障害です。xrunはミキサーの計算時間超過だけを数えるため、0でも受信dropや出力dropが起きる場合があります。</p>
+        <table><thead><tr><th>表示</th><th>確認すること</th></tr></thead><tbody>
+          <tr><td>CALLBACK LOAD / XRUN</td><td>10 msの処理時間を超えていないか。XRUNは通常0</td></tr>
+          <tr><td>Queues / IPC</td><td>Discord decode、TX、Recorder、Rust shadowのpending / drop / errorが増えていないか</td></tr>
+          <tr><td>System</td><td>ParaBus processのCPU・RSS・JS heap、PC空きmemory、録音disk空き、稼働時間、network interface</td></tr>
+          <tr><td>Bot Health / RX Quality</td><td>Gateway・Voice・Ping・再接続とUser受信meter・packet・gap・drop・queue</td></tr>
+          <tr><td>Rust WASAPI</td><td>management process、endpoint件数、明示選択、availability、preflight format、stream停止状態</td></tr>
+        </tbody></table>
+        <div class="callout"><strong>MONITORは表示専用</strong>ここからrouting、音量、Bot接続、録音状態は変更できません。network interfaceには名前とIPだけを表示し、MAC addressは状態APIへ含めません。</div>
+        <h3>LOG</h3>
+        <p><strong>LEVEL</strong>でINFO / WARNING / CRITICALを選び、<strong>FILTER</strong>へBot名、Scene、Device、Recorderなどを入力して絞り込みます。表示対象は状態APIが保持する最新100件です。</p>
+        <div class="callout warning"><strong>ログ消去はSETUP / READY中だけ</strong>確認ダイアログで確定すると既存Eventを消去しますが、消去操作そのものはWARNINGとして残ります。Bot Tokenと音声内容は記録されません。</div>
+        <h3>Support Bundle · 障害調査用ZIP</h3>
+        <div class="callout warning"><strong>障害時は実行フォルダではなくSupport Bundleを共有する</strong>実行フォルダ全体、.env、Bot設定原本、録音ファイルをZIPにして共有しないでください。</div>
+        <ol><li><strong>STATUS → Support Bundle · 診断</strong>を開きます。</li><li>ログ日数（既定7日、1〜30日）を選び、<strong>Support Bundleを作成</strong>を押します。ON AIR中・録音中も使用でき、音声・TX状態は変更しません。</li><li><strong>出力先を開く</strong>から<code>settingsRoot/support/</code>の生成ZIPを確認し、その<strong>1ファイルだけ</strong>を調査担当へ共有します。フォルダを開けない環境では、作成結果に表示されたパスを使ってください。</li></ol>
+        <p>ZIPには最近の運用ログ、存在するトレイconsoleログ、build commit・起動時PC role・UTC起動時刻、Bot/TX/RX・drop・xrun・録音Queueの診断統計、Bot role・送信先区分・有効状態・台数、Node/OS/CPU/メモリ・native依存状態を含めます。Token・.env・Bot設定原本・録音・Scene・参加者profile原本は含めません。Discord ID・参加者表示名・Guild名・VC名はBundleごとに匿名化し、対応表は付けません。</p>
+        <p>Bot profileIdと運用者設定labelは残ります。機密の名称を付けないでください。未知のログ自由文は匿名イベントIDになり、原文の復元はできません。consoleログは更新日で選択され、末尾最大5MiBだけを収集します。途中から始まる最初の行は捨て、切り詰めと元サイズをbundle-info.jsonへ記録します。</p>
+      </section>
+
+
+      <section id="vcmix" data-search-section>
+        <h2>突然のInterviewをMixする（VC MIX）</h2>
+        <ol><li><strong>MIX</strong>を開き、Bot表示フィルターまたは参加者検索で対象を選びます。</li><li>IN（承認前）のPeak/RMS・Peak Hold・Clipで受信を確認します。INは送信量のメーターではないので、MIX OFFでも動きます。</li><li>各ストリップのVC MIXフェーダー、MIX ON/OFF、CUEを操作します。</li><li>全VCのMasterは常時表示されています。</li><li>ROUTEでVC MIXの出力先やグループを確認します。</li></ol>
+        <h3>新規参加者Policy</h3>
+        <table><thead><tr><th>Mode</th><th>新しく参加したUser</th></tr></thead><tbody>
+          <tr><td>SAFE</td><td>-12 dB / OPENで開始。通常のInterview向け</td></tr>
+          <tr><td>HOLD</td><td>Send Muteで待機。operatorが確認してからOPEN</td></tr>
+          <tr><td>PRESET</td><td>VC Busに設定したDEFAULT SENDでOPEN</td></tr>
+        </tbody></table>
+        <div class="callout"><strong>Policyは新規参加者だけに適用</strong>すでにMix済みのUser level / muteは変更しません。</div>
+        <h3>VC Busを追加・削除する</h3>
+        <p><strong>ROUTE → VC Bus · 作成 / 削除 / Botとの紐付け</strong>で新規名を入力し、<strong>SAFEで作成</strong>を押します。削除はBusを選んで<strong>削除</strong>を押し確認します。最後のBusは削除できません。作成したBusのBot/VC紐付けと物理出力も同じ場所で設定できます。</p>
+        <div class="callout warning"><strong>ON AIR中は構成を固定</strong>Bus追加・削除とPolicy変更はできません。参加者Send、Mute、PFL、Bus Masterは引き続き操作できます。</div>
+      </section>
+
+      <section id="bots" data-search-section>
+        <h2>複数Botを監視する（BOT RACK）</h2>
+        <p><strong>STATUS → 詳細統計</strong>のBot一覧、または<strong>詳細診断</strong>でGateway・Voice・Ping・再接続・RX情報を確認します。接続・復旧は<strong>SETUP → Bots</strong>で操作します。</p>
+        <table><thead><tr><th>表示</th><th>意味</th></tr></thead><tbody>
+          <tr><td>READY</td><td>GatewayとVoiceの両方が受信可能</td></tr>
+          <tr><td>RECONNECTING</td><td>同じBot・Guild・VCへ再接続中。別VCへ自動移動しない</td></tr>
+          <tr><td>STALE</td><td>15秒以上heartbeatを受信していない</td></tr>
+          <tr><td>WS / UDP</td><td>Discord VoiceのWebSocket / UDP往復時間（ms）</td></tr>
+          <tr><td>LAST AUDIO</td><td>そのBotで最後に音声packetを受けてからの時間</td></tr>
+          <tr><td>RX QUALITY</td><td>User別のpacket、sequence gap推定、drop、queue、最終packet時刻</td></tr>
+        </tbody></table>
+        <div class="callout"><strong>RX QUALITYは相手の回線品質そのものではありません</strong>このアプリが観測できたDiscord音声の受信状態です。</div>
+      </section>
+
+      <section id="io" data-search-section>
+        <h2>出力デバイスを選ぶ（I/O）</h2>
+        <ol>
+          <li><strong>SETUP → Audio I/O</strong>を開きます。</li>
+          <li>機器一覧を更新し、Main Output / Cue Output / Inputから対象を選びます。</li>
+          <li>Windows endpointの自動一致ができない場合は、手動確認の折り畳みを開いて同じ機器のendpointを明示指定します。ASIO・Core Audio等では不要です。</li>
+          <li><strong>デバイスを開始</strong>を押し、音量と保存済みROUTEを確認して確定します。</li>
+        </ol>
+        <div class="callout"><strong>初期状態はMock 64ch Output</strong>実deviceはoperatorが選択するまで開きません。Mockならスピーカーへ音を出さず、64ch mappingを安全に試せます。</div>
+        <table><thead><tr><th>表示</th><th>意味</th></tr></thead><tbody>
+          <tr><td>STATE</td><td><code>READY</code>は出力可能、<code>FAULT</code>はdevice error</td></tr>
+          <tr><td>ACTIVE OUTPUTS</td><td>選択deviceで現在使用できるoutput ch数</td></tr>
+          <tr><td>BACKPRESSURE DROP</td><td>出力bufferが間に合わずblockをdropした回数。通常は0</td></tr>
+          <tr><td>API</td><td>Simulator、WASAPI、DirectSound、WDM-KS、MMEなど</td></tr>
+          <tr><td>DEFAULT</td><td>deviceが報告するdefault sample rate。Routerのproject rateは48 kHz固定</td></tr>
+        </tbody></table>
+        <h3>Output Test Tone</h3>
+        <p><code>OUT 1</code>〜のボタンで、そのchだけへ1 kHz / −24 dBFSを送ります。もう一度押すと停止します。SoundGridとLV1のpatch順確認に使用します。</p>
+        <div class="callout warning"><strong>実deviceでは実際にtoneが出ます</strong>モニター音量を下げ、SETUP中に1chずつ確認してください。ON AIR中はtest toneを開始できません。</div>
+      </section>
+
+      <section id="tx-input-routing" data-search-section>
+        <h2>入力チャンネルをTX Botへ送る</h2>
+        <ol><li>SETUPでPhysical Inputのデバイスと入力ch数を選び、開始します。</li><li>Bot設定でMONO / STEREOを指定して接続します。</li><li>ROUTEの「Input Ch → TX Bot」で交点を押します。MONOは1ch、STEREOは選んだchと次のchをL/Rに使います（例：IN 3 / 4）。同じ入力を複数Botへ割り当てられます。</li><li>入力を選んだだけでは送信しません。送信先VCを確認して、MIXのTX MASTERSで該当Botの「送信OFF」を押し、確認して送信ONにします。</li></ol>
+        <p>InputのPOST音声を直接送信するため、Main Output・Direct Out・内部Busの割り当ては不要です。入力変更は停止中のみ。最後の1chだけではSTEREOにできません。緊急停止・切断・入力消失から自動再開しません。入力割り当ては現在のセッション内で有効です。</p>
+      </section>
+
+      <section id="matrix" data-search-section>
+        <h2>Userを出力chへ割り当てる（MATRIX）</h2>
+        <p><strong>ROUTE → VC名をクリック</strong>して参加者のDirect Out行を開き、OUTとの交点で割り当て／解除します。既存のPRE/POST設定を維持し、未設定はPREです。他経路が使っている出力への割り当ては拒否します。</p>
+        <table><thead><tr><th>項目</th><th>動作</th></tr></thead><tbody>
+          <tr><td>OUTPUT</td><td><code>OUT 1</code>〜物理出力ch。<code>OFF</code>でdirect route解除</td></tr>
+          <tr><td>PRE</td><td>Channel Faderの影響を受けない。LV1側mix、multitrack向け</td></tr>
+          <tr><td>POST（既存設定の互換用）</td><td>保存済みのチャンネル音量・Muteを反映する経路。MIX画面にはPOST専用操作を表示しない。VC MIX送信の音量・ON/OFFとは独立</td></tr>
+          <tr><td>GAIN</td><td>そのdirect routeだけに加えるlevel。0.1 dB単位</td></tr>
+          <tr><td>MUTE</td><td>そのdirect routeだけを無音にする</td></tr>
+          <tr><td>AUTO MAP 1:1</td><td>先頭UserからOUT 1、OUT 2…へPRE / 0 dBで一括割当</td></tr>
+          <tr><td>CLEAR ALL</td><td>すべてのUser direct routeを解除</td></tr>
+        </tbody></table>
+        <div class="callout warning"><strong>MappingはSETUPで確定する</strong>ON AIR中は出力先、PRE / POST、test toneの変更が拒否されます。deviceのch数を超えるOUTは選択できません。</div>
+      </section>
+
+      <section id="meter" data-search-section>
+        <h2>メーターと数値の読み方</h2>
+        <div class="meter-grid">
+          <div class="meter-card"><strong>PK dBFS</strong><small>現在のsample peak。0 dBFSを超えないようにする。</small></div>
+          <div class="meter-card"><strong>LUFS-M</strong><small>約400 msの瞬間ラウドネス。</small></div>
+          <div class="meter-card"><strong>LUFS-S</strong><small>約3秒の短時間ラウドネス。</small></div>
+          <div class="meter-card"><strong>LUFS-I</strong><small>開始またはresetからの積算ラウドネス。</small></div>
+        </div>
+        <div class="callout warning"><strong>配信運用の目安: −18 LUFS</strong>現在のUIでは配信用の運用基準として表示しています。配信先の規定がある場合は、その規定を優先してください。</div>
+        <ul>
+          <li>緑: 通常範囲</li><li>黄: peakが高め。上げ過ぎに注意</li><li>赤: 0 dBFS付近。fader / send / masterを下げる</li>
+          <li><code>−∞</code>: 実質無音</li><li><code>PK dBFS</code>はtrue peakではありません。true peak実装までは<code>dBTP</code>と読み替えないでください。</li>
+        </ul>
+      </section>
+
+      <section id="mix" data-search-section>
+        <h2>ミキサー操作</h2>
+        <h3>VC MIXへの送信音量</h3><p>参加者の縦faderを動かすか、その下の数値欄へdB値を入力します。数値欄は0.1 dB単位で入力でき、<kbd>Enter</kbd>で確定します。</p>
+        <h3>VC Send</h3><p>各UserをVC Busへ送る量です。新規Discord Userは安全のため <code>−12 dB</code> から始まります。faderと数値入力のどちらでも操作できます。</p>
+        <h3>参加者の送信ON/OFF</h3><p>参加者ストリップのMIX ON/OFFは、その参加者から選択中のVC MIXへの送信を操作します。PREのDirect Out・個人CUE・個別録音には影響しません。INメーターは受信音声を示すため、MIX OFFでも動きます。緊急時は画面上部のEmergency Muteを使います。</p>
+        <h3>PFL / CUE</h3><p>個人CUEはVC MIX送信のON/OFF・音量から独立し、VC MIX CUEはVC MasterのMute・Fader前で試聴します。本線の音量は変わりません。未承認の参加者・緊急停止はCUEでも無音。VC MIX CUEにはOFFのVC Sendを含めません。</p>
+        <h3>VC Bus Master</h3><p>配信用mono bus全体のlevelです。LUFS-Iとpeakを見ながら調整します。Safety Limiterは通常ONのまま使用します。</p>
+      </section>
+
+      <section id="returns" data-search-section>
+        <h2>入力音声をDiscordへ送る（TX）</h2>
+        <ol><li>SETUPで入力デバイス・ch数と、Botの名前・TXまたはRX+TX・MONO/STEREO・接続先VCを設定します。</li><li>ROUTEのInput Ch → TX Botで入力を割り当てます。MONOは1ch、STEREOは連続2chです。物理OUTは経由しません。</li><li>MIXのTX MASTERSでBotごとのフェーダーを調整し、「送信OFF」を押します。送信先VCと入力を確認して開始すると「送信ON」になります。</li><li>個別停止は「送信ON」、全停止は同じ欄の「全TX停止」です。全停止には確認を挟みません。</li></ol>
+        <p>TXフェーダーは入力のLEVEL・MUTE後に適用する、Botごとの独立した音量です。同じ入力を複数Botへ送っても他のBotの音量や録音PREには影響しません。範囲は−90〜+12 dB、−90 dBは無音です。PeakメーターはTX音量を反映した送信信号を表示します。フェーダーを動かすだけでは送信しません。</p>
+        <p>固定のTeam / Interview / Spare区分、TX STEM、ARMED/LIVE選択パネルはありません。設定したTX / RX+TX Botだけを自由な名前で表示します。旧設定の区分値は互換性のため保持しますが、この画面では使いません。旧SPARE役割はRXとして表示しますが、既存の受信担当を変えないため、内部では待機役割を保持します。</p>
+        <p>入力割り当てとTX音量は現在のセッション内で有効です。再起動後は入力を再度割り当ててから開始してください。TX音量の初期値は0 dBです。</p>
+        <div class="callout warning"><strong>勝手に再開しません</strong>VC / IPC切断、VC変更、Emergency Muteで送信を停止します。復旧後も手動の送信ONが必要です。送信中とON AIR中は入力割り当てを変更できません。</div>
+        <p>通常の全TX停止はIPCを維持します。STOP前に送信待ちとなった短い末尾音声は流れる場合があります。</p>
+        <div class="callout warning"><strong>RX / TXは別PCを推奨</strong>Emergency Mute・停止送信の障害時や送信待ちが256KiBを超えた全TX停止では共有IPCを切断することがあります。同じAdapterのRX / RX+TX受信も一時停止します。</div>
+        <div class="callout"><strong>Feedback Loopを防ぐ</strong>受信音声を外部ミキサーから入力へ戻す場合、同じVCの音声がそのVCへ戻らないようにしてください。</div>
+      </section>
+
+      <section id="recorder" data-search-section>
+        <h2>WAV録音</h2>
+        <ol><li><strong>SESSION</strong>を開きます。</li><li><strong>録音する音声</strong>で、必要なMain Output、VC MIX、User / Inputを個別にチェックします。各一覧で「すべて選択／解除」も使えます。</li><li>選択数を確認し、<strong>録音を開始</strong>で確認します。Userだけ、VC MIXだけの録音も可能です。</li><li>終了時は<strong>録音を停止</strong>を押し、保存完了（待機／IDLE）まで待ちます。</li></ol>
+        <p>保存先はプロジェクト内の<code>recordings</code>です。48 kHz / mono / 32-bit float WAVで、Trackは録音開始時に固定されます。</p>
+        <p>チェックした音声ごとに1ファイルを作成します。Output 1/2は2つのmono WAVです。User / Inputはフェーダー・ミュート・承認後の音声で、無音による自動除外はしません。途中参加のUserは自動追加せず、録音中／保存中は対象を変更できません。対象が消えた場合は、次の開始前に選び直してください。本線やCueの出力は録音操作で変更されません。</p>
+        <p>「本体を再起動して反映してください」と表示された場合は、出力・録音を止められるタイミングでSETUPから本体を再起動します。録音はSESSIONへ統一しました。Main Outputを1つ選び、VC MIXやUser / Inputで<strong>すべて選択</strong>すると従来のカテゴリ全件指定に相当します。</p>
+        <div class="callout warning"><strong>DROPとFAULTを確認</strong>QueueのDROPが増えた場合、またはRecorderがFAULTになった場合は録音だけが停止します。配信音声は継続します。disk空き容量とFolderを確認して新しいSessionを開始してください。</div>
+        <div class="callout"><strong>長時間録音</strong>1 WAVが4 GiBへ達する前に安全停止します。現バージョンは自動file splitを行わないため、長時間番組では途中でSessionを分けてください。</div>
+      </section>
+
+      <section id="scenes" data-search-section>
+        <h2>Sceneを安全に保存・呼び出す（SCENES）</h2>
+        <h3>現在のMixを保存する</h3>
+        <ol><li><strong>SESSION</strong>を開きます。</li><li><strong>現在のMIXを新しいSceneに保存</strong>で名前を入力して<strong>新規保存</strong>を押します。</li><li>保存済みSceneの選択欄へ名前が表示されたことを確認します。</li></ol>
+        <p>保存対象はchannel順・表示名・Trim・Fader・Mute・VC Send、Bus Master / Mute / Compressor / Limiter、Matrix gain / muteです。Bot token、出力device、Bot接続先、Guild / VC割当は保存しません。</p>
+        <h3>SceneをRecallする</h3>
+        <ol><li>保存済みSceneを選び、<strong>1. 変更を確認</strong>を押します。</li><li>差分と保護/ロックを確認します。</li><li><strong>2. 確認して適用</strong>を押し、適用件数を確認して承認します。</li></ol>
+        <table><thead><tr><th>結果</th><th>意味</th></tr></thead><tbody>
+          <tr><td>APPLY</td><td>確認後にScene値へ変更されるparameter</td></tr>
+          <tr><td>RECALL SAFE</td><td>右側で保護されているため、現在値を維持するparameter</td></tr>
+          <tr><td>SAFETY LOCK</td><td>現在のGlobal Stateでは変更を許可しないparameter。例: ON AIR中のLimiter OFF</td></tr>
+        </tbody></table>
+        <h3>Recall Safe</h3>
+        <p><strong>SESSION → Recall Safe · 項目ごとのScene保護</strong>を開き、検索して対象へチェックします。保護編集は設定ロックOFF・FAULT以外で行います。Previewにも保護状態が反映され、保護するだけでSceneをRecallすることはありません。</p>
+        <div class="callout warning"><strong>Sceneを選ぶだけでは音は変わりません</strong>必ず差分Previewと確認を通ります。FAULT中はRecallできず、ON AIR中はScene削除もできません。</div>
+        <h3>Safety SummaryとEvent Log</h3>
+        <p>上段でGlobal State、Emergency Mute、全Bus Limiter、Critical Alert、Output状態をまとめて確認できます。下段のEvent Logは新しい順に表示し、消去操作そのものも監査Eventとして残します。</p>
+      </section>
+
+      <section id="safety" data-search-section>
+        <h2>安全機能</h2>
+        <ul class="check">
+          <li>Emergency Muteはdirect / bus / matrixの全出力を即時無音にする。</li>
+          <li>Emergency Mute解除、ON AIR遷移・解除、Scene recallには確認操作が必要。</li>
+          <li>出力device loss時は勝手なfallbackをせずFAULTへ入る。</li>
+          <li>FAULT確認後もEmergency Muteは維持し、出力確認後に別操作で解除する。</li>
+          <li>ON AIR中はdevice、output mapping、VC assignment、Bus構造、Scene削除、Limiter OFFをlockする。</li>
+          <li>Discord / Adapterが切れたsourceはsilenceになり、stale表示される。</li>
+          <li>切断中のOpusを後から再生しない。古い会話はdropする。</li>
+        </ul>
+        <div class="flow" aria-label="音声経路"><div>Discord Voice<br>DAVE復号</div><span>→</span><div>Opus<br>Binary IPC</div><span>→</span><div>Core decode<br>48 kHz PCM</div><span>→</span><div>Channel DSP<br>Meter</div><span>→</span><div>VC Bus /<br>Direct Output</div></div>
+      </section>
+
+      <section id="trouble" data-search-section>
+        <h2>困ったとき</h2>
+        <table><thead><tr><th>症状</th><th>確認すること</th></tr></thead><tbody>
+          <tr><td>CMDがすぐ消えた</td><td>正常です。通知領域のParaBusアイコンを確認します。見えなければ <code>^</code> を押します。</td></tr>
+          <tr><td>WindowsのParaBusアイコンがない</td><td><code>ParaBus.exe</code>をもう一度実行します。テストZIPではNode.js同梱です。runtime・scriptsを含むフォルダー一式が揃っているか確認します。</td></tr>
+          <tr><td>起動失敗と通知された</td><td>ParaBusアイコンを右クリック → ログを開く。port 4173の競合や初回依存導入の失敗を確認します。</td></tr>
+          <tr><td>UIが開かない</td><td>ParaBusアイコン → UIを開く。それでも開かなければログを確認し、<code>http://127.0.0.1:4173</code>へアクセスします。</td></tr>
+          <tr><td>DISCORD WAITINGのまま</td><td>設定タブでBotが有効か、Bot token、Guild / VC ID、Botの表示・接続権限を確認し、<strong>VCへ接続</strong>を押します。ボタンも無効ならDiscord Adapterのログを確認します。</td></tr>
+          <tr><td>User channelが増えない</td><td>対象VCでUserが発話しているか、Botがserver deafになっていないか、TX Bot除外IDに入っていないか確認します。</td></tr>
+          <tr><td>meterが動かない</td><td>channelがstaleでないか、MUTE、fader、VC Sendを確認します。Discord受信自体はPK dBFSで切り分けます。</td></tr>
+          <tr><td>音が大き過ぎる</td><td>赤meterを確認し、channel fader、VC Send、Bus Masterの順に下げます。LimiterはONのままにします。</td></tr>
+          <tr><td>Bot設定を変えたが反映されない</td><td>設定を保存し、対象Botを<strong>VCから切断</strong>してから<strong>VCへ接続</strong>します。未保存の変更がある間は接続できません。</td></tr>
+          <tr><td>Tablet URLが表示されない</td><td>設定でTablet Controlを有効化・保存し、ParaBusを再起動します。Portがほかのアプリと競合していないかログを確認します。</td></tr>
+          <tr><td>Tabletから開けない</td><td>PCとTabletが同じControl / Internet側LANか確認します。Windows FirewallではPrivate network上の設定Portだけを許可し、公衆networkでは許可しません。</td></tr>
+          <tr><td>ペアリングできない</td><td>現在のDesktop画面に表示された8桁を使います。5回失敗すると同じ端末は5分間待機します。</td></tr>
+          <tr><td>終了しても残っている</td><td>ブラウザーを閉じるだけでは停止しません。実行PCのSETUP → ParaBus を終了を選びます。</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="shutdown" data-search-section>
+        <h2>終了・ログ・保守</h2>
+        <h3>終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
+        <p>Windowsではトレイの<strong>終了</strong>も同じ条件で停止します。ブラウザーのタブを閉じただけではアプリは停止しません。強制終了時の子プロセス監視もありますが、通常は終了ボタンを使ってください。録音中の強制終了はファイルを損なうおそれがあります。</p>
+        <h3>ログ</h3><p>WindowsはParaBusアイコン → <strong>ログを開く</strong>。Macは展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
+        <p>運用ログは<code>logs/operational-YYYY-MM-DD.jsonl</code>へ実行中も追記されます。終了を待つ必要はありません。障害時は実行フォルダではなく、診断画面で作成した<strong>Support Bundle</strong>だけを共有してください。</p>
+        <h3>開発者向け検証</h3>
+        <pre>npm.cmd run typecheck
+npm.cmd test
+npm.cmd run test:load</pre>
+        <p>リリース前は <a href="/checklist" data-file-href="CHECKLIST.md">開発・リリースチェックリスト</a> を使用してください。</p>
+      </section>
+
+      <section id="limits" data-search-section>
+        <h2>現在の実装範囲</h2>
+        <p>Phase 0のAudio EngineからPhase 9のGAME / CASTER / COMMENTARY / IFB、TX Bot Pool、Mix Minus、WAV Recorder、認証付きTablet Controlまで実装済みです。</p>
+        <ul><li>SoundGrid / LV1の実機64ch acceptanceは未実施。</li><li>実Discord 20 VCでの24時間acceptanceは未実施。</li><li>実Discord / SoundGridを組み合わせた4 Stem Return acceptanceは未実施。</li><li>SceneはCoreのmemory保存で、再起動後の永続化は未実装。</li><li>true peak / dBTPは未実装。</li><li>Recorderは32-bit float WAVのみで、自動file splitは未実装。</li><li>Discord Voice receiveは公開安定APIとして保証されないためAdapterを隔離しています。</li></ul>
+        <p>ソースからの導入と公開前の確認は、同梱の <code>docs/SOURCE_RELEASE.md</code> を参照してください。過去の開発ログ・検証メモは公開候補に含めません。</p>
+      </section>
+
+      <footer class="footer">ParaBus — Developed by Adil Azka<br>Built with Codex and Claude Code<br>ParaBus 操作マニュアル · ローカルで完結するため外部通信なしで表示できます。</footer>
+    </main>
+  </div>
+  <script>
+    const sections = [...document.querySelectorAll("[data-search-section]")];
+    const links = [...document.querySelectorAll("#toc a")];
+    if (location.protocol === "file:") {
+      for (const link of document.querySelectorAll("[data-file-href]")) link.href = link.dataset.fileHref;
+    }
+    document.querySelector("#search").addEventListener("input", (event) => {
+      const query = event.target.value.trim().toLocaleLowerCase("ja");
+      for (const section of sections) section.dataset.hidden = String(Boolean(query) && !section.textContent.toLocaleLowerCase("ja").includes(query));
+    });
+    document.querySelector("#print").addEventListener("click", () => window.print());
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      for (const link of links) link.classList.toggle("active", link.hash === `#${visible.target.id}`);
+    }, { rootMargin: "-10% 0px -70%", threshold: [0, .2, .6] });
+    for (const section of sections) observer.observe(section);
+  </script>
+</body>
+</html>

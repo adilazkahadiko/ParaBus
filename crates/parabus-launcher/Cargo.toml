@@ -1,0 +1,10 @@
+[package]
+name = "parabus-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Console-free ParaBus Windows tray launcher (standard library only)"
+
+[[bin]]
+name = "ParaBus"
+path = "src/main.rs"

@@ -1,0 +1,55 @@
+{
+  "name": "discord-broadcast-router",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "description": "ParaBus: Discord audio routing, mixing and recording",
+  "scripts": {
+    "postinstall": "node scripts/patch-naudiodon.ts && node scripts/patch-discord-voice.ts",
+    "patch:discord-voice": "node scripts/patch-discord-voice.ts",
+    "patch:audio-native": "node scripts/patch-naudiodon.ts",
+    "dev": "node --watch services/router-core-sim/src/server.ts",
+    "app": "node scripts/start-router.ts",
+    "start": "node services/router-core-sim/src/server.ts",
+    "start:adapter": "node services/discord-adapter/src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "test:load": "node tests/audio-load/run.ts",
+    "test:load:rust": "cargo run --release --bin router-core-audio-load",
+    "test:callback:rust": "cargo run --release --bin router-core-callback-load",
+    "test:wasapi:rust": "cargo test --workspace windows_provider_enumerates_unique_nonempty_render_and_capture_ids -- --ignored --nocapture",
+    "test:wasapi-stream:rust": "cargo test --workspace explicit_windows_endpoint_runs_event_callback_with_mmcss -- --ignored --nocapture",
+    "soak:wasapi-silent": "node services/router-core-sim/src/wasapi-silent-soak.ts",
+    "build:rust": "cargo build --workspace",
+    "test:rust": "cargo test --workspace",
+    "test:core-ipc": "npm run build:rust && node --test tests/core-ipc/*.test.ts",
+    "check:opus-native": "node scripts/opus-native-check.ts",
+    "check:audio-native": "node scripts/audio-native-check.ts",
+    "bench:opus-decoders": "node scripts/opus-decoder-bench.ts",
+    "stage:release": "node scripts/release-stage.ts",
+    "stage:source": "node scripts/release-stage.ts --source-only"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23"
+  },
+  "dependencies": {
+    "@discordjs/opus": "0.10.0",
+    "@discordjs/voice": "0.19.2",
+    "discord.js": "^14.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "node-gyp": "12.1.0",
+    "opusscript": "^0.1.1",
+    "typescript": "^7.0.2"
+  },
+  "optionalDependencies": {
+    "naudiodon2": "^2.5.0"
+  },
+  "overrides": {
+    "@discordjs/node-pre-gyp": {
+      "tar": "7.5.22"
+    }
+  }
+}
