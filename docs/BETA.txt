@@ -41,7 +41,9 @@ SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、REVIEW_PACKAGE.txtを参照して
   TypeScript型チェックと追加のパッケージ作成scriptの型チェックも成功しました。
 ・最終レビューZIPを新規展開し、同梱Node 22.23.4で音声・Opus・ASIOの読み込みに成功。
   別ポートで同梱Node/start-routerからCore・Adapterを起動し、APIによる通常終了と残存process 0を確認。
-  ParaBus.exeは既存アプリの二重起動防止が働いたため、その状態でのGUI起動は完了していません。
+  当初は既存アプリの二重起動防止が働きGUI起動を確認できませんでしたが、
+  最終レビュー対応候補a8d49c41c077では、新規展開した実ParaBus.exeから起動し、
+  BUILD・Bot未設定・同梱Nodeの3 process・API通常終了・残存process 0を確認しました。
   EXEとトレイの起動処理は、実機検証済み1058fb681f93から変更していません。
 ・Rust EXE・音声native部品はCI commit ed4c57df4431のものを再利用しています。
   元ソースとの差分がないこととhashを確認し、このPCで再コンパイルしたとは扱いません。

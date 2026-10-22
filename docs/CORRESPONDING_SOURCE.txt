@@ -60,7 +60,7 @@ runtime/NODE_LICENSEを保持します。使用版はcomponent-provenance.json�
   全ファイルの最終hashはSOURCE_INVENTORY.jsonに記録します。
 ・Windows実機で約1時間の音声・録音・Discord送信を確認しました。
   任意の診断hookを除いた候補ではnative読み込みと、別ポートでのNode launcher起動・通常終了を確認しました。
-  稼働中アプリの二重起動防止が働いたため、その状態で新EXEからのGUI起動は完了していません。
+  候補a8d49c41c077では、その後に実ParaBus.exeでの起動・通常終了も新規展開先で確認しました。
   再作成したZIPの個別の検査結果は配布時の確認記録を参照してください。
 ・上流prebuiltの全featuresとbit単位の再現性を独立検証したとは扱いません。
   以前の一瞬のTX異常は原因未特定で、今回の長時間試験では問題報告なしです。
