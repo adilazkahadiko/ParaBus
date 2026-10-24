@@ -1,7 +1,8 @@
 # Third-party licensing inventory
 
 ParaBus本体のGPL-3.0-only表記は、第三者コードのライセンスを置き換えるものではありません。
-過去の調査記録も含む一覧です。2026-10-22の個別レビュー版の構成は下記の最新節を参照してください。
+過去の調査記録も含む一覧です。現在の公開ベータ版は末尾の「Windows公開ベータ版」を参照してください。
+それ以前の節は、その時点の候補に対する履歴であり、現在の配布判定ではありません。
 依存を再配布するときは、各配布物の元の著作権表記、LICENSE / COPYING / NOTICEを保持してください。
 
 ## Node dependencies
@@ -172,7 +173,7 @@ PortAudio source・ASIO SDK・生成変更・DLL・bindingの5 hashも同梱buil
 一方、HPKEのsource取得案内とStackWalkerの権利者表記は見つからず、ParaBusのCargo workspaceも入っていません。
 このZIPをそのまま外部へ渡す判定にはしません。
 
-## Distribution gate
+## Distribution gate（旧候補の調査履歴）
 
 [ASIO Releaseビルド手順と検証記録](docs/ASIO_BUILD.md)で、固定SDKからの独立ビルドを確認しました。
 ASIO SDKにはrootのデュアルライセンスだけでなく、host sourceのBSD条件もあり、
@@ -185,7 +186,8 @@ Nodeの推移依存やprebuilt内NOTICEの網羅・DLLのアプリ組み込み�
 現在のrelease stageは実行用artifactであり、GPLv3の対応source一式を作る仕組みではありません。
 実行ファイルごとの出自と個別レビュー版の作成手順は[配布手順](docs/SOURCE_RELEASE.md)に記録しています。
 
-上記は従来候補の調査時点の保留事項です。GitHubへの公開はこの作業では行いません。
+上記は従来候補の調査時点の保留事項です。当時の調査作業ではGitHub公開を行っていません。
+後の公開ベータ版の状況は末尾を参照してください。
 
 ## Windows個別レビュー版（2026-10-22）
 
@@ -204,3 +206,16 @@ DAVEの上流build log失効と完全再現性未確認はそのまま記録し�
 全platformを含むsource集合をWindowsの実リンク一覧と同一視しません。
 個別レビュー版は実行用ファイルと対応sourceを一つの外側ZIPで提供します。
 [案内](docs/CORRESPONDING_SOURCE.txt)、[作成手順](docs/SOURCE_RELEASE.md)。
+
+## Windows公開ベータ版（v0.1.0-beta.2、2026-10-25）
+
+公開ソースとWindowsベータ版は https://github.com/adilazkahadiko/ParaBus で提供しています。
+beta.1の配布物は変更せず、beta.2ではundici 6.29.1・brace-expansion 1.1.21へ更新します。
+音声nativeは再利用し、元の23件のビルド入力と依存manifestをbinary-originへ別途同梱します。
+現行アプリの依存更新とASIO案内の変更を、元バイナリを再ビルドした証拠とは扱いません。
+対応ソース・第三者原文・出自・チェックサムを含む配布構成と未確認事項は
+[対応ソース案内](docs/CORRESPONDING_SOURCE.txt)と[ベータ検証範囲](docs/BETA.txt)を参照してください。
+
+本体コードの由来について、所有者は2026-10-25に会社・勤務先のコード、および公開OSS以外に
+第三者から非公開で受け取ったコードを含まないと確認しました。第三者OSSは各ライセンスで提供します。
+この所有者確認は、独立した法的監査や全依存の法的評価を意味しません。

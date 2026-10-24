@@ -1,0 +1,22 @@
+ParaBus Windows ASIO component sources
+
+This component is included in the public Windows beta. Its binary is reused from
+the build identified by native-source/asio-build-info.json and component-provenance.json;
+it has not been independently rebuilt for this release. The archived native artifact
+commit is ed4c57df4431df574b391cdb0a86251f1a6304db in the private archive.
+Access to that private repository is not required: corresponding-source.zip includes
+binary-origin/verified-native-source-inputs.zip and source checksums.
+
+ASIO SDK 2.3.4 is used under its GPLv3 option. Original SDK license notices,
+including host source BSD notices, are inside asiosdk.zip. COPYING-GPL-3.0 is included.
+portaudio-source.zip is the exact upstream commit recorded in asio-build-info.json.
+PortAudio FindASIO.cmake generates patched_asiolist.cpp (delete lpdrv -> delete[] lpdrv);
+the generated source is also included here. No manufacturer driver is bundled.
+
+To rebuild in an isolated Windows x64 checkout, follow docs/ASIO_BUILD.md.
+For the reused binary's original inputs, use the supplied binary-origin archive;
+app/ contains the current application and updated packaging documentation.
+Requires the C++ workload, CMake, Ninja and Git. Inputs are pinned by commit/hash;
+the build script downloads the original SDK from Steinberg and refuses a hash mismatch.
+Rebuilding does not imply byte-identical binaries across compiler versions.
+Do not run rebuilds in an active production application's dependency tree.

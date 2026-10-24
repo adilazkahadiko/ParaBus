@@ -1,9 +1,9 @@
-ParaBus v0.1.0-beta.1（2026-10-25）
+ParaBus v0.1.0-beta.2（2026-10-25）
 
 位置づけ
 試用・フィードバックのためのベータ版です。正式な安定版ではありません。
 Windows実機で検証していますが、多人数・別機種・SoundGrid/LV1での本番実機確認は未完了です。
-Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1 から取得できます。
+Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2 から取得できます。
 Windows ZIPに対応ソース・第三者表記を同梱しています。作成方法・配布構成は
 SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照してください。
 第三者依存にはそれぞれのライセンスが適用されます。ルートのTHIRD_PARTY_NOTICES.mdを参照。
@@ -11,12 +11,16 @@ SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照して�
 公開履歴のcommitとして探す必要はありません。配布物のBUILDと出自の記録はcomponent-provenance.jsonを参照。
 
 最近の変更
+・beta.2ではundiciを6.29.1、brace-expansionを1.1.21へ更新。音声処理・nativeは変更していません。
+  開発用のみのhttp-cache-semantics 4.3.0・ip-address 10.7.4も更新しています。
+・VCマスターの表示をMASTER ON / MASTER MUTEDへ変更し、個人のMIX ON/OFFと区別します。
+・検証範囲・ASIO部品の出自・公開前の履歴表現を整理しました。
 ・タブレット操作は再設計まで提供を停止。旧設定が有効でも専用リスナーは起動しません。
   試作コード・旧設定は保管し、デスクトップの設定保存では旧タブレット設定を変更しません。
 ・MIX / SETUP / ROUTEは重複する見出し・常設の説明を整理。詳しい使い方はマニュアルへ移動。
 ・参加者の操作をVC MIXへの送出フェーダー・MIX ON/OFFとして整理し、未使用のPOST表示を削除。
 ・SETUPの物理入力の集約メーターを削除。TXの確認には実際の送信メーターと聴感を使います。
-・Node.jsは22.23.4以上23未満を必要とし、検証ZIPにも公式22.23.4を同梱。
+・Node.jsは22.23.4以上23未満を必要とし、WindowsベータZIPにも公式22.23.4を同梱。
 ・個別レビュー用候補2b920eb1aafdでは、旧StackWalkerを含む任意のsegfault-handler診断機能を除外。
   音声DLLは変更せず、元のLICENSE・対応ソース・部品の出自とhashを保持しています。
 ・旧POSTのレベル・ミュートが残っている場合だけSETUPに確認・解除操作を表示します。
@@ -28,8 +32,12 @@ SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照して�
 既存の運用フォルダーには上書きせず、新しい専用フォルダーへ導入してください。
 
 検証の範囲
-・v0.1.0-beta.1ではeb206444c332の配布候補から配布名・案内・対応ソースを更新しています。
-  音声処理・UI・nativeの変更はありません。UI整理・タブレット提供停止後の長時間実機試験は未実施です。
+・v0.1.0-beta.1はeb206444c332から配布名・案内・対応ソースを更新した版です。
+・v0.1.0-beta.2は依存2件・VCマスターの表示・文書・梱包を更新しています。
+  開発用依存2件も更新し、npm auditは開発用を含め検出0件です（2026-10-25時点）。
+  Node 22.23.4の全テストは438件中435成功・失敗0・skip3、型チェックも成功しました。
+  segfault-handler除去・UI整理・タブレット提供停止・依存更新後の長時間実機試験は未実施です。
+  依存更新後の実Discord接続は未確認です。
 ・2026-10-22、Node 22.23.4の候補1058fb681f93をWindows実機で約71分動作させました。
   MainはEVO 4 / Audient ASIO、CueはINZONE。所有者が受信・Cue・録音・Discord送信を確認し、
   この試験では聴感・録音の問題報告はありませんでした。

@@ -2,7 +2,7 @@
 
 これはベータ版のソース一式です。検証範囲・既知の問題は[BETA.txt](BETA.txt)を参照してください。
 SoundGrid / LV1での本番実機確認は未完了です。
-[Windows x64 v0.1.0-beta.1](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
+[Windows x64 v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
 
 ## 含めるもの・含めないもの
 
@@ -115,6 +115,10 @@ HPKEのMPL本文はMozilla原文を保持し、固定source archiveと各crate�
 原本prebuiltの完全な再現ビルドやSoundGrid実機の本番保証とは区別します。
 native再利用の前提は`release/native-input-lock.json`で、ソースのbytes・依存manifest・
 バイナリhashを検証します。旧CIのprivate Git履歴は不要です。
+beta.2以降は元native入力を公開commit `28d27a491d21eee718237af1bcbf7c334ed9447f`から取得し、
+元のsource・依存manifestのhashを別途検証してbinary-originへ収録します。
+梱包用checkoutにはこの公開commitも必要です（shallow cloneの場合は公開originから履歴を取得）。
+現行のJS依存更新とビルド案内の変更はapp/側に保持し、再利用バイナリの元ソースと区別します。
 npm由来native部品は上流package情報と取得元CI commitを分けて記録します。
 
 公開リポジトリでは両workflowのartifact uploadを停止します。ビルド・テストは継続します。
@@ -127,5 +131,5 @@ CIから実行版を配布する場合は、対応ソースと原文表記を揃
 runtime\node.exe scripts/collect-corresponding-source.ts <clean-ci-base> target\review-sources
 runtime\node.exe scripts/audit-corresponding-source.ts target\review-sources
 # 変更はローカルcommitへ記録してから、新しい出力先に組み立てる。
-runtime\node.exe scripts/assemble-review-package.ts <clean-ci-base> target\review-sources target\beta-output v0.1.0-beta.1
+runtime\node.exe scripts/assemble-review-package.ts <clean-ci-base> target\review-sources target\beta-output v0.1.0-beta.2
 ```

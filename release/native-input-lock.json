@@ -91,7 +91,7 @@
     },
     {
       "path": "scripts/build-windows-asio.ps1",
-      "sha256": "ef435d823669e48b2e2f8ba22a32df0c7baeeb8e7e0e0bc8852a9c3de8746bd8"
+      "sha256": "6c6723a8c1a6673f96c3d6dd28c89b096d853f7f4b830c5553e8d97954f9df80"
     },
     {
       "path": "scripts/build-windows-launcher.ps1",
@@ -143,11 +143,125 @@
   "dependencyManifests": [
     {
       "path": "package.json",
+      "canonicalSha256": "cf04d674a4d14f386f7c5cfb96372eb7451e376f054e8b2dba140e0b10301f4b"
+    },
+    {
+      "path": "package-lock.json",
+      "canonicalSha256": "662f86dfb03a50fb8a228f996a843986443c82419e647db66743e31a2b6d88d3"
+    }
+  ],
+  "artifactSourceCommit": "28d27a491d21eee718237af1bcbf7c334ed9447f",
+  "artifactSourceInputs": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "299f9c9b805233444e1bbd5df68a87725176ae13420ac68d070ef3dad4725396"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "1784adbc9f244d934e626a664126f9a0e16d15dee8a0f152a62fb90912111d72"
+    },
+    {
+      "path": "crates/parabus-launcher/Cargo.toml",
+      "sha256": "7239dec026af875d16e8f45683c88524d598443e4679219209c1ca08e46c9d38"
+    },
+    {
+      "path": "crates/parabus-launcher/src/main.rs",
+      "sha256": "89804091ece1c334aab2914dfa3388f3777e9b56e1ae3330969d1d4d42bf2c32"
+    },
+    {
+      "path": "crates/router-core/Cargo.toml",
+      "sha256": "6a925c9ca4f103f937482772be1ccf4c2b363ae41237ee0ee4fa9a7d5cbd7c6a"
+    },
+    {
+      "path": "crates/router-core/src/audio_callback.rs",
+      "sha256": "547890caa10a47501ea78ca9ed1b9302611c855d63ae0065a021f61c886c9c61"
+    },
+    {
+      "path": "crates/router-core/src/audio_parity.rs",
+      "sha256": "04b8df60f119577d496b806864ff8760bed19b955f6083da468d5dc53c8739e9"
+    },
+    {
+      "path": "crates/router-core/src/bin/router-core-audio-load.rs",
+      "sha256": "cd5dc02640367721811b688089242a27b3a9a08f332497305697edce67b13970"
+    },
+    {
+      "path": "crates/router-core/src/bin/router-core-audio-parity.rs",
+      "sha256": "1248009da05e0dd747ddc08aa255873609f562866f18f6ff1b54d7d7adf19881"
+    },
+    {
+      "path": "crates/router-core/src/bin/router-core-callback-load.rs",
+      "sha256": "2566904f8fb38e413a48eefc30293dcf1216596520a2291c13121984d7ec27e3"
+    },
+    {
+      "path": "crates/router-core/src/bin/router-core-discord-shadow.rs",
+      "sha256": "82d4a9ab096cd4ae428d25eb7c82875b6fe7f9ea5e029358dd37088288c5e7ae"
+    },
+    {
+      "path": "crates/router-core/src/bin/router-core-program-audio-shadow.rs",
+      "sha256": "2326c5b85d40d5b9e75987a5aa68c5cc1cf848c9ba5955559df0b0994626a15d"
+    },
+    {
+      "path": "crates/router-core/src/core_audio_adapter.rs",
+      "sha256": "4f4f32a1013c7f951c5248c294133793c2a2b922a44b2b88bf49117908e822f0"
+    },
+    {
+      "path": "crates/router-core/src/discord_ipc.rs",
+      "sha256": "c4706fd8bf6a1be8981e1af130d23337b499eb58d9d01b0685424d5f47bce791"
+    },
+    {
+      "path": "crates/router-core/src/lib.rs",
+      "sha256": "069f1ce0c0ebf0732af60346f64d3eeab01af43934f6cd0bf95ac4a1838b9e98"
+    },
+    {
+      "path": "crates/router-core/src/main.rs",
+      "sha256": "611a8cdd27b786cad91e118504bf230213d325e158586ff7526a7e64afb365ce"
+    },
+    {
+      "path": "crates/router-core/src/program_audio_ipc.rs",
+      "sha256": "62e6f62e4c5b1043fbcbdff2228f7ca97d34859b3f3fbcc90b609a582c5c52cd"
+    },
+    {
+      "path": "crates/router-core/src/realtime_graph.rs",
+      "sha256": "b2bf51138cc0acefd9bed31116cbed7b8c71bdb6b288d4e0d237027b5639608f"
+    },
+    {
+      "path": "crates/router-core/src/wasapi_devices.rs",
+      "sha256": "bddc8a6dd866012f2de9583fbb7472963734ca25c576aecd4a1c4ebd8acdb129"
+    },
+    {
+      "path": "crates/router-core/src/wasapi_stream.rs",
+      "sha256": "9982ffafa4352d5d3487e00c1ad2d85187ec1e0692258fe80aa83bcbe367d8d6"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "f32338bdcf61d8100b7125baa6a4822dfb41c81c8299489df0475436c6218f7a"
+    },
+    {
+      "path": "scripts/build-windows-asio.ps1",
+      "sha256": "ef435d823669e48b2e2f8ba22a32df0c7baeeb8e7e0e0bc8852a9c3de8746bd8"
+    },
+    {
+      "path": "scripts/build-windows-launcher.ps1",
+      "sha256": "956c03285e64d13d883780e4a4aa84dbc3aba258c623ba30f7ff159847ccde5e"
+    }
+  ],
+  "artifactDependencyManifests": [
+    {
+      "path": "package.json",
       "canonicalSha256": "70624ebe7288c1cabfd68225b5ab43606e0680b00c8e19d6ff58b9c7251e8261"
     },
     {
       "path": "package-lock.json",
       "canonicalSha256": "f8bbf7ea8c84911b09ef9521f3e35fcad616b2b924ea84d5e1800481957a8ddc"
     }
-  ]
+  ],
+  "reviewedApplicationChanges": {
+    "date": "2026-10-25",
+    "sourceBaseline": "28d27a491d21eee718237af1bcbf7c334ed9447f",
+    "changes": [
+      "Runtime: undici 6.29.0 -> 6.29.1 and brace-expansion 1.1.18 -> 1.1.21; development-only: http-cache-semantics 4.2.0 -> 4.3.0 and ip-address 10.7.3 -> 10.7.4. Only these four lock entries change, all native package metadata unchanged",
+      "build-windows-asio.ps1: only generated README text moved to docs/ASIO_PACKAGE.txt; build commands unchanged"
+    ],
+    "note": "Current sourceInputs and dependencyManifests are reviewed assembly gates. artifactSourceInputs and artifactDependencyManifests retain the original native input hashes. The binary-origin bundle is archived from the public source baseline and verified separately; no independent native rebuild is claimed."
+  }
 }

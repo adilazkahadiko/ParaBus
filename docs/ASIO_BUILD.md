@@ -229,5 +229,6 @@ ASIOは停止完了前の再オープンを拒否し、停止失敗時は明示�
 上記は当初の配布保留時点の記録です。2026-10-22の個別レビュー版では、対応ソース・原文表記・
 部品hashを同梱し、EVO 4 / Audient ASIOでの音声確認を行いました。
 現在の配布構成は[SOURCE_RELEASE.md](SOURCE_RELEASE.md)、正確な検証範囲と未確認事項は
-[BETA.txt](BETA.txt)を参照してください。一般向けReleaseと別PC / SoundGridの本番確認は未完了です。
+[BETA.txt](BETA.txt)を参照してください。Windowsベータ版は[Releases](https://github.com/adilazkahadiko/ParaBus/releases)で公開しています。
+別PC / SoundGridの本番確認は未完了です。
 機器ドライバーは同梱しません。

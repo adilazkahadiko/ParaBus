@@ -21,10 +21,10 @@ and [Discord bot setup](docs/DISCORD_RX.md).
 
 ## Download
 
-**Windows x64 beta: [v0.1.0-beta.1](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1)**
+**Windows x64 beta: [v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)**
 
-[Download ParaBus-windows-x64-v0.1.0-beta.1.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.1/ParaBus-windows-x64-v0.1.0-beta.1.zip) ·
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.1/SHA256SUMS.txt)
+[Download ParaBus-windows-x64-v0.1.0-beta.2.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/ParaBus-windows-x64-v0.1.0-beta.2.zip) ·
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/SHA256SUMS.txt)
 
 The ZIP includes Node.js, corresponding source and third-party notices. Extract it into a new folder.
 

@@ -3,7 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { verifyNativeInputs } from "../scripts/native-inputs.ts";
+import { verifyNativeInputs, verifyArtifactSourceInputs } from "../scripts/native-inputs.ts";
+import { execFileSync } from "node:child_process";
 import { collectSources } from "../scripts/collect-corresponding-source.ts";
 
 test("native reuse verifies source bytes without looking up legacy Git commits", () => {
@@ -23,4 +24,14 @@ test("a corrupted cached fixed-commit archive is rejected before extraction or f
   mkdirSync(join(directory, "davey"));
   writeFileSync(join(directory, "davey/davey-js-0.1.12.tar.gz"), "not the reviewed source archive");
   await assert.rejects(collectSources(resolve(import.meta.dirname, ".."), directory, directory), /Fixed source checksum mismatch/);
+});
+
+test("original native sources and manifests remain independently pinned after JS updates", () => {
+  const repo = resolve(import.meta.dirname, "..");
+  const lock = verifyNativeInputs(repo);
+  assert.ok(lock.artifactSourceCommit);
+  const original = (path: string) => execFileSync("git", ["show", `${lock.artifactSourceCommit}:${path}`], { cwd: repo });
+  verifyArtifactSourceInputs(lock, original);
+  assert.throws(() => verifyArtifactSourceInputs(lock, path => path === "scripts/build-windows-asio.ps1" ? Buffer.from("changed") : original(path)), /Original native source changed/);
+  assert.throws(() => verifyArtifactSourceInputs(lock, path => path === "package-lock.json" ? Buffer.from('{"packages":{"":{}}}') : original(path)), /Original dependency manifest changed/);
 });

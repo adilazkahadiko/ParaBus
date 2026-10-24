@@ -7,7 +7,8 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, rea
 import { basename, dirname, join, resolve } from "node:path";
 import { stageRelease, auditReleaseEntries } from "./release-stage.ts";
 import { omitCrashDiagnostics } from "./omit-crash-diagnostics.ts";
-import { verifyNativeInputs } from "./native-inputs.ts";
+import { verifyNativeInputs, verifyArtifactSourceInputs } from "./native-inputs.ts";
+import { overlayJavaScriptUpdates } from "./release-js-overlays.ts";
 
 const repo = resolve(import.meta.dirname, "..");
 assert.ok(process.argv.length === 5 || process.argv.length === 6, "Usage: node scripts/assemble-review-package.ts <clean-ci-base> <collected-sources> <new-output-root> [vX.Y.Z-beta.N]");
@@ -58,6 +59,10 @@ cpSync(rustSource, join(rustStage, "router-core.exe"));
 const stage = stageRelease(repo, { rustBinaryPath: join(rustStage, "router-core.exe") });
 cpSync(stage.stageDirectory, app, { recursive: true, errorOnExist: true });
 for (const path of ["node_modules", "native-source", "ParaBus.exe"]) cpSync(join(base, path), join(app, path), { recursive: true, errorOnExist: true });
+const packageLock = JSON.parse(readFileSync(join(repo, "package-lock.json"), "utf8"));
+const javaScriptUpdates = overlayJavaScriptUpdates(app, sources, packageLock);
+rmSync(join(app, "node_modules/.package-lock.json"), { force: true });
+cpSync(join(repo, "docs/ASIO_PACKAGE.txt"), join(app, "native-source/README-ASIO.txt"));
 omitCrashDiagnostics(app);
 mkdirSync(join(app, "runtime")); cpSync(node, join(app, "runtime/node.exe")); cpSync(nodeLicense, join(app, "runtime/NODE_LICENSE"));
 const nodeInfo = { version: "22.23.4", abi: 127, sourceArchiveUrl: "https://nodejs.org/dist/v22.23.4/node-v22.23.4-win-x64.zip", archiveSha256: "cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20", executableSha256: hash(node), licenseSha256: hash(nodeLicense) };
@@ -73,7 +78,6 @@ assert.equal(hash(join(app, davePath)), "42928bfbee406f747e67cceb0bdb493f7a56b1f
 const daveNpm = join(sources, "npm/@snazzah__davey-win32-x64-msvc-0.1.12.tgz");
 const daveBytes = execFileSync("tar", ["-xOf", daveNpm, "package/davey.win32-x64-msvc.node"], { maxBuffer: 32 * 1024 * 1024 });
 assert.equal(createHash("sha256").update(daveBytes).digest("hex"), hash(join(app, davePath)));
-const packageLock = JSON.parse(readFileSync(join(repo, "package-lock.json"), "utf8"));
 const binaryOrigin = (path: string) => {
   if (path === "runtime/node.exe") return { kind: "official-node-runtime", upstreamVersion: "22.23.4" };
   const packagePath = path.startsWith("node_modules/@discordjs/opus/") ? "node_modules/@discordjs/opus"
@@ -84,9 +88,9 @@ const binaryOrigin = (path: string) => {
       package: { name: packagePath.slice(13), version: entry.version, sourceArchiveUrl: entry.resolved, sourceArchiveIntegrity: entry.integrity },
       note: "Archived upstream package sources supplied; this is not a ParaBus source commit or proof of bit-reproducible build." };
   }
-  return { kind: "ci-built-native", retrievedFromArtifactCommit: baseCommit, sourceInputs: "release/native-input-lock.json" };
+  return { kind: "ci-built-native", retrievedFromArtifactCommit: baseCommit, sourceInputs: "corresponding-source.zip:corresponding-source/binary-origin/native-input-lock.json" };
 };
-json(join(app, "component-provenance.json"), { schemaVersion: 2, applicationSourceCommit: commit, assembledAt: new Date().toISOString(), node: nodeInfo, nativeOrigin: { artifactCommit: baseCommit, workflowRun: nativeLock.workflowRun, workflowRunVisibility: "private", note: "Archived CI link requires private-repository access. Unchanged native components reused; not rebuilt on this PC. Supplied source bytes are verified after normalizing CRLF to LF, without requiring access to legacy Git history. Node ABI 127 retained." }, omitted: ["segfault-handler", "StackWalker crash hook"], binaries: binaries.map(path => ({ path, sha256: hash(join(app, path)), ...binaryOrigin(path) })) });
+json(join(app, "component-provenance.json"), { schemaVersion: 2, applicationSourceCommit: commit, javaScriptUpdates, assembledAt: new Date().toISOString(), node: nodeInfo, nativeOrigin: { artifactCommit: baseCommit, workflowRun: nativeLock.workflowRun, workflowRunVisibility: "private", note: "Archived CI link requires private-repository access. Unchanged native components reused; not rebuilt on this PC. Supplied source bytes are verified after normalizing CRLF to LF, without requiring access to legacy Git history. Node ABI 127 retained." }, omitted: ["segfault-handler", "StackWalker crash hook"], binaries: binaries.map(path => ({ path, sha256: hash(join(app, path)), ...binaryOrigin(path) })) });
 cpSync(join(sources, "THIRD_PARTY_ARCHIVE_NOTICES.txt"), join(app, "THIRD_PARTY_ARCHIVE_NOTICES.txt"));
 cpSync(join(sources, "DEPENDENCY_LICENSE_INVENTORY.json"), join(app, "DEPENDENCY_LICENSE_INVENTORY.json"));
 cpSync(join(repo, "docs/WINDOWS_BETA.txt"), join(handoff, "README-FIRST.txt"));
@@ -96,12 +100,15 @@ cpSync(appSource.stageDirectory, join(source, "app"), { recursive: true });
 cpSync(sources, source, { recursive: true });
 cpSync(join(app, "native-source"), join(source, "native-source"), { recursive: true });
 cpSync(join(app, "component-provenance.json"), join(source, "component-provenance.json"));
-const priorFiles = [...nativeLock.sourceInputs.map(entry => entry.path), "LICENSE"];
+const nativeSourceCommit = nativeLock.artifactSourceCommit ?? "HEAD";
+if (nativeSourceCommit !== "HEAD") assert.match(nativeSourceCommit, /^[a-f0-9]{40}$/);
+verifyArtifactSourceInputs(nativeLock, path => execFileSync("git", ["show", `${nativeSourceCommit}:${path}`], { cwd: repo }));
+const priorFiles = [...(nativeLock.artifactSourceInputs ?? nativeLock.sourceInputs).map(entry => entry.path), ...(nativeLock.artifactDependencyManifests ?? nativeLock.dependencyManifests).map(entry => entry.path), "LICENSE"];
 auditReleaseEntries(priorFiles, true);
 mkdirSync(join(source, "binary-origin"));
-execFileSync("git", ["archive", "--format=zip", `--output=${join(source, "binary-origin", "verified-native-source-inputs.zip")}`, "HEAD", "--", ...priorFiles], { cwd: repo });
-cpSync(join(repo, "release/native-input-lock.json"), join(source, "binary-origin/native-input-lock.json"));
-writeFileSync(join(source, "binary-origin/README.txt"), "Legacy private native artifact commit: " + baseCommit + "\nThe archive contains current tracked build inputs verified against the original CI sources. Normalize CRLF line endings to LF before computing source text SHA-256 values in native-input-lock.json; Windows script entries may be archived with CRLF. The archived CI URL requires private-repository access; all required source inputs are supplied here without that access. The original private Git history is not required or supplied. This is source correspondence, not an independent native rebuild.\n");
+execFileSync("git", ["archive", "--format=zip", `--output=${join(source, "binary-origin", "verified-native-source-inputs.zip")}`, nativeSourceCommit, "--", ...priorFiles], { cwd: repo });
+writeFileSync(join(source, "binary-origin/native-input-lock.json"), execFileSync("git", ["show", `${nativeSourceCommit}:release/native-input-lock.json`], { cwd: repo }));
+writeFileSync(join(source, "binary-origin/README.txt"), "Legacy private native artifact commit: " + baseCommit + "\nThe archive contains build inputs from the public baseline 28d27a491d21eee718237af1bcbf7c334ed9447f verified against the original CI sources. Current application dependencies and packaging documentation are supplied separately in app/. Normalize CRLF line endings to LF before computing source text SHA-256 values in native-input-lock.json; Windows script entries may be archived with CRLF. The archived CI URL requires private-repository access; all required source inputs are supplied here without that access. The original private Git history is not required or supplied. This is source correspondence, not an independent native rebuild.\n");
 cpSync(join(repo, "docs/CORRESPONDING_SOURCE.txt"), join(source, "README.txt"));
 json(join(source, "SOURCE_INVENTORY.json"), { applicationSourceCommit: commit, binaryOriginCommit: baseCommit, files: files(source).map(path => ({ path, sha256: hash(join(source, path)) })) });
 const forbidden = /(^|\/)(?:\.env|discord-bots\.json|user-profiles\.json|receiver-owners\.json|scenes\.json|tokens\.json|secrets\.json|credentials\.json|\.git|logs|recordings|support|segfault-handler)(\/|$)/i;
@@ -122,5 +129,5 @@ zip(source, join(handoff, "corresponding-source.zip"));
 writeFileSync(join(handoff, "SHA256SUMS.txt"), `${hash(join(handoff, "corresponding-source.zip"))}  corresponding-source.zip\n` + files(app).map(path => `${hash(join(app, path))}  ParaBus/${path}`).join("\n") + "\n");
 const archive = join(output, `${name}.zip`); zip(handoff, archive);
 writeFileSync(join(output, "SHA256SUMS.txt"), `${hash(archive)}  ${basename(archive)}\n`);
-json(join(output, "package-info.json"), { commit, nativeCommit: baseCommit, name, app, handoff, archive, sha256: hash(archive), sourceFiles: files(source).length, runtimeFiles: files(app).length, credentialsScannedFiles: scanned });
+json(join(output, "package-info.json"), { commit, nativeCommit: baseCommit, name, app, handoff, archive, sha256: hash(archive), javaScriptUpdates, sourceFiles: files(source).length, runtimeFiles: files(app).length, credentialsScannedFiles: scanned });
 console.log(readFileSync(join(output, "package-info.json"), "utf8"));

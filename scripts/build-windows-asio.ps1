@@ -99,21 +99,4 @@ $metadata = [ordered]@{
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $moduleRoot 'asio-build-info.json') -Encoding utf8NoBOM
 Copy-Item -LiteralPath (Join-Path $moduleRoot 'asio-build-info.json') -Destination $bundle
-@'
-ParaBus private Windows ASIO test build (not a public release)
-
-ASIO SDK 2.3.4 is used under its GPLv3 option. Original SDK license notices,
-including host source BSD notices, are inside asiosdk.zip. COPYING-GPL-3.0 is included.
-portaudio-source.zip is the exact upstream commit recorded in asio-build-info.json.
-PortAudio FindASIO.cmake generates patched_asiolist.cpp (delete lpdrv -> delete[] lpdrv);
-the generated source is also included here. No manufacturer driver is bundled.
-
-To rebuild in an isolated Windows x64 checkout at this ParaBus commit:
-  npm.cmd ci --include=optional --legacy-peer-deps --foreground-scripts
-  pwsh -File scripts/build-windows-asio.ps1
-  node scripts/asio-native-check.ts
-Requires the C++ workload, CMake, Ninja and Git. Inputs are pinned by commit/hash;
-the script downloads the original SDK from Steinberg and refuses a hash mismatch.
-Rebuilding does not imply byte-identical binaries across compiler versions.
-Do not run rebuilds in an active production application's dependency tree.
-'@ | Set-Content -LiteralPath (Join-Path $bundle 'README-ASIO.txt') -Encoding utf8NoBOM
+Get-Content -LiteralPath (Join-Path $ProjectRoot 'docs/ASIO_PACKAGE.txt') -Raw -Encoding utf8 | Set-Content -LiteralPath (Join-Path $bundle 'README-ASIO.txt') -Encoding utf8NoBOM

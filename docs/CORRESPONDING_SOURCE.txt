@@ -38,7 +38,10 @@ bit単位で同じbinaryを作れること、使用された全featuresの独立
 アプリとASIOの再ビルド
 app/docs/SOURCE_RELEASE.mdとapp/docs/ASIO_BUILD.mdを参照してください。
 再利用EXEのbuild入力はbinary-originに分け、現在のapp sourceと区別しています。
-release/native-input-lock.jsonのhashで元CIのsourceとの一致を確認します。
+binary-origin/native-input-lock.jsonのhashで元CIのsourceとの一致を確認します。
+app/release/native-input-lock.jsonには現行の梱包入力と、元native入力を分けて記録しています。
+元のビルド入力は公開commit 28d27a491d21eee718237af1bcbf7c334ed9447fから取得し、元のhashを照合しています。
+現行アプリのJS依存更新とASIO案内の変更は、再利用nativeの再ビルドを意味しません。
 テキストの改行をLFへ揃えてからSHA-256を計算します。Windows用scriptはarchive内ではCRLFの場合があります。
 元CIのリンクは非公開保管庫の記録であり、アクセス権がなければ閲覧できません。
 受取人は同梱のsourceとhashで照合でき、元CIへのアクセスは不要です。
@@ -67,5 +70,6 @@ Windowsベータ版の構成（2026-10-25）
   候補a8d49c41c077では、その後に実ParaBus.exeでの起動・通常終了も新規展開先で確認しました。
   再作成したZIPの個別の検査結果は配布時の確認記録を参照してください。
 ・上流prebuiltの全featuresとbit単位の再現性を独立検証したとは扱いません。
-  以前の一瞬のTX異常は原因未特定で、今回の長時間試験では問題報告なしです。
+  以前の一瞬のTX異常は原因未特定です。旧private候補1058fb681f93での約1時間試験では問題報告がありませんでした。
+  segfault-handler除去・UI整理・タブレット提供停止・依存更新後の長時間実機試験は未実施です。
 ・配布するZIPは新規作成し、実設定・Token・録音・Support Bundleを含めません。

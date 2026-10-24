@@ -2128,11 +2128,11 @@ function renderMasters(currentSnapshot) {
     refs.fader.setAttribute("aria-label", `${bus.label} Master fader`);
     refs.number.setAttribute("aria-label", `${bus.label} Master level numeric input`);
     const busOn = !bus.mute;
-    refs.mute.textContent = busOn ? "MIX ON" : "MUTED";
+    refs.mute.textContent = busOn ? "MASTER ON" : "MASTER MUTED";
     refs.mute.classList.toggle("on", busOn);
     refs.mute.classList.toggle("off", !busOn);
     refs.mute.setAttribute("aria-pressed", String(busOn));
-    refs.mute.setAttribute("aria-label", `${bus.label} ${busOn ? "ON" : "MUTED"}`);
+    refs.mute.setAttribute("aria-label", `${bus.label} MASTER ${busOn ? "ON" : "MUTED"}`);
     const cueActive = currentSnapshot.monitorSourceId === bus.id;
     refs.cue.disabled = !physicalMonitorReady(currentSnapshot);
     refs.cue.classList.toggle("active", cueActive);

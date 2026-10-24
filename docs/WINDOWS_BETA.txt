@@ -1,6 +1,6 @@
-ParaBus Windows x64 v0.1.0-beta.1
+ParaBus Windows x64 v0.1.0-beta.2
 
-公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
@@ -36,15 +36,16 @@ Node.js 22.23.4を同梱しています。
 この番号は公開履歴のcommitではありません。
 タブレット操作は再設計待ちのため、この版では提供していません。
 以前にTXで一瞬のノイズ・詰まりの報告があり、原因は未特定です。
-その長時間確認では問題の報告はありませんでした。正式な安定版ではないベータ版です。
-その後のUI整理・タブレット提供停止後に、長時間実機試験を実施したとは扱いません。
+旧private候補1058fb681f93での約1時間試験では問題の報告はありませんでした。正式な安定版ではないベータ版です。
+segfault-handler除去・UI整理・タブレット提供停止・依存更新後の長時間実機試験は未実施です。
 多人数・別機種・SoundGrid/LV1での本番実機確認は未完了です。予備の音声経路を用意してください。
 旧版に含まれていた任意のsegfault-handler/StackWalker診断機能は同梱していません。
 音声DLL・Rust EXEは出自とhashを記録して再利用しています。再ビルド済みとは扱いません。
 音声DSP・native DLLは元候補と同じです。旧POST設定が残る場合はSETUPに確認・解除操作を表示します。
 旧設定は自動変更しません。POST復旧で音が出る場合があるため、確認してから操作してください。
 元の配布候補eb206444c332ではnative読み込みと実ParaBus.exeの起動・通常終了を確認済みです。
-このベータ配布では音声処理・UI・nativeを変更せず、配布名・案内・対応ソースを更新しています。
+beta.2ではundici 6.29.1・brace-expansion 1.1.21へ更新し、VCマスターをMASTER ON / MASTER MUTEDと表示します。
+音声処理・nativeは変更していません。依存更新後のDiscord実接続・長時間実機試験は未実施です。
 BUILD COMMITと各部品のSHA-256は同梱のcomponent-provenance.jsonを参照してください。
 
 ソースとライセンス
