@@ -1,8 +1,8 @@
-# ParaBus ソース公開候補
+# ParaBus ソースとWindowsベータ配布
 
 これはベータ版のソース一式です。検証範囲・既知の問題は[BETA.txt](BETA.txt)を参照してください。
-SoundGrid / LV1での本番実機確認と、一般向けの実行版Release公開は未完了です。
-個別レビュー用Windows ZIPには対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
+SoundGrid / LV1での本番実機確認は未完了です。
+[Windows x64 v0.1.0-beta.1](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
 
 ## 含めるもの・含めないもの
 
@@ -94,7 +94,7 @@ ASIO対応は[固定SDKからのビルド・隔離確認](ASIO_BUILD.md)を参�
 ファイル名監査や典型的なTokenの検査だけでは、安全性を保証しません。
 秘密が混ざっていたら履歴を消すだけで済ませず、Tokenを失効・再発行してください。
 
-## Windows個別レビュー用パッケージ（2026-10-22）
+## Windowsベータ版パッケージ
 
 `scripts/collect-corresponding-source.ts`で固定sourceを取得し、npmのintegrityとCargo.lockの
 checksumを全件照合します。`scripts/audit-corresponding-source.ts`で元LICENSE / COPYING /
@@ -109,7 +109,7 @@ HPKEのMPL本文はMozilla原文を保持し、固定source archiveと各crate�
 音声DLLは変更しません。通常のアプリログ・Support Bundleは引き続き利用できます。
 
 `scripts/assemble-review-package.ts`はcleanな追跡source、CI由来のnative部品、公式Nodeから
-新しい個別レビュー用ZIPを組み立てます。稼働済みフォルダーを再圧縮しません。
+新しいWindows ZIPを組み立てます。公開ベータの案内はWINDOWS_BETA.txtを参照してください。稼働済みフォルダーを再圧縮しません。
 同じZIPにアプリ、corresponding-source.zip、案内、SHA256SUMSを収録し、受取人へ一式を渡します。
 これはGitHub公開・Release作成・送信の自動実行ではありません。
 原本prebuiltの完全な再現ビルドやSoundGrid実機の本番保証とは区別します。
@@ -127,5 +127,5 @@ CIから実行版を配布する場合は、対応ソースと原文表記を揃
 runtime\node.exe scripts/collect-corresponding-source.ts <clean-ci-base> target\review-sources
 runtime\node.exe scripts/audit-corresponding-source.ts target\review-sources
 # 変更はローカルcommitへ記録してから、新しい出力先に組み立てる。
-runtime\node.exe scripts/assemble-review-package.ts <clean-ci-base> target\review-sources target\review-output
+runtime\node.exe scripts/assemble-review-package.ts <clean-ci-base> target\review-sources target\beta-output v0.1.0-beta.1
 ```

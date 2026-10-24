@@ -1,11 +1,11 @@
-ParaBus ベータ候補（2026-10-25 更新）
+ParaBus v0.1.0-beta.1（2026-10-25）
 
 位置づけ
-試用・フィードバックのための候補です。正式な安定版ではありません。
+試用・フィードバックのためのベータ版です。正式な安定版ではありません。
 Windows実機で検証していますが、多人数・別機種・SoundGrid/LV1での本番実機確認は未完了です。
-一般向けの実行版Releaseはまだ公開していません。
-個別レビュー用Windows ZIPと対応ソースを用意しています。作成方法・配布構成は
-SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、REVIEW_PACKAGE.txtを参照してください。
+Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1 から取得できます。
+Windows ZIPに対応ソース・第三者表記を同梱しています。作成方法・配布構成は
+SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照してください。
 第三者依存にはそれぞれのライセンスが適用されます。ルートのTHIRD_PARTY_NOTICES.mdを参照。
 本文の1058fb681f93・2b920eb1aafd・ed4c57df4431は、旧private履歴での検証・部品取得IDです。
 公開履歴のcommitとして探す必要はありません。配布物のBUILDと出自の記録はcomponent-provenance.jsonを参照。
@@ -28,6 +28,8 @@ SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、REVIEW_PACKAGE.txtを参照して
 既存の運用フォルダーには上書きせず、新しい専用フォルダーへ導入してください。
 
 検証の範囲
+・v0.1.0-beta.1ではeb206444c332の配布候補から配布名・案内・対応ソースを更新しています。
+  音声処理・UI・nativeの変更はありません。UI整理・タブレット提供停止後の長時間実機試験は未実施です。
 ・2026-10-22、Node 22.23.4の候補1058fb681f93をWindows実機で約71分動作させました。
   MainはEVO 4 / Audient ASIO、CueはINZONE。所有者が受信・Cue・録音・Discord送信を確認し、
   この試験では聴感・録音の問題報告はありませんでした。

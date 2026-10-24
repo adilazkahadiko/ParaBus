@@ -60,7 +60,7 @@
       "docs/SOURCE_RELEASE.md",
       "docs/CORRESPONDING_SOURCE.txt",
       "docs/BETA.txt",
-      "docs/REVIEW_PACKAGE.txt",
+      "docs/WINDOWS_BETA.txt",
       ".github/workflows/test-packages.yml",
       ".github/workflows/windows-audio-native.yml"
     ],

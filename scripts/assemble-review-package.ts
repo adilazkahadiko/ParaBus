@@ -10,7 +10,7 @@ import { omitCrashDiagnostics } from "./omit-crash-diagnostics.ts";
 import { verifyNativeInputs } from "./native-inputs.ts";
 
 const repo = resolve(import.meta.dirname, "..");
-assert.equal(process.argv.length, 5, "Usage: node scripts/assemble-review-package.ts <clean-ci-base> <collected-sources> <new-output-root>");
+assert.ok(process.argv.length === 5 || process.argv.length === 6, "Usage: node scripts/assemble-review-package.ts <clean-ci-base> <collected-sources> <new-output-root> [vX.Y.Z-beta.N]");
 assert.equal(process.versions.node, "22.23.4");
 const base = resolve(process.argv[2]), sources = resolve(process.argv[3]), output = resolve(process.argv[4]);
 assert.ok(!existsSync(output), "Output already exists; choose a new directory");
@@ -39,7 +39,12 @@ assert.equal(hash(node), "dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01
 assert.ok(existsSync(nodeLicense));
 const nodeSourceLicense = execFileSync("tar", ["-xOf", join(sources, "node/node-v22.23.4.tar.xz"), "node-v22.23.4/LICENSE"], { encoding: "utf8", maxBuffer: 1024 * 1024 });
 assert.equal(readFileSync(nodeLicense, "utf8").replaceAll("\r\n", "\n"), nodeSourceLicense.replaceAll("\r\n", "\n"));
-const name = `ParaBus-review-windows-x64-${commit.slice(0, 12)}`;
+const version = process.argv[5];
+if (version) {
+  assert.match(version, /^v\d+\.\d+\.\d+-beta\.[1-9]\d*$/);
+  assert.equal(version.split("-")[0], `v${JSON.parse(readFileSync(join(repo, "package.json"), "utf8")).version}`, "Beta version must match the application base version");
+}
+const name = version ? `ParaBus-windows-x64-${version}` : `ParaBus-review-windows-x64-${commit.slice(0, 12)}`;
 mkdirSync(output, { recursive: true });
 const handoff = join(output, name), app = join(handoff, "ParaBus"), source = join(output, "corresponding-source");
 mkdirSync(handoff); mkdirSync(source);
@@ -57,7 +62,7 @@ omitCrashDiagnostics(app);
 mkdirSync(join(app, "runtime")); cpSync(node, join(app, "runtime/node.exe")); cpSync(nodeLicense, join(app, "runtime/NODE_LICENSE"));
 const nodeInfo = { version: "22.23.4", abi: 127, sourceArchiveUrl: "https://nodejs.org/dist/v22.23.4/node-v22.23.4-win-x64.zip", archiveSha256: "cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20", executableSha256: hash(node), licenseSha256: hash(nodeLicense) };
 json(join(app, "runtime/node-provenance.json"), nodeInfo);
-json(join(app, "release-build-info.json"), { schemaVersion: 1, buildCommit: commit, nodeVersion: "22.23.4", nativeBuildCommit: baseCommit, assembly: "individual-review-package" });
+json(join(app, "release-build-info.json"), { schemaVersion: 1, buildCommit: commit, ...(version ? { releaseVersion: version } : {}), nodeVersion: "22.23.4", nativeBuildCommit: baseCommit, assembly: version ? "public-beta-package" : "individual-review-package" });
 const binaries = files(app).filter(path => /\.(exe|dll|node|lib)$/i.test(path));
 for (const path of binaries.filter(p => p !== "runtime/node.exe")) assert.equal(hash(join(app, path)), hash(join(base, path)), `Unexpected binary change: ${path}`);
 for (const entry of nativeLock.binaries) assert.equal(hash(join(app, entry.path)), entry.sha256, `Unreviewed native artifact: ${entry.path}`);
@@ -84,8 +89,8 @@ const binaryOrigin = (path: string) => {
 json(join(app, "component-provenance.json"), { schemaVersion: 2, applicationSourceCommit: commit, assembledAt: new Date().toISOString(), node: nodeInfo, nativeOrigin: { artifactCommit: baseCommit, workflowRun: nativeLock.workflowRun, workflowRunVisibility: "private", note: "Archived CI link requires private-repository access. Unchanged native components reused; not rebuilt on this PC. Supplied source bytes are verified after normalizing CRLF to LF, without requiring access to legacy Git history. Node ABI 127 retained." }, omitted: ["segfault-handler", "StackWalker crash hook"], binaries: binaries.map(path => ({ path, sha256: hash(join(app, path)), ...binaryOrigin(path) })) });
 cpSync(join(sources, "THIRD_PARTY_ARCHIVE_NOTICES.txt"), join(app, "THIRD_PARTY_ARCHIVE_NOTICES.txt"));
 cpSync(join(sources, "DEPENDENCY_LICENSE_INVENTORY.json"), join(app, "DEPENDENCY_LICENSE_INVENTORY.json"));
-cpSync(join(repo, "docs/REVIEW_PACKAGE.txt"), join(handoff, "README-FIRST.txt"));
-cpSync(join(repo, "docs/REVIEW_PACKAGE.txt"), join(app, "README-TEST.txt"));
+cpSync(join(repo, "docs/WINDOWS_BETA.txt"), join(handoff, "README-FIRST.txt"));
+cpSync(join(repo, "docs/WINDOWS_BETA.txt"), join(app, "README-FIRST.txt"));
 const appSource = stageRelease(repo, { sourceOnly: true });
 cpSync(appSource.stageDirectory, join(source, "app"), { recursive: true });
 cpSync(sources, source, { recursive: true });

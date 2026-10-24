@@ -20,8 +20,12 @@ Botの準備は[Discord設定](docs/DISCORD_RX.md)を参照してください。
 
 ## ダウンロード
 
-**一般向けのWindows版はまだ提供していません。** ベータ公開後、
-[Releases](https://github.com/adilazkahadiko/ParaBus/releases)にWindows用ZIPを掲載します。
+**Windows x64 ベータ版：[v0.1.0-beta.1](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1)**
+
+[ParaBus-windows-x64-v0.1.0-beta.1.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.1/ParaBus-windows-x64-v0.1.0-beta.1.zip) ／
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.1/SHA256SUMS.txt)
+
+Node.js・対応ソース・第三者表記を同梱しています。新しい専用フォルダーへ展開してください。
 
 GitHubが表示する「Source code (zip)」は開発用ソースであり、起動用アプリではありません。
 

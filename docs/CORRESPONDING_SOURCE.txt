@@ -5,7 +5,7 @@ ParaBus 実行用ZIPの対応ソースと第三者表記
 アプリの表示commitだけで、同梱EXE・DLLのすべてを再ビルドしたとは表示しません。
 
 提供するソース
-外側のレビュー用ZIPに、ParaBusフォルダーと「corresponding-source.zip」を収録します。
+外側のWindowsベータ版ZIPに、ParaBusフォルダーと「corresponding-source.zip」を収録します。
 受領者には外側のZIPをそのまま提供してください。SHA256SUMS.txtも内包します。
 
 source.zip内の構成
@@ -50,7 +50,7 @@ Node.js
 runtime/NODE_LICENSEを保持します。使用版はcomponent-provenance.jsonを参照してください。
 公式source: https://nodejs.org/dist/v22.23.4/node-v22.23.4.tar.xz
 
-2026-10-22 個別レビュー用パッケージ
+Windowsベータ版の構成（2026-10-25）
 ・任意のsegfault-handler/StackWalkerクラッシュ診断hookとnative packageを除外します。
   古いStackWalkerの許諾を別版のBSD表記から推定して配布することはしません。
   naudiodon2の変更箇所と日付はJS内のコメントとapp/scriptsのpatchに保持します。
@@ -61,7 +61,8 @@ runtime/NODE_LICENSEを保持します。使用版はcomponent-provenance.json�
 ・Node.js 22.23.4の公式source archiveと同じ版のNODE_LICENSEを含めます。
 ・source取得先とchecksumはSOURCE_DOWNLOADS.json、補足原文はSUPPLEMENTAL_NOTICES.json、
   全ファイルの最終hashはSOURCE_INVENTORY.jsonに記録します。
-・Windows実機で約1時間の音声・録音・Discord送信を確認しました。
+・以前の同じ音声処理・nativeの版で、Windows実機にて約1時間の音声・録音・Discord送信を確認しました。
+  UI整理・タブレット提供停止後の長時間実機試験は未実施です。
   任意の診断hookを除いた候補ではnative読み込みと、別ポートでのNode launcher起動・通常終了を確認しました。
   候補a8d49c41c077では、その後に実ParaBus.exeでの起動・通常終了も新規展開先で確認しました。
   再作成したZIPの個別の検査結果は配布時の確認記録を参照してください。

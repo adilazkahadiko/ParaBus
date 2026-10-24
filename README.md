@@ -21,8 +21,12 @@ and [Discord bot setup](docs/DISCORD_RX.md).
 
 ## Download
 
-**No public Windows release is available yet.** Once the beta is published,
-a Windows ZIP will be attached to [Releases](https://github.com/adilazkahadiko/ParaBus/releases).
+**Windows x64 beta: [v0.1.0-beta.1](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1)**
+
+[Download ParaBus-windows-x64-v0.1.0-beta.1.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.1/ParaBus-windows-x64-v0.1.0-beta.1.zip) ·
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.1/SHA256SUMS.txt)
+
+The ZIP includes Node.js, corresponding source and third-party notices. Extract it into a new folder.
 
 GitHub's "Source code (zip)" is the development source, not a runnable app.
 

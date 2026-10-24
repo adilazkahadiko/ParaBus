@@ -1,4 +1,7 @@
-ParaBus Windows レビュー版
+ParaBus Windows x64 v0.1.0-beta.1
+
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.1
+脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
 1. 受け取ったZIPを右クリックして「すべて展開」し、新しい専用フォルダーへ展開します。
@@ -14,7 +17,7 @@ ASIOを使う場合は、機器メーカーの正規64bitドライバーを別�
 アプリはコード署名していません。SmartScreenが出た場合は、取得元を確認して判断してください。
 OS全体の保護設定を変更する必要はありません。
 
-確認してほしいこと
+使い始めの確認
 ・起動してBotへ接続できるか、参加者の音がMain/Cueで聞こえるか。
 ・各ユーザーのVC MIXフェーダーとMIX ON/OFFが意図どおり効くか。
 ・必要ならTXと録音を試し、保存した録音を再生できるか。
@@ -33,13 +36,16 @@ Node.js 22.23.4を同梱しています。
 この番号は公開履歴のcommitではありません。
 タブレット操作は再設計待ちのため、この版では提供していません。
 以前にTXで一瞬のノイズ・詰まりの報告があり、原因は未特定です。
-その長時間確認では問題の報告はありませんでした。正式リリース前のレビュー版です。
+その長時間確認では問題の報告はありませんでした。正式な安定版ではないベータ版です。
+その後のUI整理・タブレット提供停止後に、長時間実機試験を実施したとは扱いません。
+多人数・別機種・SoundGrid/LV1での本番実機確認は未完了です。予備の音声経路を用意してください。
 旧版に含まれていた任意のsegfault-handler/StackWalker診断機能は同梱していません。
 音声DLL・Rust EXEは出自とhashを記録して再利用しています。再ビルド済みとは扱いません。
 音声DSP・native DLLは元候補と同じです。旧POST設定が残る場合はSETUPに確認・解除操作を表示します。
 旧設定は自動変更しません。POST復旧で音が出る場合があるため、確認してから操作してください。
-配布候補ではnative読み込みと別ポートでの起動・通常終了を確認しています。
-候補a8d49c41c077では、新規展開先の実ParaBus.exeによる起動・通常終了も確認しました。
+元の配布候補eb206444c332ではnative読み込みと実ParaBus.exeの起動・通常終了を確認済みです。
+このベータ配布では音声処理・UI・nativeを変更せず、配布名・案内・対応ソースを更新しています。
+BUILD COMMITと各部品のSHA-256は同梱のcomponent-provenance.jsonを参照してください。
 
 ソースとライセンス
 同じZIPにcorresponding-source.zip、ParaBus/LICENSE、第三者表記を含めています。
