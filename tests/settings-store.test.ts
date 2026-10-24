@@ -17,6 +17,17 @@ function fixture(): { root: string; store: SettingsStore } {
   return { root, store: new SettingsStore(root, {}) };
 }
 
+test("desktop saves preserve deferred Tablet preferences and do not reserve its inactive port", t => {
+  const { root, store } = fixture();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const original = readFileSync(store.environmentPath, "utf8") + "TABLET_CONTROL_ENABLED=1\nTABLET_CONTROL_PORT=4174\n";
+  writeFileSync(store.environmentPath, original);
+  const result = store.save({ bots: store.snapshot().bots, operator: { port: 4174 } });
+  assert.equal(result.operator.port, 4174);
+  const after = readFileSync(store.environmentPath, "utf8");
+  assert.match(after, /^TABLET_CONTROL_ENABLED=1$/m); assert.match(after, /^TABLET_CONTROL_PORT=4174$/m);
+});
+
 test("first run ignores example bots and LAN opt-in round-trips without altering tokens", t => {
   const root = mkdtempSync(join(tmpdir(), "parabus-empty-settings-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

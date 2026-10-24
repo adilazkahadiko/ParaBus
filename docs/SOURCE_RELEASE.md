@@ -12,6 +12,8 @@ TypeScript / Rust source、UI、起動・ビルドscript、test、設定example�
 実設定、Token、録音、log、既存Git履歴、`node_modules`、`target`、DLL / `.node` / EXE、SDK、
 機器ドライバーは含めません。過去の開発ログ・KPT・設計メモ・検証履歴も公開候補から外します。
 元のローカル資料は削除しません。
+旧タブレット操作の試作コードはsourceに保管しますが、現行serverはそのリスナーを起動せず、
+デスクトップにも設定を表示しません。再設計後の提供は別途判断します。
 
 `release/release-manifest.json`は公開候補・配布物の対象管理に使います。
 ローカルの調査判定・Release下書きは`release/private/`、生成物と検証候補は`target/`へ置き、Git対象から外します。

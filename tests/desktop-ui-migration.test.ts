@@ -127,32 +127,14 @@ test("stereo TX matrix marks L/R together and rejects an incomplete final input 
   assert.deepEqual(commands, [{ type: "SET_TX_INPUT", profileId: "TX1", channelId: null }]);
 });
 
-test("desktop Tablet Control displays live pairing code and URLs without exposing them in notices", async () => {
-  let requested = "";
-  const { context, elements, notices } = ui(["loadTabletAdmin"], { fetch: async (path: string) => {
-    requested = path;
-    return { ok: true, json: async () => ({ running: true, connectedClients: 2, pairingCode: "12345678", urls: ["http://192.0.2.1:4174"] }) };
-  } });
-  await context.loadTabletAdmin();
-  assert.equal(requested, "/api/tablet/admin");
-  assert.equal(elements.tabletRuntimeState.textContent, "稼働中 · 2台接続");
-  assert.equal(elements.tabletPairingCode.textContent, "1234 5678");
-  assert.equal(elements.tabletUrls.children[0].textContent, "http://192.0.2.1:4174");
-  assert.equal(notices.length, 0);
-  context.fetch = async () => { throw new Error("offline"); };
-  await context.loadTabletAdmin();
-  assert.equal(elements.tabletPairingCode.textContent, "未取得");
-  assert.equal(elements.tabletUrls.children.length, 0);
-});
-
 test("remote desktop desktop skips all private API loaders/saves and guards restart without toast storms", async () => {
   let requests = 0;
-  const { context, elements, notices } = ui(["loadDesktopSettings", "loadTabletAdmin", "loadWindowsEndpoints", "saveBotProfiles", "renderRestart"], {
+  const { context, elements, notices } = ui(["loadDesktopSettings", "loadWindowsEndpoints", "saveBotProfiles", "renderRestart"], {
     localSettingsAvailable: false, restartRequested: false,
     fetch: async () => { requests++; throw new Error("remote API must not be called"); },
   });
   await context.loadDesktopSettings(); await context.loadDesktopSettings(true);
-  await context.loadTabletAdmin(); await context.loadWindowsEndpoints(true);
+  await context.loadWindowsEndpoints(true);
   await context.saveBotProfiles({ preventDefault() {} });
   assert.equal(elements.setupStatus.textContent, "このPCからのみ操作できます");
   context.renderRestart(context.snapshot); assert.equal(elements.restartRouter.disabled, true);
@@ -175,18 +157,18 @@ test("desktop LAN banner stays visible and remote local-only controls stay disab
   assert.match(html, /id="lan-access-badge"[^>]*hidden>LAN公開中（認証なし）/);
 });
 
-test("desktop settings save edited Tablet fields through the existing authenticated settings API", async () => {
+test("desktop settings save main settings without editing deferred Tablet preferences", async () => {
   let request: any;
   const { context, elements } = ui(["saveBotProfiles"], { fetch: async (path: string, options: any) => {
     request = { path, ...options };
     return { ok: true, json: async () => ({ ok: true, settings: {} }) };
   }, botSettingsFromCard() {}, renderDesktopSettings() {}, loadTabletAdmin() {} });
-  elements.appPort.value = "4173"; elements.tabletPort.value = "4174"; elements.tabletEnabled.checked = true;
+  elements.appPort.value = "4173";
   await context.saveBotProfiles({ preventDefault() {} });
   assert.equal(request.path, "/api/settings"); assert.equal(request.method, "POST");
   assert.equal(request.headers["x-dbr-session-nonce"], "test");
-  assert.deepEqual(JSON.parse(request.body), { bots: [], operator: { port: 4173, lanAccess: false }, tablet: { enabled: true, port: 4174 } });
-  assert.match(html, /有効化・Port変更は保存して本体を再起動後に反映/);
+  assert.deepEqual(JSON.parse(request.body), { bots: [], operator: { port: 4173, lanAccess: false } });
+  assert.doesNotMatch(request.body, /tablet/);
   request = null;
   for (const state of ["ON_AIR", "FAULT"]) {
     context.snapshot.state = state;
@@ -195,13 +177,12 @@ test("desktop settings save edited Tablet fields through the existing authentica
   }
 });
 
-test("desktop Tablet controls are locked along with settings during ON_AIR and FAULT", () => {
+test("desktop application settings are locked during ON_AIR and FAULT", () => {
   const { context, elements } = ui(["renderSetupRuntime"], { updateBotProfileCount() {} });
   for (const state of ["SETUP", "ON_AIR", "FAULT"]) {
     context.snapshot.state = state;
     context.renderSetupRuntime(context.snapshot);
-    assert.equal(elements.tabletEnabled.disabled, state !== "SETUP");
-    assert.equal(elements.tabletPort.disabled, state !== "SETUP");
+    assert.equal(elements.appPort.disabled, state !== "SETUP");
   }
 });
 

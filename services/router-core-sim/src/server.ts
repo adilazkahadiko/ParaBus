@@ -22,7 +22,6 @@ import { UserProfileStore } from "./user-profile-store.ts";
 import { UserSessionRegistry } from "./user-session-registry.ts";
 import { ReceiverOwnershipStore } from "./receiver-ownership-store.ts";
 import { RecorderManager } from "./recorder.ts";
-import { TabletControlServer } from "./tablet-server.ts";
 import { SystemMonitor } from "./system-monitor.ts";
 import { resolveCoreOwnership } from "./core-ownership.ts";
 import { deriveOperatorHealth } from "./operator-health.ts";
@@ -169,13 +168,8 @@ inputManager.onFault = (deviceId, message) => {
 };
 const websocketClients = new Set<Duplex>();
 const websocketBuffers = new WeakMap<Duplex, Buffer>();
-const tabletServer = new TabletControlServer({
-  enabled: startupSettings.tablet.enabled,
-  port: startupSettings.tablet.port,
-  snapshot: () => ({ ...control.tabletSnapshot(), discord: discordIngest.tabletSnapshot() }),
-  execute: executeControlCommand,
-  onStateChanged: () => broadcastState(),
-});
+// Tablet Control is a retained prototype, not a supported runtime feature.
+// Do not instantiate its listener, including when legacy settings enable it.
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -342,7 +336,7 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && url.pathname === "/api/tablet/admin") {
       requireLocalSettingsRequest(request);
-      writeJson(response, 200, tabletServer.adminSnapshot());
+      writeJson(response, 404, { error: "Tablet Control is unavailable pending redesign" });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/rust/wasapi") {
@@ -408,7 +402,7 @@ const server = createServer(async (request, response) => {
       const controlState = control.snapshot().state;
       if (controlState === "ON_AIR" || controlState === "FAULT") return writeJson(response, 409, { error: "SETUP changes are locked while ON AIR or FAULT" });
       const snapshot = settingsStore.save(await readJson(request));
-      writeJson(response, 200, { ok: true, settings: snapshot, message: "設定を保存しました。Botの有効状態は即時反映され、Tablet設定は再起動後に反映されます。" });
+      writeJson(response, 200, { ok: true, settings: snapshot, message: "設定を保存しました。PortとLAN公開の変更は再起動後に反映されます。" });
       return;
     }
     if (request.method === "POST" && (url.pathname === "/api/restart" || url.pathname === "/api/shutdown")) {
@@ -619,7 +613,6 @@ setInterval(() => broadcastWebSocket(websocketClients, () => ({ type: "meters", 
 // Full diagnostic histories and configuration are delivered at most once/sec
 // periodically, and remain available on demand via GET /api/state and Support.
 setInterval(() => broadcastState(true), 1_000).unref();
-setInterval(() => tabletServer.broadcast("meters"), 67).unref();
 setInterval(() => void rustManagement.refreshSnapshot(), 1_000).unref();
 setInterval(() => {
   const snapshot = { ...control.snapshot(false), discord: discordIngest.snapshot(Date.now(), false) };
@@ -644,14 +637,6 @@ if (rustManagement.isAvailable()) {
     await rustManagement.refreshEndpoints();
   } catch {
     // Physical PortAudio selection remains unavailable and fail closed until inventory recovers.
-  }
-}
-if (startupSettings.tablet.enabled) {
-  try {
-    await tabletServer.start();
-    console.log(`Tablet Control listening on port ${tabletServer.adminSnapshot().port}`);
-  } catch (error) {
-    console.error(`Tablet Control could not start: ${sanitizeOperatorMessage(error)}`);
   }
 }
 server.listen(port, host, () => {
@@ -682,7 +667,6 @@ function shutdown(exitCode = 0): void {
     rustManagement.close(),
     discordIngest.close(),
     recorder.close(),
-    tabletServer.close(),
   ]);
   server.close(() => void cleanup.finally(async () => {
     await operationalLog.close();

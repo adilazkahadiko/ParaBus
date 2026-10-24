@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "artifactCommit": "ed4c57df4431df574b391cdb0a86251f1a6304db",
-  "workflowRun": "https://github.com/adilazkahadiko/ParaBus/actions/runs/39603517583",
-  "note": "Source bytes recorded from original private CI commit; legacy commit is provenance, not a required public Git object.",
+  "workflowRun": "https://github.com/adilazkahadiko/ParaBus-private/actions/runs/39603517583",
+  "workflowRunVisibility": "private",
+  "note": "Archived private CI record; its link requires access and is not a public download. Legacy commit is provenance, not a required public Git object. Source text hashes normalize CRLF to LF.",
   "sourceInputs": [
     {
       "path": "Cargo.lock",

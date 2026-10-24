@@ -10,7 +10,6 @@
   <body>
     <header class="topbar">
       <div>
-        <p class="eyebrow">Discord Audio Router</p>
         <h1>ParaBus</h1>
       </div>
       <nav class="desktop-nav" aria-label="ParaBus operator views">
@@ -58,17 +57,14 @@
       <section class="mix" aria-labelledby="mix-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">RECEIVE</p>
-            <h2 id="mix-title">参加者MIX</h2>
+            <h2 id="mix-title">参加者</h2>
           </div>
-          <p>PENDINGはALLOWまで無音</p>
         </div>
         <div id="mix-bot-filter" class="mix-bot-filter" role="group" aria-label="表示する受信Bot"></div>
         <label class="mix-search">参加者検索 <input id="mix-search" type="search" placeholder="名前で絞り込み"></label>
         <aside id="vc-masters" class="vc-masters" aria-label="全VC MIX Master">
           <div class="vc-masters-heading">
-            <div><p class="eyebrow">VC MIX MASTERS</p><strong>全VCのフェーダー</strong></div>
-            <small>VCを選ばずにMIX ON/OFFと全体レベルを操作できます</small>
+            <h3>VC MIX</h3>
           </div>
           <div id="vc-master-list" class="vc-master-list"></div>
         </aside>
@@ -85,10 +81,9 @@
       </section>
       <section id="tx-mix-panel" class="vc-masters" aria-label="TX送信フェーダー" hidden>
         <div class="vc-masters-heading">
-          <div><p class="eyebrow">TX MASTERS</p><strong>Botごとの送信フェーダー</strong></div>
+          <h3>Discord送信</h3>
           <button class="tx-stop-all danger-action" type="button">全TX停止</button>
         </div>
-        <p class="tx-mix-help">入力の割り当てはROUTE。音量はBotごとに独立します。切断後は手動で送信ONにしてください。</p>
         <div class="tx-mix-list vc-master-list"></div>
       </section>
       </div>
@@ -96,7 +91,6 @@
       <section id="session-view" class="session-view" aria-labelledby="session-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">SESSION</p>
             <h2 id="session-title">録音 / Scene</h2>
           </div>
         </div>
@@ -105,7 +99,6 @@
           <section class="session-card recorder-card" aria-labelledby="recorder-title">
             <header>
               <div>
-                <p class="eyebrow">WAV RECORDER</p>
                 <h3 id="recorder-title">録音</h3>
               </div>
               <span id="recorder-state" class="session-state">IDLE</span>
@@ -165,7 +158,6 @@
           <section class="session-card scene-card" aria-labelledby="scene-title">
             <header>
               <div>
-                <p class="eyebrow">SCENE MEMORY</p>
                 <h3 id="scene-title">Sceneの呼び出し</h3>
               </div>
               <span id="scene-current" class="session-state" aria-label="現在のScene">NO SCENE</span>
@@ -217,10 +209,9 @@
       <section id="route-view" class="route-view" aria-labelledby="route-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">ROUTE</p>
             <h2 id="route-title">音声経路</h2>
           </div>
-          <button id="route-open-devices" type="button">機器設定へ → SETUP</button>
+          <button id="route-open-devices" type="button">デバイス設定</button>
         </div>
 
         <div class="route-content">
@@ -229,7 +220,6 @@
           <section class="route-overview" aria-labelledby="route-overview-title">
             <header>
               <div>
-                <p class="eyebrow">VC → MAIN OUT</p>
                 <h3 id="route-overview-title">VC一覧</h3>
               </div>
               <span id="route-overview-count" class="io-state">0 VC</span>
@@ -240,11 +230,11 @@
               <div class="route-matrix-bank"><button id="route-matrix-prev" type="button" aria-label="前の出力ch">◀</button><span id="route-matrix-bank">OUT 1–16</span><button id="route-matrix-next" type="button" aria-label="次の出力ch">▶</button></div>
             </div>
             <div id="vc-route-list" class="route-matrix-scroll" tabindex="0" aria-label="VCからMain Outputへのルーティング。横に出力ch、縦にVC。"></div>
-            <p class="route-matrix-legend">横軸は選択したMain出力ドライバのch番号です。音卓の入力番号とは別です。✓ 割り当て済み · — 未割り当て · • ペアの一部 · × 使用中／競合 · 黄は出力停止中。交点で割り当て／解除、VC名で参加者のDirect Out行を開きます。DUAL MONOは同じ音を2chへ複製します。CUEは別経路で1ソースを選びます。</p>
+
           </section>
 
           <section class="migration-controls" aria-label="VCグループ">
-            <h3>VC MIX BUS · 複数VCをグループにまとめる</h3>
+            <h3>VCグループ</h3>
             <div class="io-route"><label>グループ<select id="group-bus-select"><option value="">新規作成</option></select></label><label>新規グループ名<input id="group-bus-name" maxlength="80" placeholder="赤チーム"></label><button id="apply-group-bus" type="button">グループを適用</button><button id="remove-group-bus" class="danger-action" type="button">グループを削除</button></div>
             <fieldset id="group-bus-members"><legend>含めるVC MIX</legend></fieldset>
             <p>各VCのフェーダー・MUTE後の音声を合算します。出力先はマトリクス、音量はMIXで操作します。グループの入れ子は不可。構成は現在のセッション内で有効です。</p>
@@ -271,7 +261,6 @@
       <section id="status-view" class="status-view" aria-labelledby="status-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">STATUS</p>
             <h2 id="status-title">状態</h2>
           </div>
         </div>
@@ -342,7 +331,6 @@
       <section id="setup-view" class="setup-view" aria-labelledby="setup-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">SETUP</p>
             <h2 id="setup-title">設定</h2>
           </div>
         </div>
@@ -351,44 +339,41 @@
           <section class="io-panel" aria-labelledby="io-title">
             <header>
               <div>
-                <h3 id="io-title">Audio I/O</h3>
-                <p class="io-help">機器を選択 → 開始 → ROUTEで出力先を設定。選択だけでは切り替わりません。</p>
+                <h3 id="io-title">音声デバイス</h3>
               </div>
               <button id="refresh-io" type="button">再検出</button>
             </header>
             <div class="io-warning compact-warning">開始前に音量を下げてください · 保存済みの経路から音が出る場合があります · 自動復帰なし</div>
-            <p class="io-detail">設定済みでも無音の場合は、MIXのALLOW・ミュート・レベルと音卓側を確認してください。</p>
 
             <div class="io-grid">
               <section class="io-card io-main" aria-labelledby="output-title">
-                <header><div><span class="route-direction">本線 → 音卓</span><h4 id="output-title">Main Output</h4></div><span id="io-output-state" class="io-state">停止中</span></header>
-                <ol class="io-setup-steps" aria-label="本線出力の設定手順"><li>機器を選ぶ</li><li>デバイスを開始</li><li>ROUTEで出力先chを設定</li></ol>
+                <header><div><h4 id="output-title">Main</h4></div><span id="io-output-state" class="io-state">停止中</span></header>
                 <div class="io-main-controls">
                 <label>
-                  <span>使用する出力デバイス</span>
+                  <span>出力デバイス</span>
                   <select id="io-output-device"></select>
                 </label>
-                <details class="endpoint-help"><summary>Windows endpoint · 自動一致しない場合だけ手動確認</summary><label class="safety-binding">
-                  <span>SAFETY MONITOR · AUTO</span>
-                  <select id="io-output-endpoint"><option value="">Endpointを再検出してください</option></select>
-                </label></details>
                 <div class="io-actions">
                   <button id="apply-io-output" class="primary-action" type="button">デバイスを開始</button>
                   <button id="close-io-output" class="danger-action" type="button">停止</button>
                 </div>
                 </div>
+                <details class="endpoint-help"><summary>Windowsデバイスの照合</summary><label class="safety-binding">
+                  <span>監視するデバイス</span>
+                  <select id="io-output-endpoint"><option value="">Endpointを再検出してください</option></select>
+                </label></details>
                 <p id="io-output-detail" class="io-detail">現在：物理出力は停止中です。</p>
-                <div class="io-route-next"><p id="io-output-guidance">デバイス開始後、ROUTEで出力先chを割り当ててください。</p><button id="setup-open-route" type="button">出力先chを設定 → ROUTE</button></div>
+                <div class="io-route-next"><p id="io-output-guidance">デバイス開始後、ROUTEで出力先chを割り当ててください。</p><button id="setup-open-route" type="button">ルーティング</button></div>
               </section>
 
               <section class="io-card io-cue" aria-labelledby="cue-output-title">
-                <header><div><span class="route-direction">CUE · 任意／試聴用</span><h4 id="cue-output-title">Cue Output · ISOLATED</h4></div><span id="io-cue-output-state" class="io-state">未使用</span></header>
+                <header><div><h4 id="cue-output-title">Cue</h4></div><span id="io-cue-output-state" class="io-state">未使用</span></header>
                 <label>
-                  <span>試聴用出力デバイス</span>
+                  <span>出力デバイス</span>
                   <select id="io-cue-output-device"></select>
                 </label>
-                <details class="endpoint-help"><summary>Cue Windows endpoint · 必要な場合だけ手動確認</summary><label class="safety-binding">
-                  <span>SAFETY MONITOR · AUTO</span>
+                <details class="endpoint-help"><summary>Windowsデバイスの照合</summary><label class="safety-binding">
+                  <span>監視するデバイス</span>
                   <select id="io-cue-output-endpoint"><option value="">Endpointを再検出してください</option></select>
                 </label></details>
                 <div class="io-actions">
@@ -396,7 +381,6 @@
                   <button id="close-io-cue-output" class="danger-action" type="button">停止</button>
                 </div>
                 <p id="io-cue-output-detail" class="io-detail">独立Cue出力は閉じています。</p>
-                <p class="io-help">別機器のCueはMainから独立。同じ機器・ASIOを使う場合は、下でMainの空き出力chを指定します。本線と同じchには割り当てません。</p>
                 <fieldset><legend>Mainと同じ機器でCUE（ASIO / WASAPI）</legend>
                   <label>出力ch<select id="shared-cue-channel"></select></label>
                   <label>出力形式<select id="shared-cue-mode"><option value="DUAL_MONO">2ch（同じ音をL/Rへ）</option><option value="MONO">1ch</option></select></label>
@@ -406,17 +390,17 @@
               </section>
 
               <section class="io-card io-input" aria-labelledby="input-title">
-                <header><div><span class="route-direction">INPUT · 必要な場合だけ</span><h4 id="input-title">Physical Input · Discord TX用</h4></div><span id="io-input-state" class="io-state">未使用</span></header>
+                <header><div><h4 id="input-title">入力</h4></div><span id="io-input-state" class="io-state">未使用</span></header>
                 <label>
-                  <span>使用する入力デバイス</span>
+                  <span>入力デバイス</span>
                   <select id="io-input-device"></select>
                 </label>
-                <details class="endpoint-help"><summary>Input Windows endpoint · 必要な場合だけ手動確認</summary><label class="safety-binding">
-                  <span>SAFETY MONITOR · AUTO</span>
+                <details class="endpoint-help"><summary>Windowsデバイスの照合</summary><label class="safety-binding">
+                  <span>監視するデバイス</span>
                   <select id="io-input-endpoint"><option value="">Endpointを再検出してください</option></select>
                 </label></details>
                 <label>
-                  <span>使用する入力ch数</span>
+                  <span>入力ch数</span>
                   <select id="io-input-channels"><option value="1">1 ch</option><option value="2">2 ch</option></select>
                 </label>
                 <div class="io-actions">
@@ -424,14 +408,13 @@
                   <button id="close-io-input" class="danger-action" type="button">停止</button>
                 </div>
                 <p id="io-input-detail" class="io-detail">入力デバイスは未選択です。</p>
-                <p>Discordへマイクなどを送る場合に使います。受信だけなら不要です。送信先とInput ChはROUTEで設定し、送信音量とメーターはMIXのTX MASTERSで確認します。TXは手動で開始します。</p>
               </section>
 
             </div>
           </section>
 
           <section class="application-settings" aria-label="メインUIのLAN公開">
-            <div><h3>メインUI · LAN公開</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p><small>同じLANの誰でも操作できます。共有LANでは使わないでください。</small></div>
+            <div><h3>アクセス</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
           </section>
           <section id="legacy-post-recovery" class="application-settings" data-local-only hidden>
             <h3>旧POST設定の確認</h3>
@@ -458,7 +441,7 @@
           </details>
 
           <form id="bot-setup-form" class="bot-profile-panel" autocomplete="off" data-local-only>
-            <p data-local-access-note hidden>このPCからのみ操作できます（Bot / Token / Tablet設定）</p>
+            <p data-local-access-note hidden>このPCからのみ設定できます</p>
             <section class="application-settings" aria-labelledby="application-settings-title">
               <div>
                 <h3 id="application-settings-title">Application</h3>
@@ -470,17 +453,6 @@
               </label>
               <label class="enabled-check"><input id="lan-access-enabled" type="checkbox"><span>メインUIをLAN公開する（認証なし）</span></label>
             </section>
-            <p>LAN公開は保存・再起動後に反映。同じLANの誰でも操作できます。共有LANでは使わないでください。</p>
-            <section class="tablet-settings" aria-labelledby="tablet-control-title">
-              <header><h3 id="tablet-control-title">タブレット操作 · ペアリング式</h3><button id="refresh-tablet-admin" type="button">接続情報を更新</button></header>
-              <div class="io-route">
-                <label class="enabled-check"><input id="tablet-enabled" type="checkbox"><span>Tablet Controlを有効にする</span></label>
-                <label><span>LAN PORT</span><input id="tablet-port" type="number" min="1024" max="65535" step="1" required></label>
-              </div>
-              <p>有効化・Port変更は保存して本体を再起動後に反映されます。信頼できるLANでのみ使用してください。</p>
-              <div class="io-facts"><div><span>状態</span><strong id="tablet-runtime-state">未取得</strong></div><div><span>ペアリングコード</span><strong id="tablet-pairing-code">再起動後に表示</strong></div></div>
-              <div id="tablet-urls" class="tablet-urls" aria-label="Tablet接続先URL"></div>
-            </section>
             <header class="bot-profile-toolbar">
               <div>
                 <h3>Bots</h3>
@@ -489,7 +461,6 @@
               <div class="bot-add-actions"><button id="add-bot-profile" type="button">＋ RX</button><button id="add-tx-profile" type="button">＋ TX</button><button id="add-duplex-profile" type="button">＋ RX+TX</button></div>
             </header>
             <label class="shared-guild-setting">共通Server ID<input id="shared-guild-id" type="text" inputmode="numeric" maxlength="20" spellcheck="false" placeholder="新しいBotにも自動入力"></label>
-            <small>共通値と同じBotだけ一括変更します。別サーバーは各Botで上書きできます。変更したBotのVCは選び直してください。</small>
             <div class="bot-add-actions"><button id="export-bot-profiles" type="button">Bot設定を書き出し（Tokenなし）</button><label>Bot設定を読み込み<input id="import-bot-profiles" type="file" accept="application/json,.json"></label></div>
             <div class="bulk-bot-tokens">
               <label for="bulk-bot-tokens">Bot Token をまとめて追加</label>
@@ -594,7 +565,6 @@
           <button class="cue-toggle strip-cue-toggle" type="button" aria-pressed="false">CUE</button>
           <button class="bus-send-toggle channel-toggle" type="button" disabled aria-pressed="false">MIX OFF</button>
         </div>
-        <p class="participant-guidance">INは受信音声です。ALLOWするまで本線・CUEには出ません</p>
       </article>
     </template>
 

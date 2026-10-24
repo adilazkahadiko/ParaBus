@@ -81,7 +81,7 @@ const binaryOrigin = (path: string) => {
   }
   return { kind: "ci-built-native", retrievedFromArtifactCommit: baseCommit, sourceInputs: "release/native-input-lock.json" };
 };
-json(join(app, "component-provenance.json"), { schemaVersion: 2, applicationSourceCommit: commit, assembledAt: new Date().toISOString(), node: nodeInfo, nativeOrigin: { artifactCommit: baseCommit, workflowRun: nativeLock.workflowRun, note: "Unchanged CI native components reused; not rebuilt on this PC. Source bytes are verified by native-input-lock.json without requiring legacy Git history. Node ABI 127 retained." }, omitted: ["segfault-handler", "StackWalker crash hook"], binaries: binaries.map(path => ({ path, sha256: hash(join(app, path)), ...binaryOrigin(path) })) });
+json(join(app, "component-provenance.json"), { schemaVersion: 2, applicationSourceCommit: commit, assembledAt: new Date().toISOString(), node: nodeInfo, nativeOrigin: { artifactCommit: baseCommit, workflowRun: nativeLock.workflowRun, workflowRunVisibility: "private", note: "Archived CI link requires private-repository access. Unchanged native components reused; not rebuilt on this PC. Supplied source bytes are verified after normalizing CRLF to LF, without requiring access to legacy Git history. Node ABI 127 retained." }, omitted: ["segfault-handler", "StackWalker crash hook"], binaries: binaries.map(path => ({ path, sha256: hash(join(app, path)), ...binaryOrigin(path) })) });
 cpSync(join(sources, "THIRD_PARTY_ARCHIVE_NOTICES.txt"), join(app, "THIRD_PARTY_ARCHIVE_NOTICES.txt"));
 cpSync(join(sources, "DEPENDENCY_LICENSE_INVENTORY.json"), join(app, "DEPENDENCY_LICENSE_INVENTORY.json"));
 cpSync(join(repo, "docs/REVIEW_PACKAGE.txt"), join(handoff, "README-FIRST.txt"));
@@ -96,7 +96,7 @@ auditReleaseEntries(priorFiles, true);
 mkdirSync(join(source, "binary-origin"));
 execFileSync("git", ["archive", "--format=zip", `--output=${join(source, "binary-origin", "verified-native-source-inputs.zip")}`, "HEAD", "--", ...priorFiles], { cwd: repo });
 cpSync(join(repo, "release/native-input-lock.json"), join(source, "binary-origin/native-input-lock.json"));
-writeFileSync(join(source, "binary-origin/README.txt"), "Legacy native artifact commit: " + baseCommit + "\nThe archive contains current tracked build inputs with bytes verified against the original CI sources. The original private Git history is not required or supplied. This is source correspondence, not an independent native rebuild.\n");
+writeFileSync(join(source, "binary-origin/README.txt"), "Legacy private native artifact commit: " + baseCommit + "\nThe archive contains current tracked build inputs verified against the original CI sources. Normalize CRLF line endings to LF before computing source text SHA-256 values in native-input-lock.json; Windows script entries may be archived with CRLF. The archived CI URL requires private-repository access; all required source inputs are supplied here without that access. The original private Git history is not required or supplied. This is source correspondence, not an independent native rebuild.\n");
 cpSync(join(repo, "docs/CORRESPONDING_SOURCE.txt"), join(source, "README.txt"));
 json(join(source, "SOURCE_INVENTORY.json"), { applicationSourceCommit: commit, binaryOriginCommit: baseCommit, files: files(source).map(path => ({ path, sha256: hash(join(source, path)) })) });
 const forbidden = /(^|\/)(?:\.env|discord-bots\.json|user-profiles\.json|receiver-owners\.json|scenes\.json|tokens\.json|secrets\.json|credentials\.json|\.git|logs|recordings|support|segfault-handler)(\/|$)/i;

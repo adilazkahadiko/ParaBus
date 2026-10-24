@@ -80,7 +80,7 @@
       <div style="padding:12px 12px 0"><input id="search" class="search" type="search" placeholder="マニュアル内を絞り込み" aria-label="マニュアル内を検索"></div>
       <nav id="toc">
         <a href="#quick">まず起動する</a><a href="#tray">常駐アイコン</a><a href="#discord">Discord設定</a><a href="#settings">設定ページ</a>
-        <a href="#tablet">Tablet Control</a><a href="#screen">画面の見方</a><a href="#monitor-log">Monitor / Log</a><a href="#bots">Bot Rack</a><a href="#vcmix">VC Quick Mix</a><a href="#returns">Discord Return</a><a href="#recorder">Recorder</a><a href="#scenes">Sceneと安全操作</a><a href="#io">出力デバイス</a><a href="#matrix">出力マッピング</a>
+        <a href="#screen">画面の見方</a><a href="#monitor-log">Monitor / Log</a><a href="#bots">Bot Rack</a><a href="#vcmix">VC Quick Mix</a><a href="#returns">Discord Return</a><a href="#recorder">Recorder</a><a href="#scenes">Sceneと安全操作</a><a href="#io">出力デバイス</a><a href="#matrix">出力マッピング</a>
         <a href="#meter">メーター</a><a href="#mix">ミキサー操作</a>
         <a href="#safety">安全機能</a><a href="#trouble">困ったとき</a><a href="#shutdown">終了・ログ</a>
         <a href="#limits">現在の範囲</a>
@@ -111,14 +111,12 @@
         <p>初回起動後、展開フォルダー内だけの<code>com.apple.quarantine</code>属性を解除します。Gatekeeper全体は変更しません。OSの隔離実行で隣のファイルが見えない場合は、runtime・scripts・ParaBus.appが入った<strong>展開フォルダーを選択</strong>してください。互換用の<code>start-router.command</code>も残しています。</p>
       </section>
 
-      <section id="tablet" data-search-section>
-        <h2>タブレットから操作する</h2>
-        <ol><li>Desktopの<strong>SETUP → Tablet Control</strong>を開きます。</li><li><strong>Tablet Controlを有効にする</strong>へチェックし、通常はLAN PORT <code>4174</code>のまま、Bot設定と共通の<strong>設定を保存</strong>を押します。</li><li>停止できるタイミングでSETUPの<strong>ParaBus本体を再起動</strong>を押します。有効化・Port変更は再起動後に反映されます。</li><li><strong>接続情報を更新</strong>で表示された<code>http://PCのIP:4174</code>をTabletまたは別ブラウザーで開きます。</li><li>Desktopに表示された8桁のペアリングコードを入力します。再起動前の古いDesktopタブは閉じ、最新画面を開き直してください。</li></ol>
-        <p>Tabletには専用の<strong>クイックミックス・監視・録音監視・シーン</strong>画面が表示されます。VC SendとBus Masterはフェーダーでも数値でも入力でき、現在値はdBFS、Bus loudnessはLUFS-Mで確認できます。</p>
-        <table><thead><tr><th>Tabletで可能</th><th>Desktopのみ</th></tr></thead><tbody><tr><td>VC Send、Mute、PFL、Bus Master / Mute、LUFS Reset、確認付きScene Recall</td><td>Bot / Token、Device、Matrix構造、TX開始停止、録音開始停止、Emergency Mute解除</td></tr><tr><td>Bot / TX / Recorder状態の監視</td><td>Scene保存・削除、Recall Safe、管理設定</td></tr></tbody></table>
-        <div class="callout danger"><strong>信頼できるLANだけで使う</strong>SoundGrid専用NICではなくControl / Internet側LANを使ってください。公衆Wi-Fi、ポート開放、インターネットへの直接公開は行わないでください。</div>
-        <div class="callout"><strong>Tabletが切れても音は継続</strong>接続が切れると操作画面を無効化しますが、現在のFader・Mute・配信・録音状態は変更しません。再接続すると最新状態へ戻ります。</div>
-        <p>ペアリングコードは起動ごとに変わり、sessionはCoreのmemory内だけに保持されます。Bot Token、Discord内部ID、録音Folder / file名、管理設定はTabletへ送られません。</p>
+      <section id="tablet" data-search-section><h2>タブレット操作</h2><p>再設計のため、現在の版では提供していません。旧設定が残っていても専用ポートは起動しません。</p></section>
+      <section id="audio-basics" data-search-section>
+        <h2>入出力を確認する</h2>
+        <p>INは受信音声です。参加者はALLOWするまで本線・Cueには出ません。Mainの経路が設定済みでも無音の場合は、ALLOW・ミュート・レベルと音卓側を確認してください。</p>
+        <p>入力デバイスはDiscordへマイクなどを送る場合に使います。受信だけなら不要です。入力の割り当てはROUTE、送信音量はMIXのDiscord送信で操作し、TXは手動で開始します。</p>
+        <p>Mainと別の機器でCueを聞く場合は、Cueの出力デバイスを選びます。Mainと同じ機器を使う場合は、Cue欄でMainの空き出力chを指定します。</p>
       </section>
 
       <section id="tray" data-search-section>

@@ -39,6 +39,9 @@ bit単位で同じbinaryを作れること、使用された全featuresの独立
 app/docs/SOURCE_RELEASE.mdとapp/docs/ASIO_BUILD.mdを参照してください。
 再利用EXEのbuild入力はbinary-originに分け、現在のapp sourceと区別しています。
 release/native-input-lock.jsonのhashで元CIのsourceとの一致を確認します。
+テキストの改行をLFへ揃えてからSHA-256を計算します。Windows用scriptはarchive内ではCRLFの場合があります。
+元CIのリンクは非公開保管庫の記録であり、アクセス権がなければ閲覧できません。
+受取人は同梱のsourceとhashで照合でき、元CIへのアクセスは不要です。
 元CIのcommitは取得元の記録として残しますが、元のprivate Git履歴をcloneする必要はありません。
 MSVC、Windows SDK、Rust standard library等の通常の開発環境は別途用意します。
 既存の運用フォルダーに対してnpm ciやnative buildを行わないでください。

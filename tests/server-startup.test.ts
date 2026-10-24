@@ -46,8 +46,8 @@ test("server starts silent by default and creates synthetic sources only with an
   );
 });
 
-for (const surface of ["desktop", "tablet"]) {
-  for (const malformed of ["HTTP Host", "WebSocket URL", ...(surface === "tablet" ? ["WebSocket cookie"] : [])]) test(`${surface} rejects malformed ${malformed} without stopping Core audio`, async () => {
+for (const surface of ["desktop"]) {
+  for (const malformed of ["HTTP Host", "WebSocket URL"]) test(`${surface} rejects malformed ${malformed} without stopping Core audio`, async () => {
     const upgrade = malformed.startsWith("WebSocket"), badCookie = malformed === "WebSocket cookie";
     const tabletPort = await availablePort();
     await startServerSnapshot({ TABLET_CONTROL_ENABLED: "1", TABLET_CONTROL_PORT: String(tabletPort) }, async (port, child) => {
@@ -67,10 +67,20 @@ for (const surface of ["desktop", "tablet"]) {
       await new Promise(resolve => setTimeout(resolve, 40));
       const after = await (await fetch(`http://127.0.0.1:${port}/api/state`)).json() as RouterSnapshot;
       assert.ok(after.audioRuntimeTiming!.current.processBlocks > before.audioRuntimeTiming!.current.processBlocks, "audio blocks continue");
-      assert.equal((await fetch(`http://127.0.0.1:${tabletPort}/api/state`)).status, 401, "Tablet continues enforcing authentication");
+      assert.equal((await fetch(`http://127.0.0.1:${port}/api/tablet/admin`)).status, 404, "Prototype Tablet administration is not provided");
     });
   });
 }
+
+test("legacy Tablet enable settings cannot start the deferred listener", async () => {
+  const tabletPort = await availablePort();
+  await startServerSnapshot({ TABLET_CONTROL_ENABLED: "1", TABLET_CONTROL_PORT: String(tabletPort) }, async (port) => {
+    assert.notEqual(port, tabletPort);
+    await assert.rejects(fetch(`http://127.0.0.1:${tabletPort}/api/state`, { signal: AbortSignal.timeout(1000) }));
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/tablet/admin`)).status, 404);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/state`)).status, 200);
+  });
+});
 
 async function startServerSnapshot(overrides: NodeJS.ProcessEnv = {}, check?: (port: number, child: ChildProcess) => Promise<void>): Promise<RouterSnapshot> {
   const port = await availablePort();
@@ -108,7 +118,6 @@ async function startServerSnapshot(overrides: NodeJS.ProcessEnv = {}, check?: (p
     assert.equal(response.status, 200);
     snapshot = await response.json() as RouterSnapshot;
     if (check) {
-      await waitUntil(() => output.includes("Tablet Control listening"), () => output);
       await check(port, child);
     }
     return snapshot;

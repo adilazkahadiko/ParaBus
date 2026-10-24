@@ -214,16 +214,20 @@ export class SettingsStore {
     if (!Number.isInteger(requestedTabletPort) || requestedTabletPort < 1024 || requestedTabletPort > 65535) {
       throw new Error("Tablet用ポートは1024〜65535の整数で指定してください");
     }
-    if (tabletEnabled && requestedOperatorPort === requestedTabletPort) throw new Error("Application PortとTablet用ポートは別の値にしてください");
+    if (settings?.tablet && tabletEnabled && requestedOperatorPort === requestedTabletPort) throw new Error("Application PortとTablet用ポートは別の値にしてください");
     if (settings?.operator?.lanAccess !== undefined && typeof settings.operator.lanAccess !== "boolean") throw new Error("LAN公開設定が不正です");
     const lanAccess = settings?.operator?.lanAccess ?? ((environmentValues.get("DBR_LAN_ACCESS") ?? this.environment.DBR_LAN_ACCESS) === "1");
     const updates = new Map<string, string>([
       ["DISCORD_BOT_RACK_FILE", "discord-bots.json"],
       ["PORT", String(requestedOperatorPort)],
       ["DBR_LAN_ACCESS", lanAccess ? "1" : "0"],
-      ["TABLET_CONTROL_ENABLED", tabletEnabled ? "1" : "0"],
-      ["TABLET_CONTROL_PORT", String(requestedTabletPort)],
     ]);
+    // The desktop no longer edits prototype Tablet preferences. Preserve old
+    // values when omitted; retaining them never enables a production listener.
+    if (settings?.tablet !== undefined) {
+      updates.set("TABLET_CONTROL_ENABLED", tabletEnabled ? "1" : "0");
+      updates.set("TABLET_CONTROL_PORT", String(requestedTabletPort));
+    }
     const seenIds = new Set<string>();
     const seenTokenEnvironments = new Set<string>();
     const seenTokens = new Set<string>();

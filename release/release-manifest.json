@@ -75,7 +75,6 @@
     "packages/process-lifecycle",
     "services/discord-adapter",
     "services/router-core-sim/public",
-    "services/router-core-sim/src",
-    "services/router-core-sim/tablet-public"
+    "services/router-core-sim/src"
   ]
 }

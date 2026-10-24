@@ -4,6 +4,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 
 const html = readFileSync(new URL("../services/router-core-sim/public/index.html", import.meta.url), "utf8");
+const manual = readFileSync(new URL("../docs/manual.html", import.meta.url), "utf8");
 const script = readFileSync(new URL("../services/router-core-sim/public/app.js", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../services/router-core-sim/public/styles.css", import.meta.url), "utf8");
 const serverSource = readFileSync(new URL("../services/router-core-sim/src/server.ts", import.meta.url), "utf8");
@@ -194,13 +195,13 @@ test("physical I/O guidance distinguishes device readiness from valid Main routi
   state.channels.push({ directOutput: { output: 1 } }, { directOutput: { output: 4 } });
   const before = JSON.stringify(state);
   assert.match(context.mainOutputGuidance(state), /VC MIX 1件 \/ Direct Out 1件/);
-  assert.match(html, /設定済みでも.*ALLOW・ミュート・レベル/, "configured routes are not proof of audible sound; explanation remains in help");
+  assert.match(manual, /設定済みでも.*ALLOW・ミュート・レベル/, "troubleshooting belongs in the manual rather than repeating under device controls");
   assert.equal(JSON.stringify(state), before, "guidance is read-only");
   state.output.state = "FAULT";
   assert.match(context.mainOutputGuidance(state), /STATUS.*手動復旧/);
   for (const id of ["io-output-guidance", "setup-open-route", "route-open-devices"]) assert.ok(html.includes(`id="${id}"`), id);
   assert.match(html, /開始前に音量を下げてください.*保存済みの経路/);
-  assert.match(html, /受信だけなら不要/);
+  assert.match(manual, /受信だけなら不要/);
   assert.match(styles, /\.io-main \{ grid-column: 1 \/ -1;/);
 });
 
@@ -235,7 +236,7 @@ test("desktop operator surface separates MIX, ROUTE, STATUS, SESSION and Bot / I
   }
   assert.match(html, /Discord入力/);
   assert.match(html, /class="participant-scope"/);
-  assert.match(html, /INは受信音声/);
+  assert.match(manual, /INは受信音声/);
   assert.match(html, /ALLOW/);
   assert.match(html, /class="bus-send-number" type="number" min="-90" max="12" step="0\.1"/);
   assert.match(html, /class="vc-master-number" type="number" min="-90" max="12" step="0\.1"/);
@@ -678,7 +679,7 @@ test("desktop MIX exposes only the active VC MIX send layer while physical mappi
     "bus-send-fader",
     "bus-send-number",
   ]) assert.match(html, new RegExp(`class="[^"]*${className}`), `missing desktop BUS control .${className}`);
-  assert.match(html, /VC MIX MASTER/);
+  assert.match(html, /<h3>VC MIX<\/h3>/);
   assert.match(script, /channel\.vcSends\?\.\[bus\.id\]/);
   assert.match(script, /type: "SET_VC_SEND"/);
   assert.match(script, /type: "SET_BUS_MUTE"/);
@@ -761,7 +762,7 @@ test("desktop SETUP manages multiple Bot profiles without exposing tokens or cha
   assert.match(script, /method: "POST"/);
   assert.match(script, /"x-dbr-session-nonce": desktopSessionNonce/);
   assert.match(script, /const bots = cards\.map\(botSettingsFromCard\)/);
-  assert.match(script, /body: JSON\.stringify\(\{ bots, operator: \{ port: Number\(elements\.appPort\.value\), lanAccess: elements\.lanAccessEnabled\.checked \}, tablet: \{ enabled: elements\.tabletEnabled\.checked, port: Number\(elements\.tabletPort\.value\) \} \}\)/);
+  assert.match(script, /body: JSON\.stringify\(\{ bots, operator: \{ port: Number\(elements\.appPort\.value\), lanAccess: elements\.lanAccessEnabled\.checked \} \}\)/);
   assert.match(script, /接続中Botの状態は変更しません/);
   assert.match(script, /先にBot設定を保存してください/);
   assert.match(script, /先にこのBotを切断してください/);

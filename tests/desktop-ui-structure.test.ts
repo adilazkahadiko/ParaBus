@@ -68,11 +68,11 @@ test("STATUS keeps diagnostics, searchable event logs and separate Main/Cue heal
   assert.match(script, /currentSnapshot\.system/); assert.match(script, /currentSnapshot\.programAudioShadow/); assert.match(script, /currentSnapshot\.rustManagement/);
 });
 
-test("SETUP retains Tablet administration and complete Bot fields", () => {
-  ids("tablet-enabled", "tablet-port", "tablet-pairing-code", "tablet-urls", "bot-profile-list", "add-tx-profile", "add-duplex-profile");
-  assert.match(script, /\/api\/tablet\/admin/);
+test("SETUP exposes Bot fields without the deferred Tablet prototype", () => {
+  ids("bot-profile-list", "add-tx-profile", "add-duplex-profile");
+  assert.doesNotMatch(script, /\/api\/tablet\/admin/);
+  assert.doesNotMatch(html, /id="tablet-/);
   for (const field of ["id", "label", "role", "token", "guildId", "voiceChannelId", "txAudioMode"]) assert.ok(script.includes(`data-setting="${field}"`), field);
-  assert.match(html, /有効化・Port変更は保存して本体を再起動後に反映/);
 });
 
 test("SESSION preserves preview-first recall, Recall Safe and selected PRE recording", () => {

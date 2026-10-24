@@ -142,12 +142,6 @@ const elements = {
   setupForm: document.querySelector("#bot-setup-form"),
   appPort: document.querySelector("#application-port"),
   outputTestTones: document.querySelector("#output-test-tones"),
-  tabletEnabled: document.querySelector("#tablet-enabled"),
-  tabletPort: document.querySelector("#tablet-port"),
-  tabletRuntimeState: document.querySelector("#tablet-runtime-state"),
-  tabletPairingCode: document.querySelector("#tablet-pairing-code"),
-  tabletUrls: document.querySelector("#tablet-urls"),
-  refreshTabletAdmin: document.querySelector("#refresh-tablet-admin"),
   botProfileList: document.querySelector("#bot-profile-list"),
   botProfileCount: document.querySelector("#bot-profile-count"),
   addBotProfile: document.querySelector("#add-bot-profile"),
@@ -338,7 +332,7 @@ function showView(view) {
   if (setup || route) {
     void loadWindowsEndpoints();
   }
-  if (setup) { void loadDesktopSettings(); void loadTabletAdmin(); }
+  if (setup) { void loadDesktopSettings();  }
 }
 
 function markSettingsDirty() {
@@ -662,8 +656,6 @@ function renderDesktopSettings(settings) {
   elements.lanAccessEnabled.checked = settings.operator?.lanAccess === true;
   elements.sharedGuildId.value = settings.bots[0]?.guildId ?? "";
   elements.sharedGuildId.dataset.previous = elements.sharedGuildId.value;
-  elements.tabletEnabled.checked = settings.tablet.enabled;
-  elements.tabletPort.value = String(settings.tablet.port);
   elements.botProfileList.replaceChildren(...settings.bots.map((bot) => createBotProfileCard(bot, true)));
   if (!settings.bots.length) {
     const empty = document.createElement("div");
@@ -727,27 +719,7 @@ async function loadWindowsEndpoints(notify = false) {
   }
 }
 
-async function loadTabletAdmin() {
-  if (!localSettingsAvailable) return;
-  try {
-    const response = await fetch("/api/tablet/admin", { cache: "no-store" });
-    const status = await response.json();
-    if (!response.ok) throw new Error(status.error ?? "Tablet状態を取得できませんでした");
-    elements.tabletRuntimeState.textContent = status.running ? `稼働中 · ${status.connectedClients}台接続` : status.enabled ? "起動失敗" : "停止中";
-    elements.tabletPairingCode.textContent = status.pairingCode ? `${status.pairingCode.slice(0, 4)} ${status.pairingCode.slice(4)}` : "再起動後に表示";
-    elements.tabletUrls.replaceChildren();
-    for (const url of status.urls ?? []) {
-      const link = document.createElement("a");
-      link.href = url; link.target = "_blank"; link.rel = "noreferrer"; link.textContent = url;
-      elements.tabletUrls.append(link);
-    }
-    if (!status.urls?.length) elements.tabletUrls.textContent = status.error ?? "有効化して保存後、SETUPから本体を再起動してください。";
-  } catch {
-    elements.tabletRuntimeState.textContent = "状態取得失敗";
-    elements.tabletPairingCode.textContent = "未取得";
-    elements.tabletUrls.replaceChildren();
-  }
-}
+
 
 let extendedDiagnosticsRenderedAt = -Infinity;
 function renderExtendedDiagnostics(currentSnapshot, force = false) {
@@ -1384,14 +1356,14 @@ async function saveBotProfiles(event) {
     const response = await fetch("/api/settings", {
       method: "POST",
       headers: desktopJsonHeaders,
-      body: JSON.stringify({ bots, operator: { port: Number(elements.appPort.value), lanAccess: elements.lanAccessEnabled.checked }, tablet: { enabled: elements.tabletEnabled.checked, port: Number(elements.tabletPort.value) } }),
+      body: JSON.stringify({ bots, operator: { port: Number(elements.appPort.value), lanAccess: elements.lanAccessEnabled.checked } }),
     });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error ?? "設定を保存できませんでした");
     renderDesktopSettings(payload.settings);
     elements.setupStatus.textContent = "保存済み";
-    showNotice("設定を保存しました。LAN公開・Tablet・Port変更は再起動後に反映されます");
-    void loadTabletAdmin();
+    showNotice("設定を保存しました。LAN公開・Port変更は再起動後に反映されます");
+
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     elements.setupStatus.textContent = message;
@@ -1412,8 +1384,6 @@ function renderSetupRuntime(currentSnapshot) {
   };
   const locked = currentSnapshot.state === "ON_AIR" || currentSnapshot.state === "FAULT";
   elements.appPort.disabled = locked;
-  elements.tabletEnabled.disabled = locked;
-  elements.tabletPort.disabled = locked;
   const runtimes = currentSnapshot.discord?.bots ?? [];
   const channels = currentSnapshot.discord?.availableVoiceChannels ?? [];
   for (const card of elements.botProfileList.querySelectorAll(".bot-profile-card")) {
@@ -1924,7 +1894,6 @@ function createStrip(channel) {
     busSendNumber: node.querySelector(".bus-send-number"),
     inputFill: node.querySelector(".input-meter-fill"),
     inputValue: node.querySelector(".input-meter-value"),
-    guidance: node.querySelector(".participant-guidance"),
   };
   node.dataset.channelId = channel.id;
   refs.name.addEventListener("dragstart", (event) => {
@@ -2007,9 +1976,6 @@ function renderParticipant(channel, refs, index, currentSnapshot, bus, showScope
   refs.approval.classList.toggle("pending", pending);
   refs.allow.hidden = !pending;
   refs.allow.disabled = !session;
-  refs.guidance.textContent = pending
-    ? "INは受信音声です。ALLOWするまで本線・CUEには出ません"
-    : bus ? "VC MIXの送信と音量を操作します。PRE出力・CUEは独立です" : "VC MIX送信先がありません。出力先はROUTEで確認してください";
 
   const cueActive = currentSnapshot.monitorSourceId === channel.id;
   refs.cue.disabled = !physicalMonitorReady(currentSnapshot);
@@ -3150,9 +3116,6 @@ elements.lanAccessEnabled.addEventListener("change", markSettingsDirty);
 elements.sharedGuildId.addEventListener("change", changeSharedGuild);
 elements.exportBotProfiles.addEventListener("click", exportBotProfiles);
 elements.importBotProfiles.addEventListener("change", importBotProfiles);
-elements.tabletEnabled.addEventListener("change", markSettingsDirty);
-elements.tabletPort.addEventListener("input", markSettingsDirty);
-elements.refreshTabletAdmin.addEventListener("click", () => void loadTabletAdmin());
 elements.addBotProfile.addEventListener("click", () => {
   addBotProfile()?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
