@@ -165,7 +165,7 @@
           <tr><td>VCへ接続</td><td>保存済みの有効なBotだけを接続する。ON AIR中は安全のため拒否される</td></tr>
           <tr><td>VCから切断</td><td>確認後、そのBotの受信・送信を停止して切断する。ほかのBotは維持する</td></tr>
         </tbody></table>
-        <div class="callout"><strong>「設定済み」なら空欄でよい</strong>Token欄を空欄のまま保存すると、現在のTokenを保持します。保存後も欄は空になります。</div>
+        <div class="callout"><strong>「設定済み」なら空欄でよい</strong>Token欄を空欄のまま保存すると、現在のTokenを保持します。保存後も欄は空になり、Tokenは再表示されません。JSON・state API・ログにも出しません。</div>
         <div class="callout warning"><strong>設定変更中は先に保存</strong>Guild / VC IDやTokenを変えた場合は保存後に対象Botを一度切断し、再接続します。起動・本体再起動時は有効なBotも未接続で待機するため、SETUPから接続してください。接続後の通信断からの自動復帰は維持します。Tablet Controlの有効化・Port変更はParaBus再起動後に反映されます。</div>
       </section>
 
@@ -243,7 +243,7 @@
         <p><strong>LEVEL</strong>でINFO / WARNING / CRITICALを選び、<strong>FILTER</strong>へBot名、Scene、Device、Recorderなどを入力して絞り込みます。表示対象は状態APIが保持する最新100件です。</p>
         <div class="callout warning"><strong>ログ消去はSETUP / READY中だけ</strong>確認ダイアログで確定すると既存Eventを消去しますが、消去操作そのものはWARNINGとして残ります。Bot Tokenと音声内容は記録されません。</div>
         <h3>Support Bundle · 障害調査用ZIP</h3>
-        <div class="callout warning"><strong>障害時は実行フォルダではなくSupport Bundleを共有する</strong>実行フォルダ全体、.env、Bot設定原本、録音ファイルをZIPにして共有しないでください。</div>
+        <div class="callout warning"><strong>障害時は実行フォルダではなくSupport Bundleを共有する</strong>実行フォルダ全体、.env、Bot設定原本、録音ファイルをZIPにして共有しないでください。Support BundleはON AIR中も作成できます。</div>
         <ol><li><strong>STATUS → Support Bundle · 診断</strong>を開きます。</li><li>ログ日数（既定7日、1〜30日）を選び、<strong>Support Bundleを作成</strong>を押します。ON AIR中・録音中も使用でき、音声・TX状態は変更しません。</li><li><strong>出力先を開く</strong>から<code>settingsRoot/support/</code>の生成ZIPを確認し、その<strong>1ファイルだけ</strong>を調査担当へ共有します。フォルダを開けない環境では、作成結果に表示されたパスを使ってください。</li></ol>
         <p>ZIPには最近の運用ログ、存在するトレイconsoleログ、build commit・起動時PC role・UTC起動時刻、Bot/TX/RX・drop・xrun・録音Queueの診断統計、Bot role・送信先区分・有効状態・台数、Node/OS/CPU/メモリ・native依存状態を含めます。Token・.env・Bot設定原本・録音・Scene・参加者profile原本は含めません。Discord ID・参加者表示名・Guild名・VC名はBundleごとに匿名化し、対応表は付けません。</p>
         <p>Bot profileIdと運用者設定labelは残ります。機密の名称を付けないでください。未知のログ自由文は匿名イベントIDになり、原文の復元はできません。consoleログは更新日で選択され、末尾最大5MiBだけを収集します。途中から始まる最初の行は捨て、切り詰めと元サイズをbundle-info.jsonへ記録します。</p>
@@ -260,6 +260,8 @@
           <tr><td>PRESET</td><td>VC Busに設定したDEFAULT SENDでOPEN</td></tr>
         </tbody></table>
         <div class="callout"><strong>Policyは新規参加者だけに適用</strong>すでにMix済みのUser level / muteは変更しません。</div>
+        <h3>Receiver Owner</h3>
+        <p>VCごとに1台のBotだけが受信します。自動切替はしません。受信Botが停止した場合は、そのVCだけが無音になります。切り替えはROUTEのReceiver Ownerで手動で行います。</p>
         <h3>VC Busを追加・削除する</h3>
         <p><strong>ROUTE → VC Bus · 作成 / 削除 / Botとの紐付け</strong>で新規名を入力し、<strong>SAFEで作成</strong>を押します。削除はBusを選んで<strong>削除</strong>を押し確認します。最後のBusは削除できません。作成したBusのBot/VC紐付けと物理出力も同じ場所で設定できます。</p>
         <div class="callout warning"><strong>ON AIR中は構成を固定</strong>Bus追加・削除とPolicy変更はできません。参加者Send、Mute、PFL、Bus Masterは引き続き操作できます。</div>
@@ -283,9 +285,9 @@
         <h2>出力デバイスを選ぶ（I/O）</h2>
         <ol>
           <li><strong>SETUP → Audio I/O</strong>を開きます。</li>
-          <li>機器一覧を更新し、Main Output / Cue Output / Inputから対象を選びます。</li>
+          <li>機器一覧を更新し、Main Output / Cue Output / Inputから対象を選びます。開始前にモニター音量を下げてください。保存済みの経路から音が出る場合があります。起動・再起動後、機器は自動では開始しません。</li>
           <li>Windows endpointの自動一致ができない場合は、手動確認の折り畳みを開いて同じ機器のendpointを明示指定します。ASIO・Core Audio等では不要です。</li>
-          <li><strong>デバイスを開始</strong>を押し、音量と保存済みROUTEを確認して確定します。</li>
+          <li><strong>デバイスを開始</strong>を押し、音量と保存済みROUTEを確認して確定します。開始後、ROUTEで出力先chを割り当ててください。</li>
         </ol>
         <div class="callout"><strong>初期状態はMock 64ch Output</strong>実deviceはoperatorが選択するまで開きません。Mockならスピーカーへ音を出さず、64ch mappingを安全に試せます。</div>
         <table><thead><tr><th>表示</th><th>意味</th></tr></thead><tbody>
@@ -297,7 +299,7 @@
         </tbody></table>
         <h3>Output Test Tone</h3>
         <p><code>OUT 1</code>〜のボタンで、そのchだけへ1 kHz / −24 dBFSを送ります。もう一度押すと停止します。SoundGridとLV1のpatch順確認に使用します。</p>
-        <div class="callout warning"><strong>実deviceでは実際にtoneが出ます</strong>モニター音量を下げ、SETUP中に1chずつ確認してください。ON AIR中はtest toneを開始できません。</div>
+        <div class="callout warning"><strong>実deviceでは実際にtoneが出ます</strong>モニター音量を下げ、SETUP中に1chずつ確認してください。ON AIR中とFAULT中はtest toneを開始できません。</div>
       </section>
 
       <section id="tx-input-routing" data-search-section>
@@ -308,6 +310,7 @@
 
       <section id="matrix" data-search-section>
         <h2>Userを出力chへ割り当てる（MATRIX）</h2>
+        <p>ROUTEのマトリクスは、行がVC MIX・VC GROUP・参加者Direct Out、列が選択したMain Outputの出力chです。CUEはこのマトリクスとは別経路です。</p>
         <p><strong>ROUTE → VC名をクリック</strong>して参加者のDirect Out行を開き、OUTとの交点で割り当て／解除します。既存のPRE/POST設定を維持し、未設定はPREです。他経路が使っている出力への割り当ては拒否します。</p>
         <table><thead><tr><th>項目</th><th>動作</th></tr></thead><tbody>
           <tr><td>OUTPUT</td><td><code>OUT 1</code>〜物理出力ch。<code>OFF</code>でdirect route解除</td></tr>
@@ -361,7 +364,7 @@
         <h2>WAV録音</h2>
         <ol><li><strong>SESSION</strong>を開きます。</li><li><strong>録音する音声</strong>で、必要なMain Output、VC MIX、User / Inputを個別にチェックします。各一覧で「すべて選択／解除」も使えます。</li><li>選択数を確認し、<strong>録音を開始</strong>で確認します。Userだけ、VC MIXだけの録音も可能です。</li><li>終了時は<strong>録音を停止</strong>を押し、保存完了（待機／IDLE）まで待ちます。</li></ol>
         <p>保存先はプロジェクト内の<code>recordings</code>です。48 kHz / mono / 32-bit float WAVで、Trackは録音開始時に固定されます。</p>
-        <p>チェックした音声ごとに1ファイルを作成します。Output 1/2は2つのmono WAVです。User / Inputはフェーダー・ミュート・承認後の音声で、無音による自動除外はしません。途中参加のUserは自動追加せず、録音中／保存中は対象を変更できません。対象が消えた場合は、次の開始前に選び直してください。本線やCueの出力は録音操作で変更されません。</p>
+        <p>チェックした音声ごとに、1chの48 kHz Float WAVを保存します。Output 1/2は2つのmono WAV（2ファイル）です。User / InputはTrim・HPF・Compressor後、フェーダー前（PRE）の音声で、chのフェーダー・ミュートは反映しません。VC MIXは各参加者のVC送信（MIX ON/OFF・送信音量）を反映し、VC Masterのフェーダー・ミュートは反映しません。PENDINGの参加者と緊急停止中は無音です。無音による自動除外はしません。途中参加のUserは自動追加せず、録音中／保存中は対象を変更できません。DROPPEDは録音で欠落したブロック数です。対象が消えた場合は、次の開始前に選び直してください。本線やCueの出力は録音操作で変更されません。</p>
         <p>「本体を再起動して反映してください」と表示された場合は、出力・録音を止められるタイミングでSETUPから本体を再起動します。録音はSESSIONへ統一しました。Main Outputを1つ選び、VC MIXやUser / Inputで<strong>すべて選択</strong>すると従来のカテゴリ全件指定に相当します。</p>
         <div class="callout warning"><strong>DROPとFAULTを確認</strong>QueueのDROPが増えた場合、またはRecorderがFAULTになった場合は録音だけが停止します。配信音声は継続します。disk空き容量とFolderを確認して新しいSessionを開始してください。</div>
         <div class="callout"><strong>長時間録音</strong>1 WAVが4 GiBへ達する前に安全停止します。現バージョンは自動file splitを行わないため、長時間番組では途中でSessionを分けてください。</div>
@@ -371,9 +374,10 @@
         <h2>Sceneを安全に保存・呼び出す（SCENES）</h2>
         <h3>現在のMixを保存する</h3>
         <ol><li><strong>SESSION</strong>を開きます。</li><li><strong>現在のMIXを新しいSceneに保存</strong>で名前を入力して<strong>新規保存</strong>を押します。</li><li>保存済みSceneの選択欄へ名前が表示されたことを確認します。</li></ol>
-        <p>保存対象はchannel順・表示名・Trim・Fader・Mute・VC Send、Bus Master / Mute / Compressor / Limiter、Matrix gain / muteです。Bot token、出力device、Bot接続先、Guild / VC割当は保存しません。</p>
+        <p>保存対象はchannel順・表示名・Trim・Fader・Mute・VC Send、Bus Master / Mute / Compressor / Limiter、Matrix gain / muteです。Bot token、出力device、Bot接続先、Guild / VC割当は保存しません。上書き・削除は元に戻せません。設定ロック中やFAULT時は操作できません。</p>
         <h3>SceneをRecallする</h3>
-        <ol><li>保存済みSceneを選び、<strong>1. 変更を確認</strong>を押します。</li><li>差分と保護/ロックを確認します。</li><li><strong>2. 確認して適用</strong>を押し、適用件数を確認して承認します。</li></ol>
+        <p>適用するとMIXが変わるため、先に変更内容を確認してください。Recall前に必ずPreviewを表示します。保存後に参加したUserは対象外として表示されます。</p>
+        <ol><li>保存済みSceneを選び、<strong>変更を確認</strong>を押します。</li><li>差分と保護/ロックを確認します。</li><li><strong>適用</strong>を押し、適用件数を確認して承認します。</li></ol>
         <table><thead><tr><th>結果</th><th>意味</th></tr></thead><tbody>
           <tr><td>APPLY</td><td>確認後にScene値へ変更されるparameter</td></tr>
           <tr><td>RECALL SAFE</td><td>右側で保護されているため、現在値を維持するparameter</td></tr>
@@ -421,7 +425,8 @@
 
       <section id="shutdown" data-search-section>
         <h2>終了・ログ・保守</h2>
-        <h3>終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
+        <h3>再起動と終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
+        <p><strong>SETUP → ParaBus本体を再起動</strong>は、BotとAudio I/Oを停止して本体を起動し直します。再起動後、Botは未接続で待機し、CUEと物理I/Oは自動では開始しません。拒否される条件は終了と同じです。</p>
         <p>Windowsではトレイの<strong>終了</strong>も同じ条件で停止します。ブラウザーのタブを閉じただけではアプリは停止しません。強制終了時の子プロセス監視もありますが、通常は終了ボタンを使ってください。録音中の強制終了はファイルを損なうおそれがあります。</p>
         <h3>ログ</h3><p>WindowsはParaBusアイコン → <strong>ログを開く</strong>。Macは展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
         <p>運用ログは<code>logs/operational-YYYY-MM-DD.jsonl</code>へ実行中も追記されます。終了を待つ必要はありません。障害時は実行フォルダではなく、診断画面で作成した<strong>Support Bundle</strong>だけを共有してください。</p>
