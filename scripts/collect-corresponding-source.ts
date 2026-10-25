@@ -1,3 +1,4 @@
+import { archiveTool } from "./archive-tool.ts";
 // Fetch source archives only; never execute downloaded package/build scripts.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -44,7 +45,7 @@ export async function collectSources(repo: string, nativeBase: string, output: s
     records.push({ path, url, sha256: sha256(bytes), ...(integrity ? { integrity } : {}) });
     return destination;
   }
-  const tarRead = (archive: string, entry: string) => execFileSync("tar", ["-xOf", archive, entry], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+  const tarRead = (archive: string, entry: string) => execFileSync(archiveTool(), ["-xOf", archive, entry], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
   const dave = await download("davey/davey-js-0.1.12.tar.gz", `https://codeload.github.com/Snazzah/davey/tar.gz/${DAVE_COMMIT}`);
   const daveLock = tarRead(dave, `davey-${DAVE_COMMIT}/Cargo.lock`);
   assert.equal(sha256(Buffer.from(daveLock)), "cf9bc6884056b8e20ee6835ac0ffca237f8b869d5ca14cddf25f548fa15ceb50");

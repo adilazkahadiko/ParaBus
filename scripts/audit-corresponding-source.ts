@@ -1,3 +1,4 @@
+import { archiveTool } from "./archive-tool.ts";
 // Read upstream archives without extracting or executing them. Preserve notices verbatim.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -12,7 +13,7 @@ const supplemental: { path: string; url: string; sha256: string }[] = [];
 const result: { path: string; name: string; license: string; licenseFiles: string[]; supplemental?: string[] }[] = [];
 const notices: string[] = [];
 const treeCache = new Map<string, string[]>();
-const read = (archive: string, entry: string) => execFileSync("tar", ["-xOf", archive, entry], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+const read = (archive: string, entry: string) => execFileSync(archiveTool(), ["-xOf", archive, entry], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
 const isNotice = (path: string) => /(^|\/)(licen[sc]e[^/]*|copying[^/]*|notice[^/]*|copyright[^/]*|authors(?:\.[^/]*)?)$/i.test(path);
 async function fetchFile(path: string, url: string) {
   const file = join(root, path);
@@ -31,7 +32,7 @@ async function fetchFile(path: string, url: string) {
 for (const record of downloads.filter(r => r.path.endsWith(".crate") || r.path.startsWith("npm/"))) {
   const file = join(root, record.path);
   assert.equal(createHash("sha256").update(readFileSync(file)).digest("hex"), record.sha256, `Changed source archive: ${record.path}`);
-  const entries = execFileSync("tar", ["-tf", file], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }).trim().split(/\r?\n/);
+  const entries = execFileSync(archiveTool(), ["-tf", file], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }).trim().split(/\r?\n/);
   const licenseFiles = entries.filter(e => !e.endsWith("/") && isNotice(e));
   if (!licenseFiles.length) {
     for (const entry of entries.filter(e => /^[^/]+\/readme(?:\.md|\.txt)?$/i.test(e))) {

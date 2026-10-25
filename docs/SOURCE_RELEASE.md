@@ -121,6 +121,32 @@ beta.2以降は元native入力を公開commit `28d27a491d21eee718237af1bcbf7c334
 現行のJS依存更新とビルド案内の変更はapp/側に保持し、再利用バイナリの元ソースと区別します。
 npm由来native部品は上流package情報と取得元CI commitを分けて記録します。
 
+### 梱包・起動検証の防御
+
+Windowsでは`archive-tool.ts`が`%SystemRoot%\System32\tar.exe`を明示して使います。
+Git BashのGNU tarがPATHの先頭でも、Windowsのドライブ文字をremote hostとして解釈しません。
+JS差し替えは許可した版とintegrityを両方固定し、archive内のリンク・特殊ファイル・
+危険なパス・実行バイナリのシグネチャ・bin追加・依存変更を拒否します。
+置換前後に本番依存のパス・名前・版を照合し、他platformのoptional依存はその依存枝ごと除外します。
+segfault-handlerは意図的に除外し、元入力に残るnanヘッダーはlockと照合したうえで保持します。
+入れ子のnode_modulesがある置換先は削除せず拒否します。途中失敗時は置換元を復元し、一時展開先を片付けます。
+
+native再利用では、現行と元のsource入力集合を比較し、Rust・Cargo・toolchain・launcherの
+hash変更を拒否します。既知のASIO案内変更だけは、変更前後の固定hashで許可します。
+元入力の一覧・manifest・binary hash自体も、公開baselineの元lockと照合します。
+
+実EXEのsmokeは、使用中のParaBusを通常終了した後に、未使用の新規展開先だけで実行します。
+期待commitは配布タグ等から独立して取得し、引数へ渡します。展開先のBUILDだけを正解とは扱いません。
+親のDISCORD_*・DBR_*等とNodeの注入オプションを除去し、空のBot rackで起動します。
+正常終了・失敗時の後始末とも、検証用展開先のプロセスだけを対象にします。
+
+```powershell
+$expectedCommit = git rev-parse 'v0.1.0-beta.2^{commit}'
+runtime\node.exe scripts/windows-release-smoke.ts <target配下の新規展開先ParaBus> target\exe-smoke.json $expectedCommit
+```
+
+この開発用検証処理の修正で、公開済みbeta.2のZIP・タグを置き換えることはありません。
+
 公開リポジトリでは両workflowのartifact uploadを停止します。ビルド・テストは継続します。
 CIから実行版を配布する場合は、対応ソースと原文表記を揃えたうえでuploadを別途整備してください。
 公開切り替えの直前には、private時に作った旧形式artifactが残っていないことも確認します。

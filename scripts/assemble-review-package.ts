@@ -1,3 +1,4 @@
+import { archiveTool } from "./archive-tool.ts";
 // Assemble in a new directory from clean tracked source and an unused CI input.
 // The app used for field testing (which now contains settings/recordings) is never read.
 import assert from "node:assert/strict";
@@ -38,7 +39,7 @@ assert.ok(licenses.every((p: { licenseFiles: string[]; supplemental?: string[] }
 const node = join(repo, "runtime/node.exe"), nodeLicense = join(repo, "runtime/LICENSE");
 assert.equal(hash(node), "dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f");
 assert.ok(existsSync(nodeLicense));
-const nodeSourceLicense = execFileSync("tar", ["-xOf", join(sources, "node/node-v22.23.4.tar.xz"), "node-v22.23.4/LICENSE"], { encoding: "utf8", maxBuffer: 1024 * 1024 });
+const nodeSourceLicense = execFileSync(archiveTool(), ["-xOf", join(sources, "node/node-v22.23.4.tar.xz"), "node-v22.23.4/LICENSE"], { encoding: "utf8", maxBuffer: 1024 * 1024 });
 assert.equal(readFileSync(nodeLicense, "utf8").replaceAll("\r\n", "\n"), nodeSourceLicense.replaceAll("\r\n", "\n"));
 const version = process.argv[5];
 if (version) {
@@ -76,7 +77,7 @@ for (const [path, checksum] of [["native-source/asiosdk.zip", asio.sdkSha256], [
 const davePath = "node_modules/@snazzah/davey-win32-x64-msvc/davey.win32-x64-msvc.node";
 assert.equal(hash(join(app, davePath)), "42928bfbee406f747e67cceb0bdb493f7a56b1f63101bf13d084527576dd84a5");
 const daveNpm = join(sources, "npm/@snazzah__davey-win32-x64-msvc-0.1.12.tgz");
-const daveBytes = execFileSync("tar", ["-xOf", daveNpm, "package/davey.win32-x64-msvc.node"], { maxBuffer: 32 * 1024 * 1024 });
+const daveBytes = execFileSync(archiveTool(), ["-xOf", daveNpm, "package/davey.win32-x64-msvc.node"], { maxBuffer: 32 * 1024 * 1024 });
 assert.equal(createHash("sha256").update(daveBytes).digest("hex"), hash(join(app, davePath)));
 const binaryOrigin = (path: string) => {
   if (path === "runtime/node.exe") return { kind: "official-node-runtime", upstreamVersion: "22.23.4" };
@@ -124,7 +125,7 @@ for (const [folder, paths] of [[app, files(app)], [join(source, "app"), files(jo
 for (const path of ["release-manifest-lock.json", "release-audit.json"]) rmSync(join(app, path));
 json(join(app, "release-manifest-lock.json"), { files: files(app).map(path => ({ path, sha256: hash(join(app, path)) })) });
 json(join(app, "release-audit.json"), { schemaVersion: 1, entries: files(app), credentialsScannedFiles: scanned, omittedCrashDiagnostics: true });
-function zip(directory: string, destination: string) { execFileSync("tar", ["-a", "-cf", destination, "-C", dirname(directory), basename(directory)], { stdio: "inherit" }); }
+function zip(directory: string, destination: string) { execFileSync(archiveTool(), ["-a", "-cf", destination, "-C", dirname(directory), basename(directory)], { stdio: "inherit" }); }
 zip(source, join(handoff, "corresponding-source.zip"));
 writeFileSync(join(handoff, "SHA256SUMS.txt"), `${hash(join(handoff, "corresponding-source.zip"))}  corresponding-source.zip\n` + files(app).map(path => `${hash(join(app, path))}  ParaBus/${path}`).join("\n") + "\n");
 const archive = join(output, `${name}.zip`); zip(handoff, archive);

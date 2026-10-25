@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { verifyNativeInputs, verifyArtifactSourceInputs } from "../scripts/native-inputs.ts";
+import { verifyNativeInputs, verifyArtifactSourceInputs, assertNativeReuseCompatibility } from "../scripts/native-inputs.ts";
 import { execFileSync } from "node:child_process";
 import { collectSources } from "../scripts/collect-corresponding-source.ts";
 
@@ -34,4 +34,20 @@ test("original native sources and manifests remain independently pinned after JS
   verifyArtifactSourceInputs(lock, original);
   assert.throws(() => verifyArtifactSourceInputs(lock, path => path === "scripts/build-windows-asio.ps1" ? Buffer.from("changed") : original(path)), /Original native source changed/);
   assert.throws(() => verifyArtifactSourceInputs(lock, path => path === "package-lock.json" ? Buffer.from('{"packages":{"":{}}}') : original(path)), /Original dependency manifest changed/);
+  const retaken = structuredClone(lock);
+  retaken.artifactSourceInputs![0].sha256 = "0".repeat(64); retaken.sourceInputs[0].sha256 = "0".repeat(64);
+  assert.throws(() => verifyArtifactSourceInputs(retaken, original), /Original native source inventory changed/);
+});
+
+test("retaking current hashes cannot authorize changes to Rust or launcher inputs", () => {
+  const lock = verifyNativeInputs(resolve(import.meta.dirname, ".."));
+  for (const input of lock.sourceInputs) {
+    const changed = structuredClone(lock);
+    changed.sourceInputs.find(p => p.path === input.path)!.sha256 = "0".repeat(64);
+    assert.throws(() => assertNativeReuseCompatibility(changed), /Native source differs from original artifact/, input.path);
+  }
+  const missing = structuredClone(lock); missing.sourceInputs.pop();
+  assert.throws(() => assertNativeReuseCompatibility(missing), /input set changed/);
+  const added = structuredClone(lock); added.sourceInputs.push({ path: "crates/new/src/lib.rs", sha256: "0".repeat(64) });
+  assert.throws(() => assertNativeReuseCompatibility(added), /input set changed/);
 });
