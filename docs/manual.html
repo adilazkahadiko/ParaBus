@@ -80,7 +80,7 @@
       <div style="padding:12px 12px 0"><input id="search" class="search" type="search" placeholder="マニュアル内を絞り込み" aria-label="マニュアル内を検索"></div>
       <nav id="toc">
         <a href="#quick">まず起動する</a><a href="#tray">常駐アイコン</a><a href="#discord">Discord設定</a><a href="#settings">設定ページ</a>
-        <a href="#screen">画面の見方</a><a href="#monitor-log">Monitor / Log</a><a href="#bots">Bot Rack</a><a href="#vcmix">VC Quick Mix</a><a href="#returns">Discord Return</a><a href="#recorder">Recorder</a><a href="#scenes">Sceneと安全操作</a><a href="#io">出力デバイス</a><a href="#matrix">出力マッピング</a>
+        <a href="#screen">画面の見方</a><a href="#monitor-log">稼働状況とログ（STATUS）</a><a href="#bots">Bot稼働状況（STATUS / SETUP）</a><a href="#vcmix">参加者とVC MIX（MIX）</a><a href="#returns">Discord送信（TX）</a><a href="#recorder">WAV録音（SESSION）</a><a href="#scenes">Scene（SESSION）</a><a href="#io">音声デバイス（SETUP）</a><a href="#matrix">出力を割り当てる（ROUTE）</a>
         <a href="#meter">メーター</a><a href="#mix">ミキサー操作</a>
         <a href="#safety">安全機能</a><a href="#trouble">困ったとき</a><a href="#shutdown">終了・ログ</a>
         <a href="#limits">現在の範囲</a>
@@ -104,18 +104,14 @@
           <div class="step"><div class="number">3</div><strong>UIを開く</strong><p>ParaBusアイコンをダブルクリックします。既定ブラウザーで操作画面が開きます。</p></div>
         </div>
         <div class="callout"><strong>Windowsはコンソール窓を出しません</strong>本体は通知領域で動作します。アイコンが見えない場合は通知領域の <code>^</code> を押してください。SmartScreenが出たら、取得元を確認したうえで<strong>詳細情報 → 実行</strong>を選びます。Botは未接続で待機するため、SETUPから対象Botを接続します。互換用の<code>start-router.cmd</code>も使用できます。</div>
-        <h3>Macの初回起動</h3>
-        <p>ZIPは書き込み可能な専用フォルダーへ展開します。<code>ParaBus.app</code>だけを移動せず、runtime・scriptsなどと一緒に置きます。</p>
-        <ol><li><strong>ParaBus.appをダブルクリック</strong>。警告が出たら<strong>完了</strong>で閉じます。</li><li><strong>システム設定 → プライバシーとセキュリティ → このまま開く</strong>で、信頼できるParaBusの起動を許可します。</li><li>必要ならもう一度ダブルクリックします。同じ展開フォルダーでは通常、2回目以降の許可は不要です。ブラウザーに操作画面が開きます。</li></ol>
-        <p>Apple Developerの署名・公証は行いません。許可手順は<a href="https://support.apple.com/ja-jp/102445">Appleの初回起動案内</a>も参照してください。OS更新や管理ポリシーによっては再確認が必要です。</p>
-        <p>初回起動後、展開フォルダー内だけの<code>com.apple.quarantine</code>属性を解除します。Gatekeeper全体は変更しません。OSの隔離実行で隣のファイルが見えない場合は、runtime・scripts・ParaBus.appが入った<strong>展開フォルダーを選択</strong>してください。互換用の<code>start-router.command</code>も残しています。</p>
+        <p>現在の配布は Windows のみです。</p>
       </section>
 
       <section id="tablet" data-search-section><h2>タブレット操作</h2><p>再設計のため、現在の版では提供していません。旧設定が残っていても専用ポートは起動しません。</p></section>
       <section id="audio-basics" data-search-section>
         <h2>入出力を確認する</h2>
         <p>INは受信音声です。参加者はALLOWするまで本線・Cueには出ません。Mainの経路が設定済みでも無音の場合は、ALLOW・ミュート・レベルと音卓側を確認してください。</p>
-        <p>入力デバイスはDiscordへマイクなどを送る場合に使います。受信だけなら不要です。入力の割り当てはROUTE、送信音量はMIXのDiscord送信で操作し、TXは手動で開始します。</p>
+        <p>入力デバイスはDiscordへマイクなどを送る場合に使います。受信だけなら不要です。入力の割り当てはROUTE、送信音量はMIXのTX MASTERSで操作し、TXは手動で開始します。</p>
         <p>Mainと別の機器でCueを聞く場合は、Cueの出力デバイスを選びます。Mainと同じ機器を使う場合は、Cue欄でMainの空き出力chを指定します。</p>
       </section>
 
@@ -139,7 +135,7 @@
 
       <section id="discord" data-search-section>
         <h2>Discord接続を設定する</h2>
-        <ol><li><strong>SETUP → Bots</strong>を開き、<strong>＋ Bot</strong>または役割別の追加ボタンを押します。</li><li>カードの<strong>詳細</strong>で名前・役割・Server ID・VC ID・Tokenを入力し、<strong>使用</strong>へチェックします。</li><li><strong>設定を保存</strong>を押します。保存だけでは接続しません。</li><li>各Botの<strong>接続</strong> / <strong>切断</strong>を明示的に押して操作します。</li></ol>
+        <ol><li><strong>SETUP → BOTS</strong>を開き、<strong>＋ RX</strong>、<strong>＋ TX</strong>、<strong>＋ RX+TX</strong>のいずれかを押します。</li><li>カードの<strong>詳細</strong>で名前・役割・Server ID・VC ID・Tokenを入力し、<strong>使用</strong>へチェックします。</li><li><strong>設定を保存</strong>を押します。保存だけでは接続しません。</li><li>各Botの<strong>接続</strong> / <strong>切断</strong>を明示的に押して操作します。</li></ol>
         <p>20台などを登録するときは<strong>Bot Token をまとめて追加</strong>へ1行1Tokenで貼り付けます。空行・重複・形式不正行は飛ばし、合計24台までRXとして追加します。Server IDだけ1枚目から引き継ぎ、VC IDは事故防止のため空欄です。各VCを設定してから保存してください。</p>
         <div class="callout danger"><strong>Botトークンを共有しない</strong>スクリーンショット、チャット、ソースコード、ログへ貼らないでください。設定ページのBOT TOKEN欄だけへ入力します。</div>
         <h3>IDをコピーできない場合</h3>
@@ -148,7 +144,7 @@
         <h3>まず1 Botで送受信</h3>
         <p>通常はRoleを<strong>RX+TX（双方向）</strong>にします。1 Bot・1 VoiceConnectionでDiscord音声の受信とGAME Stemの送信ができます。同じTokenをRXとTXへ重複登録しないでください。</p>
         <h3>複数Bot / RX最大24・TX最大22・合計最大24</h3>
-        <p>設定ページの<strong>+ 送受信Bot</strong>、<strong>+ RX Bot</strong>または<strong>+ TX Bot</strong>で追加します。TX / 双方向BotはGAME / CASTER / COMMENTARY / IFBとMONO / STEREOを選べます。</p>
+        <p>SETUPのBOTSで<strong>＋ RX</strong>、<strong>＋ TX</strong>または<strong>＋ RX+TX</strong>で追加します。TX / 双方向BotはMONO / STEREOを選べます。</p>
         <p>1 PCあたりRX最大24 Bot、TX最大22 Bot、合計最大24 Botです。DUPLEXはRX枠・TX枠を各1つ消費し、合計では1 Botと数えます。APEX 20チームはRX PCとTX PCを分離する設計です。すべて別のBot tokenを使い、チャットやJSONへtoken本体を貼らず、<code>.env</code>だけへ保存してください。</p>
       </section>
 
@@ -156,7 +152,7 @@
         <h2>設定ページの使い方</h2>
         <table><thead><tr><th>項目</th><th>内容</th></tr></thead><tbody>
           <tr><td>PROFILE ID</td><td>ParaBus内でBotを識別する英数字・<code>_</code>・<code>-</code>の名前</td></tr>
-          <tr><td>BOT表示名</td><td>BOT RACKやRETURNSに表示する分かりやすい名前</td></tr>
+          <tr><td>名前</td><td>MIXやROUTE、STATUSに表示する分かりやすい名前</td></tr>
           <tr><td>ROLE</td><td>1 Bot送受信はRX+TX（双方向）、受信専用はRX、送信専用はTX</td></tr>
           <tr><td>TX MODE</td><td>TXまたは双方向で使用。MONOは入力1ch、STEREOは連続する入力2ch</td></tr>
           <tr><td>GUILD ID</td><td>DiscordサーバーID。17〜20桁</td></tr>
@@ -166,7 +162,7 @@
           <tr><td>VCから切断</td><td>確認後、そのBotの受信・送信を停止して切断する。ほかのBotは維持する</td></tr>
         </tbody></table>
         <div class="callout"><strong>「設定済み」なら空欄でよい</strong>Token欄を空欄のまま保存すると、現在のTokenを保持します。保存後も欄は空になり、Tokenは再表示されません。JSON・state API・ログにも出しません。</div>
-        <div class="callout warning"><strong>設定変更中は先に保存</strong>Guild / VC IDやTokenを変えた場合は保存後に対象Botを一度切断し、再接続します。起動・本体再起動時は有効なBotも未接続で待機するため、SETUPから接続してください。接続後の通信断からの自動復帰は維持します。Tablet Controlの有効化・Port変更はParaBus再起動後に反映されます。</div>
+        <div class="callout warning"><strong>設定変更中は先に保存</strong>Guild / VC IDやTokenを変えた場合は保存後に対象Botを一度切断し、再接続します。起動・本体再起動時は有効なBotも未接続で待機するため、SETUPから接続してください。接続後の通信断からの自動復帰は維持します。PORT変更はParaBus再起動後に反映されます。</div>
       </section>
 
       <section id="screen" data-search-section>
@@ -176,8 +172,8 @@
           <tr><td>MIX</td><td>参加者検索、受信INメーター、ALLOW、VC MIX送信ON/OFF・音量、CUE、全VC Master。VC Master名を押すと、そのVCの参加者へ表示を切り替えます。</td></tr>
           <tr><td>ROUTE</td><td>VC MIX・VC MIX BUS（グループ）・参加者Direct Out → Main OUTのマトリクス。Input Ch → TX Botのマトリクス（MONO / STEREO）。送信音量・ON/OFFはMIXのTX MASTERSで操作します。送信先VCはSETUPのBot設定で指定します。</td></tr>
           <tr><td>STATUS</td><td>Main/Cue・Bot/User・録音状態、イベントのlevel/text検索と確認付き消去、Support Bundle。<strong>詳細診断</strong>でCPU・メモリ・ネットワーク・RX/TX・Rust Shadow情報。</td></tr>
-          <tr><td>SESSION</td><td>録音対象選択・開始/停止、Scene保存/上書き/削除、Preview→確認して適用、検索付き<strong>Recall Safe</strong>。</td></tr>
-          <tr><td>SETUP</td><td>Main/Cue/Input機器、必要時のWindows endpoint手動指定、テストトーン、Tablet設定・ペアリング情報、LAN公開、共通Server ID、Bot設定の読み書き、一括Token追加、本体再起動。</td></tr>
+          <tr><td>SESSION</td><td>録音対象選択・開始/停止、Scene保存/上書き/削除、変更を確認して適用、検索付き<strong>Recall Safe</strong>。</td></tr>
+          <tr><td>SETUP</td><td>Main/Cue/Input機器、必要時のWindows endpoint手動指定、テストトーン、LAN公開、共通Server ID、Bot設定の読み書き、一括Token追加、本体再起動。</td></tr>
         </tbody></table>
         <details class="callout"><summary>別PCからメインUIを操作する · LAN公開（任意）</summary>
           <ol>
@@ -187,7 +183,7 @@
             <li>同じLANの別PCのブラウザーから、表示されたURLを開きます。</li>
           </ol>
           <p><strong>同じLANの誰でも操作できる。共有LANでは使わない。</strong>ユーザー認証や通信の暗号化はありません。信頼できる専用LANでのみ有効にしてください。NonceとOriginの検査は、ログイン認証の代わりにはなりません。</p>
-          <p>Bot / Token設定、Tablet管理、本体再起動、Support Bundleは別PCから操作できません。実行PCの<code>http://127.0.0.1:4173</code>で行います。実行PC自身でLAN URLを開いた場合も、設定は制限されます。</p>
+          <p>Bot / Token設定、本体再起動、Support Bundleは別PCから操作できません。実行PCの<code>http://127.0.0.1:4173</code>で行います。実行PC自身でLAN URLを開いた場合も、設定は制限されます。</p>
           <p>無効化は<code>DBR_LAN_ACCESS=0</code>またはその行を削除して再起動します。既定は127.0.0.1だけです。<code>HOST=0.0.0.0</code>だけでは公開しません。LAN URLと許可するOriginは起動時のIPv4一覧で決まり、IPが変わったら再起動してください。</p>
         </details>
         <details class="callout"><summary>共通Server・Bot設定ファイル・ドライバ別の機器選択</summary>
@@ -206,30 +202,31 @@
           <p>MIXではVCマスターの名前を押すと、そのVCの参加者へ切り替わります。1本だけのマスターも横いっぱいには広がりません。</p>
         </details>
         <table><thead><tr><th>場所</th><th>内容</th></tr></thead><tbody>
-          <tr><td>CONNECTED</td><td>ブラウザーとRouter Coreの制御接続</td></tr>
-          <tr><td>DISCORD RX 1</td><td>Discord Adapterが接続され、VC受信可能</td></tr>
-          <tr><td>RX SOURCES</td><td>現在生成されている入力チャンネル数</td></tr>
-          <tr><td>ACTIVE</td><td>現在音声が検出されているチャンネル数</td></tr>
-          <tr><td>CALLBACK LOAD</td><td>10 ms処理時間に対するDSP負荷</td></tr>
-          <tr><td>XRUNS</td><td>10 msの処理締切を超えた回数。通常は0</td></tr>
-          <tr><td>入力チャンネル</td><td>Discord Userごとのmeter、fader、send、mute、PFL</td></tr>
-          <tr><td>VC BUS</td><td>配信用mono mix、LUFS、master、limiter</td></tr>
-          <tr><td>EVENT LOG</td><td>状態変更、mute、faultなどの履歴</td></tr>
-          <tr><td>I/O</td><td>Mock / Windows実出力deviceの選択、device情報、output test tone</td></tr>
-          <tr><td>MATRIX</td><td>Discord UserごとのOutput ch、PRE / POST、gain、mute</td></tr>
-          <tr><td>BOT RACK</td><td>RX最大24・TX最大22・合計最大24 BotのGateway、Voice、Ping、再接続、User RX状態</td></tr>
-          <tr><td>VC MIX</td><td>VC別の参加者Send、Mute、PFL、Bus Master、Policy、Compressor</td></tr>
-          <tr><td>SCENES</td><td>Scene保存、差分Preview、Recall Safe、Safety状態、Event Log</td></tr>
-          <tr><td>RETURNS</td><td>4 TX Stem、Studio input、TX Bot Pool / VC、送信meter・frame・drop</td></tr>
-          <tr><td>RECORDER</td><td>Program / VC Bus / User個別WAV、disk free、Queue / drop、録音FAULT</td></tr>
-          <tr><td>MONITOR</td><td>Audio Engine、Discord、Output、Recorder、Rust shadow、WASAPI management、Alert、PC資源の統合監視</td></tr>
-          <tr><td>LOG</td><td>Event件数、INFO / WARNING / CRITICAL、レベル・文字列filter、確認付き消去</td></tr>
+          <tr><td>トップバー</td><td>システム接続、受信・出力ガード、設定ロック、緊急停止、LAN公開状態</td></tr>
+          <tr><td>PARTICIPANTS（MIX）</td><td>参加者検索、チャンネルバンク、ALLOW、受信INメーター、VC MIX送信ON/OFF・音量、CUE</td></tr>
+          <tr><td>VC MIX（MIX）</td><td>各VCのMasterフェーダー、レベルメーター、CUE、MASTER ON / MASTER MUTED</td></tr>
+          <tr><td>TX MASTERS（MIX）</td><td>BotごとのDiscord送信音量フェーダー、送信ON/OFF、全TX停止</td></tr>
+          <tr><td>VC（ROUTE）</td><td>VC MIX・参加者Direct OutからMain Output各出力chへのルーティングマトリクス</td></tr>
+          <tr><td>VC GROUP（ROUTE）</td><td>グループBusの作成・削除、含めるVC MIXの指定</td></tr>
+          <tr><td>TX ASSIGNMENT（ROUTE）</td><td>物理入力chからTX Botへの割り当てマトリクス（MONO / STEREO）</td></tr>
+          <tr><td>Receiver Owner（ROUTE）</td><td>各VCを受信するBotの手動割り当て・切り替え</td></tr>
+          <tr><td>STATUS</td><td>MAIN / CUE / DISCORDの音声経路、APPLICATION / AUDIO ENGINE / INPUT / RECORDERの状態、詳細診断</td></tr>
+          <tr><td>SUPPORT BUNDLE（STATUS）</td><td>運用ログや統計情報をまとめた障害調査用ZIPの作成・出力先確認</td></tr>
+          <tr><td>STATS（STATUS）</td><td>DISCORD RX/TX、RX SOURCES、AUDIO I/O、RECORDERの累積統計、BOTS / USERS一覧</td></tr>
+          <tr><td>LOG（STATUS）</td><td>Event履歴表示、INFO / WARNING / CRITICAL、レベル・文字列フィルター、ログ消去</td></tr>
+          <tr><td>RECORDER（SESSION）</td><td>Main Output / VC MIX / User・Inputの個別WAV録音、時間・DROPPED・空き容量表示</td></tr>
+          <tr><td>SCENE（SESSION）</td><td>現在のMIXの新規保存、保存済みSceneの選択、変更を確認、適用、上書き・削除</td></tr>
+          <tr><td>RECALL SAFE（SESSION）</td><td>Scene適用時に現在値を維持するパラメーターの保護設定・検索絞り込み</td></tr>
+          <tr><td>AUDIO DEVICES（SETUP）</td><td>MAIN / CUE / INPUTの機器選択、Windows照合、共有Cue設定、デバイスの開始・停止</td></tr>
+          <tr><td>ACCESS / APPLICATION（SETUP）</td><td>PORT変更、メインUIのLAN公開設定（認証なし）</td></tr>
+          <tr><td>MAIN OUTPUT TEST（SETUP）</td><td>出力chごとのテストトーン送出（1 kHz / −24 dBFS）</td></tr>
+          <tr><td>BOTS（SETUP）</td><td>＋ RX / ＋ TX / ＋ RX+TX、共通Server ID、Bot設定の書き出し・読み込み、Token一括追加、各Botの接続・切断</td></tr>
         </tbody></table>
       </section>
 
       <section id="monitor-log" data-search-section>
         <h2>稼働状況とEventを確認する（STATUS）</h2>
-        <h3>MONITOR</h3>
+        <h3>状態確認とSTATS</h3>
         <p><strong>STATUS</strong>でMain/Cue、Audio Engine、Discord、Input、Recorderを確認します。詳細なCPU・メモリ・ネットワーク・Rust Shadow・RX/TX統計は<strong>詳細診断</strong>を開きます。緑は正常、黄は注意、赤は障害です。xrunはミキサーの計算時間超過だけを数えるため、0でも受信dropや出力dropが起きる場合があります。</p>
         <table><thead><tr><th>表示</th><th>確認すること</th></tr></thead><tbody>
           <tr><td>CALLBACK LOAD / XRUN</td><td>10 msの処理時間を超えていないか。XRUNは通常0</td></tr>
@@ -238,7 +235,7 @@
           <tr><td>Bot Health / RX Quality</td><td>Gateway・Voice・Ping・再接続とUser受信meter・packet・gap・drop・queue</td></tr>
           <tr><td>Rust WASAPI</td><td>management process、endpoint件数、明示選択、availability、preflight format、stream停止状態</td></tr>
         </tbody></table>
-        <div class="callout"><strong>MONITORは表示専用</strong>ここからrouting、音量、Bot接続、録音状態は変更できません。network interfaceには名前とIPだけを表示し、MAC addressは状態APIへ含めません。</div>
+        <div class="callout"><strong>STATUSは表示専用</strong>ここからrouting、音量、Bot接続、録音状態は変更できません。network interfaceには名前とIPだけを表示し、MAC addressは状態APIへ含めません。</div>
         <h3>LOG</h3>
         <p><strong>LEVEL</strong>でINFO / WARNING / CRITICALを選び、<strong>FILTER</strong>へBot名、Scene、Device、Recorderなどを入力して絞り込みます。表示対象は状態APIが保持する最新100件です。</p>
         <div class="callout warning"><strong>ログ消去はSETUP / READY中だけ</strong>確認ダイアログで確定すると既存Eventを消去しますが、消去操作そのものはWARNINGとして残ります。Bot Tokenと音声内容は記録されません。</div>
@@ -251,7 +248,7 @@
 
 
       <section id="vcmix" data-search-section>
-        <h2>突然のInterviewをMixする（VC MIX）</h2>
+        <h2>参加者とVC MIXを操作する（MIX）</h2>
         <ol><li><strong>MIX</strong>を開き、Bot表示フィルターまたは参加者検索で対象を選びます。</li><li>IN（承認前）のPeak/RMS・Peak Hold・Clipで受信を確認します。INは送信量のメーターではないので、MIX OFFでも動きます。</li><li>各ストリップのVC MIXフェーダー、MIX ON/OFF、CUEを操作します。</li><li>全VCのMasterは常時表示されています。</li><li>ROUTEでVC MIXの出力先やグループを確認します。</li></ol>
         <h3>新規参加者Policy</h3>
         <table><thead><tr><th>Mode</th><th>新しく参加したUser</th></tr></thead><tbody>
@@ -262,14 +259,14 @@
         <div class="callout"><strong>Policyは新規参加者だけに適用</strong>すでにMix済みのUser level / muteは変更しません。</div>
         <h3>Receiver Owner</h3>
         <p>VCごとに1台のBotだけが受信します。自動切替はしません。受信Botが停止した場合は、そのVCだけが無音になります。切り替えはROUTEのReceiver Ownerで手動で行います。</p>
-        <h3>VC Busを追加・削除する</h3>
-        <p><strong>ROUTE → VC Bus · 作成 / 削除 / Botとの紐付け</strong>で新規名を入力し、<strong>SAFEで作成</strong>を押します。削除はBusを選んで<strong>削除</strong>を押し確認します。最後のBusは削除できません。作成したBusのBot/VC紐付けと物理出力も同じ場所で設定できます。</p>
-        <div class="callout warning"><strong>ON AIR中は構成を固定</strong>Bus追加・削除とPolicy変更はできません。参加者Send、Mute、PFL、Bus Masterは引き続き操作できます。</div>
+        <h3>VCグループ（グループBus）の作成・削除</h3>
+        <p><strong>ROUTE → VC GROUP</strong>で新規グループ名を入力し、<strong>グループを適用</strong>を押します。削除はグループを選んで<strong>グループを削除</strong>を押します。含めるVC MIXも同じ場所で選択できます。</p>
+        <div class="callout warning"><strong>ON AIR中は構成を固定</strong>グループの適用・削除はできません。参加者Send、Mute、PFL、Bus Masterは引き続き操作できます。</div>
       </section>
 
       <section id="bots" data-search-section>
-        <h2>複数Botを監視する（BOT RACK）</h2>
-        <p><strong>STATUS → 詳細統計</strong>のBot一覧、または<strong>詳細診断</strong>でGateway・Voice・Ping・再接続・RX情報を確認します。接続・復旧は<strong>SETUP → Bots</strong>で操作します。</p>
+        <h2>複数Botの稼働状況を確認する（STATUS / SETUP）</h2>
+        <p><strong>STATUS → STATS</strong>のBOTS一覧、または<strong>詳細診断</strong>でGateway・Voice・Ping・再接続・RX情報を確認します。接続・復旧は<strong>SETUP → BOTS</strong>で操作します。</p>
         <table><thead><tr><th>表示</th><th>意味</th></tr></thead><tbody>
           <tr><td>READY</td><td>GatewayとVoiceの両方が受信可能</td></tr>
           <tr><td>RECONNECTING</td><td>同じBot・Guild・VCへ再接続中。別VCへ自動移動しない</td></tr>
@@ -282,11 +279,11 @@
       </section>
 
       <section id="io" data-search-section>
-        <h2>出力デバイスを選ぶ（I/O）</h2>
+        <h2>音声デバイスを選ぶ（SETUP · AUDIO DEVICES）</h2>
         <ol>
-          <li><strong>SETUP → Audio I/O</strong>を開きます。</li>
-          <li>機器一覧を更新し、Main Output / Cue Output / Inputから対象を選びます。開始前にモニター音量を下げてください。保存済みの経路から音が出る場合があります。起動・再起動後、機器は自動では開始しません。</li>
-          <li>Windows endpointの自動一致ができない場合は、手動確認の折り畳みを開いて同じ機器のendpointを明示指定します。ASIO・Core Audio等では不要です。</li>
+          <li><strong>SETUP → AUDIO DEVICES</strong>を開きます。</li>
+          <li>機器一覧を更新し、MAIN / CUE / INPUTから対象を選びます。開始前にモニター音量を下げてください。保存済みの経路から音が出る場合があります。起動・再起動後、機器は自動では開始しません。</li>
+          <li>Windows endpointの自動一致ができない場合は、手動確認の折り畳みを開いて同じ機器のendpointを明示指定します。ASIO等では不要です。</li>
           <li><strong>デバイスを開始</strong>を押し、音量と保存済みROUTEを確認して確定します。開始後、ROUTEで出力先chを割り当ててください。</li>
         </ol>
         <div class="callout"><strong>初期状態はMock 64ch Output</strong>実deviceはoperatorが選択するまで開きません。Mockならスピーカーへ音を出さず、64ch mappingを安全に試せます。</div>
@@ -297,29 +294,26 @@
           <tr><td>API</td><td>Simulator、WASAPI、DirectSound、WDM-KS、MMEなど</td></tr>
           <tr><td>DEFAULT</td><td>deviceが報告するdefault sample rate。Routerのproject rateは48 kHz固定</td></tr>
         </tbody></table>
-        <h3>Output Test Tone</h3>
+        <h3>メイン出力のテストトーン（MAIN OUTPUT TEST）</h3>
         <p><code>OUT 1</code>〜のボタンで、そのchだけへ1 kHz / −24 dBFSを送ります。もう一度押すと停止します。SoundGridとLV1のpatch順確認に使用します。</p>
         <div class="callout warning"><strong>実deviceでは実際にtoneが出ます</strong>モニター音量を下げ、SETUP中に1chずつ確認してください。ON AIR中とFAULT中はtest toneを開始できません。</div>
       </section>
 
       <section id="tx-input-routing" data-search-section>
         <h2>入力チャンネルをTX Botへ送る</h2>
-        <ol><li>SETUPでPhysical Inputのデバイスと入力ch数を選び、開始します。</li><li>Bot設定でMONO / STEREOを指定して接続します。</li><li>ROUTEの「Input Ch → TX Bot」で交点を押します。MONOは1ch、STEREOは選んだchと次のchをL/Rに使います（例：IN 3 / 4）。同じ入力を複数Botへ割り当てられます。</li><li>入力を選んだだけでは送信しません。送信先VCを確認して、MIXのTX MASTERSで該当Botの「送信OFF」を押し、確認して送信ONにします。</li></ol>
+        <ol><li>SETUPでPhysical Inputのデバイスと入力ch数を選び、開始します。</li><li>Bot設定でMONO / STEREOを指定して接続します。</li><li>ROUTEのTX ASSIGNMENT（Input Ch → TX Bot）で交点を押します。MONOは1ch、STEREOは選んだchと次のchをL/Rに使います（例：IN 3 / 4）。同じ入力を複数Botへ割り当てられます。</li><li>入力を選んだだけでは送信しません。送信先VCを確認して、MIXのTX MASTERSで該当Botの「送信OFF」を押し、確認して送信ONにします。</li></ol>
         <p>InputのPOST音声を直接送信するため、Main Output・Direct Out・内部Busの割り当ては不要です。入力変更は停止中のみ。最後の1chだけではSTEREOにできません。緊急停止・切断・入力消失から自動再開しません。入力割り当ては現在のセッション内で有効です。</p>
       </section>
 
       <section id="matrix" data-search-section>
-        <h2>Userを出力chへ割り当てる（MATRIX）</h2>
+        <h2>出力を割り当てる（ROUTE）</h2>
         <p>ROUTEのマトリクスは、行がVC MIX・VC GROUP・参加者Direct Out、列が選択したMain Outputの出力chです。CUEはこのマトリクスとは別経路です。</p>
         <p><strong>ROUTE → VC名をクリック</strong>して参加者のDirect Out行を開き、OUTとの交点で割り当て／解除します。既存のPRE/POST設定を維持し、未設定はPREです。他経路が使っている出力への割り当ては拒否します。</p>
         <table><thead><tr><th>項目</th><th>動作</th></tr></thead><tbody>
-          <tr><td>OUTPUT</td><td><code>OUT 1</code>〜物理出力ch。<code>OFF</code>でdirect route解除</td></tr>
+          <tr><td>OUT 1〜 / 出力なし</td><td>物理出力chへの割り当て／解除。交点ボタンを押して切り替えます</td></tr>
           <tr><td>PRE</td><td>Channel Faderの影響を受けない。LV1側mix、multitrack向け</td></tr>
           <tr><td>POST（既存設定の互換用）</td><td>保存済みのチャンネル音量・Muteを反映する経路。MIX画面にはPOST専用操作を表示しない。VC MIX送信の音量・ON/OFFとは独立</td></tr>
-          <tr><td>GAIN</td><td>そのdirect routeだけに加えるlevel。0.1 dB単位</td></tr>
-          <tr><td>MUTE</td><td>そのdirect routeだけを無音にする</td></tr>
-          <tr><td>AUTO MAP 1:1</td><td>先頭UserからOUT 1、OUT 2…へPRE / 0 dBで一括割当</td></tr>
-          <tr><td>CLEAR ALL</td><td>すべてのUser direct routeを解除</td></tr>
+          <tr><td>CUE</td><td>マトリクス右端のCUEボタンでその経路を試聴</td></tr>
         </tbody></table>
         <div class="callout warning"><strong>MappingはSETUPで確定する</strong>ON AIR中は出力先、PRE / POST、test toneの変更が拒否されます。deviceのch数を超えるOUTは選択できません。</div>
       </section>
@@ -350,7 +344,7 @@
 
       <section id="returns" data-search-section>
         <h2>入力音声をDiscordへ送る（TX）</h2>
-        <ol><li>SETUPで入力デバイス・ch数と、Botの名前・TXまたはRX+TX・MONO/STEREO・接続先VCを設定します。</li><li>ROUTEのInput Ch → TX Botで入力を割り当てます。MONOは1ch、STEREOは連続2chです。物理OUTは経由しません。</li><li>MIXのTX MASTERSでBotごとのフェーダーを調整し、「送信OFF」を押します。送信先VCと入力を確認して開始すると「送信ON」になります。</li><li>個別停止は「送信ON」、全停止は同じ欄の「全TX停止」です。全停止には確認を挟みません。</li></ol>
+        <ol><li>SETUPで入力デバイス・ch数と、Botの名前・TXまたはRX+TX・MONO/STEREO・接続先VCを設定します。</li><li>ROUTEのTX ASSIGNMENT（Input Ch → TX Bot）で入力を割り当てます。MONOは1ch、STEREOは連続2chです。物理OUTは経由しません。</li><li>MIXのTX MASTERSでBotごとのフェーダーを調整し、「送信OFF」を押します。送信先VCと入力を確認して開始すると「送信ON」になります。</li><li>個別停止は「送信ON」、全停止は同じ欄の「全TX停止」です。全停止には確認を挟みません。</li></ol>
         <p>TXフェーダーは入力のLEVEL・MUTE後に適用する、Botごとの独立した音量です。同じ入力を複数Botへ送っても他のBotの音量や録音PREには影響しません。範囲は−90〜+12 dB、−90 dBは無音です。PeakメーターはTX音量を反映した送信信号を表示します。フェーダーを動かすだけでは送信しません。</p>
         <p>固定のTeam / Interview / Spare区分、TX STEM、ARMED/LIVE選択パネルはありません。設定したTX / RX+TX Botだけを自由な名前で表示します。旧設定の区分値は互換性のため保持しますが、この画面では使いません。旧SPARE役割はRXとして表示しますが、既存の受信担当を変えないため、内部では待機役割を保持します。</p>
         <p>入力割り当てとTX音量は現在のセッション内で有効です。再起動後は入力を再度割り当ててから開始してください。TX音量の初期値は0 dBです。</p>
@@ -371,7 +365,7 @@
       </section>
 
       <section id="scenes" data-search-section>
-        <h2>Sceneを安全に保存・呼び出す（SCENES）</h2>
+        <h2>Sceneを安全に保存・呼び出す（SESSION · SCENE）</h2>
         <h3>現在のMixを保存する</h3>
         <ol><li><strong>SESSION</strong>を開きます。</li><li><strong>現在のMIXを新しいSceneに保存</strong>で名前を入力して<strong>新規保存</strong>を押します。</li><li>保存済みSceneの選択欄へ名前が表示されたことを確認します。</li></ol>
         <p>保存対象はchannel順・表示名・Trim・Fader・Mute・VC Send、Bus Master / Mute / Compressor / Limiter、Matrix gain / muteです。Bot token、出力device、Bot接続先、Guild / VC割当は保存しません。上書き・削除は元に戻せません。設定ロック中やFAULT時は操作できません。</p>
@@ -384,10 +378,10 @@
           <tr><td>SAFETY LOCK</td><td>現在のGlobal Stateでは変更を許可しないparameter。例: ON AIR中のLimiter OFF</td></tr>
         </tbody></table>
         <h3>Recall Safe</h3>
-        <p><strong>SESSION → Recall Safe · 項目ごとのScene保護</strong>を開き、検索して対象へチェックします。保護編集は設定ロックOFF・FAULT以外で行います。Previewにも保護状態が反映され、保護するだけでSceneをRecallすることはありません。</p>
+        <p><strong>SESSION → RECALL SAFE</strong>を開き、検索して対象へチェックします。保護編集は設定ロックOFF・FAULT以外で行います。Previewにも保護状態が反映され、保護するだけでSceneをRecallすることはありません。</p>
         <div class="callout warning"><strong>Sceneを選ぶだけでは音は変わりません</strong>必ず差分Previewと確認を通ります。FAULT中はRecallできず、ON AIR中はScene削除もできません。</div>
-        <h3>Safety SummaryとEvent Log</h3>
-        <p>上段でGlobal State、Emergency Mute、全Bus Limiter、Critical Alert、Output状態をまとめて確認できます。下段のEvent Logは新しい順に表示し、消去操作そのものも監査Eventとして残します。</p>
+        <h3>安全状態の確認と監査ログ</h3>
+        <p>画面最上部でシステム、受信、出力、設定ロック、緊急停止の状態をまとめて確認できます。STATUSのLOGではEventが新しい順に表示され、消去操作そのものも監査Eventとして残します。</p>
       </section>
 
       <section id="safety" data-search-section>
@@ -411,24 +405,21 @@
           <tr><td>WindowsのParaBusアイコンがない</td><td><code>ParaBus.exe</code>をもう一度実行します。テストZIPではNode.js同梱です。runtime・scriptsを含むフォルダー一式が揃っているか確認します。</td></tr>
           <tr><td>起動失敗と通知された</td><td>ParaBusアイコンを右クリック → ログを開く。port 4173の競合や初回依存導入の失敗を確認します。</td></tr>
           <tr><td>UIが開かない</td><td>ParaBusアイコン → UIを開く。それでも開かなければログを確認し、<code>http://127.0.0.1:4173</code>へアクセスします。</td></tr>
-          <tr><td>DISCORD WAITINGのまま</td><td>設定タブでBotが有効か、Bot token、Guild / VC ID、Botの表示・接続権限を確認し、<strong>VCへ接続</strong>を押します。ボタンも無効ならDiscord Adapterのログを確認します。</td></tr>
+          <tr><td>DISCORD WAITINGのまま</td><td>SETUPのBOTSでBotが有効か、Bot token、Guild / VC ID、Botの表示・接続権限を確認し、<strong>VCへ接続</strong>を押します。ボタンも無効ならDiscord Adapterのログを確認します。</td></tr>
           <tr><td>User channelが増えない</td><td>対象VCでUserが発話しているか、Botがserver deafになっていないか、TX Bot除外IDに入っていないか確認します。</td></tr>
           <tr><td>meterが動かない</td><td>channelがstaleでないか、MUTE、fader、VC Sendを確認します。Discord受信自体はPK dBFSで切り分けます。</td></tr>
           <tr><td>音が大き過ぎる</td><td>赤meterを確認し、channel fader、VC Send、Bus Masterの順に下げます。LimiterはONのままにします。</td></tr>
           <tr><td>Bot設定を変えたが反映されない</td><td>設定を保存し、対象Botを<strong>VCから切断</strong>してから<strong>VCへ接続</strong>します。未保存の変更がある間は接続できません。</td></tr>
-          <tr><td>Tablet URLが表示されない</td><td>設定でTablet Controlを有効化・保存し、ParaBusを再起動します。Portがほかのアプリと競合していないかログを確認します。</td></tr>
-          <tr><td>Tabletから開けない</td><td>PCとTabletが同じControl / Internet側LANか確認します。Windows FirewallではPrivate network上の設定Portだけを許可し、公衆networkでは許可しません。</td></tr>
-          <tr><td>ペアリングできない</td><td>現在のDesktop画面に表示された8桁を使います。5回失敗すると同じ端末は5分間待機します。</td></tr>
           <tr><td>終了しても残っている</td><td>ブラウザーを閉じるだけでは停止しません。実行PCのSETUP → ParaBus を終了を選びます。</td></tr>
         </tbody></table>
       </section>
 
       <section id="shutdown" data-search-section>
         <h2>終了・ログ・保守</h2>
-        <h3>再起動と終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
+        <h3>再起動と終了</h3><p>実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
         <p><strong>SETUP → ParaBus本体を再起動</strong>は、BotとAudio I/Oを停止して本体を起動し直します。再起動後、Botは未接続で待機し、CUEと物理I/Oは自動では開始しません。拒否される条件は終了と同じです。</p>
         <p>Windowsではトレイの<strong>終了</strong>も同じ条件で停止します。ブラウザーのタブを閉じただけではアプリは停止しません。強制終了時の子プロセス監視もありますが、通常は終了ボタンを使ってください。録音中の強制終了はファイルを損なうおそれがあります。</p>
-        <h3>ログ</h3><p>WindowsはParaBusアイコン → <strong>ログを開く</strong>。Macは展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
+        <h3>ログ</h3><p>通知領域のParaBusアイコン → <strong>ログを開く</strong>。展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
         <p>運用ログは<code>logs/operational-YYYY-MM-DD.jsonl</code>へ実行中も追記されます。終了を待つ必要はありません。障害時は実行フォルダではなく、診断画面で作成した<strong>Support Bundle</strong>だけを共有してください。</p>
         <h3>開発者向け検証</h3>
         <pre>npm.cmd run typecheck
