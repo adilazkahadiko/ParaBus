@@ -660,7 +660,7 @@ function renderDesktopSettings(settings) {
   if (!settings.bots.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "Botがありません。「＋ RX」またはTokenの一括追加から登録してください。";
+    empty.textContent = "—";
     elements.botProfileList.append(empty);
   }
   settingsDirty = false;
@@ -1007,7 +1007,6 @@ function renderIo(currentSnapshot) {
   elements.ioOutputDetail.textContent = physicalOutputOpen
     ? `稼働中：${output.selectedDeviceName} · ${output.selectedHostApi ?? outputDevice.hostApi} · ${output.activeChannelCount}ch${outputChoice?.id !== output.selectedDeviceId ? "（選択変更は未適用）" : ""}`
     : output?.state === "FAULT" ? output.error ?? "出力FAULT" : "現在：物理出力なし（Mock）";
-  elements.ioOutputGuidance.textContent = mainOutputGuidance(currentSnapshot);
   elements.ioCueOutputState.textContent = cueOutput?.state === "FAULT" ? "FAULT · Main影響なし" : physicalCueOutputOpen ? "デバイス稼働中" : "未使用／停止中";
   elements.ioCueOutputState.className = `io-state ${cueOutput?.state === "FAULT" ? "danger" : physicalCueOutputOpen ? "active" : ""}`;
   elements.ioCueOutputDetail.textContent = physicalCueOutputOpen
@@ -1117,12 +1116,8 @@ function renderRouteOverview(currentSnapshot) {
   elements.routeMatrixNext.disabled = (routeMatrixBank + 1) * 16 >= outputCount;
   const table = document.createElement("table");
   table.className = "route-matrix";
-  const caption = document.createElement("caption");
-  caption.className = "visually-hidden";
-  caption.textContent = "行はDiscord VC MIX、列は選択したMain Outputの出力ch。CUEは別経路。";
-  table.append(caption);
   const head = table.createTHead().insertRow();
-  for (const label of ["Discord VC / VC MIX", "出力なし", ...outputsInBank.map((index) => step === 2 ? `OUT ${index + 1}/${index + 2}` : `OUT ${index + 1}`), "CUE"]) {
+  for (const label of ["VC ＼ OUT", "出力なし", ...outputsInBank.map((index) => step === 2 ? `OUT ${index + 1}/${index + 2}` : `OUT ${index + 1}`), "CUE"]) {
     const cell = document.createElement("th");
     cell.scope = "col";
     cell.textContent = label;
@@ -1258,7 +1253,7 @@ function renderRouteOverview(currentSnapshot) {
   if (!routes.length && !localInputs.length && !currentSnapshot.buses.some(bus => Array.isArray(bus.groupSourceIds))) {
     const empty = document.createElement("p");
     empty.className = "route-overview-empty";
-    empty.textContent = "接続したBotのVCが表示されます";
+    empty.textContent = "—";
     elements.vcRouteList.replaceChildren(empty);
     return;
   }
@@ -1463,6 +1458,7 @@ function renderRestart(currentSnapshot) {
   const blocked = !localSettingsAvailable || restartRequested || shutdownRequested || currentSnapshot.state === "ON_AIR" || currentSnapshot.state === "FAULT" || recorderState !== "IDLE";
   elements.restartRouter.disabled = blocked;
   elements.shutdownRouter.disabled = blocked;
+  elements.restartDetail.hidden = !blocked;
   elements.restartDetail.textContent = !localSettingsAvailable ? "このPCからのみ操作できます" : restartRequested
     ? "再起動しています"
     : currentSnapshot.state === "ON_AIR"
@@ -1471,7 +1467,7 @@ function renderRestart(currentSnapshot) {
         ? "先に障害を確認してください"
         : recorderState !== "IDLE"
           ? "録音処理が終わるまで再起動・終了できません"
-          : "BotとAudio I/Oを停止してNode 22で再起動します · CUEと物理I/Oは自動復帰しません";
+          : "設定ロックOFF・録音停止中のみ再起動・終了できます";
 }
 
 function renderTxAssignments(currentSnapshot) {
@@ -1486,7 +1482,7 @@ function renderTxAssignments(currentSnapshot) {
   txAssignmentSignature = signature;
   const table = document.createElement("table"); table.className = "route-matrix tx-input-matrix";
   const head = document.createElement("thead"), header = document.createElement("tr");
-  const corner = document.createElement("th"); corner.textContent = "Input Ch ↓ / TX Bot →"; header.append(corner);
+  const corner = document.createElement("th"); corner.textContent = "INPUT ＼ TX BOT"; header.append(corner);
   for (const stem of stems) {
     const cell = document.createElement("th"); cell.scope = "col";
     const name = document.createElement("strong"); name.textContent = stem.label ?? stem.profileId;
@@ -1519,7 +1515,7 @@ function renderTxAssignments(currentSnapshot) {
   }
   table.append(body);
   if (!stems.length) {
-    const empty = document.createElement("p"); empty.textContent = "SETUPでTX Botを追加・接続してください。";
+    const empty = document.createElement("p"); empty.textContent = "—";
     elements.txAssignmentList.replaceChildren(empty);
   } else elements.txAssignmentList.replaceChildren(table);
 }
@@ -2041,7 +2037,7 @@ function renderParticipants(currentSnapshot, bot, showAll) {
   elements.participantCount.textContent = String(channels.length);
   const pendingCount = channels.filter((channel) => channel.approvalGateOpen !== true).length;
   elements.participantHelp.textContent = channels.length === 0
-    ? "VC参加者を待っています"
+    ? "—"
     : pendingCount > 0 ? `${pendingCount}人にALLOWが必要です` : "全員APPROVEDです";
 }
 
@@ -2241,7 +2237,7 @@ function renderReceiverOwners(currentSnapshot) {
   if (!rows.length) {
     const empty = document.createElement("p");
     empty.className = "receiver-empty";
-    empty.textContent = "RX-capable Botを待っています。";
+    empty.textContent = "—";
     rows.push(empty);
   }
   elements.receiverOwnerList.replaceChildren(...rows);
@@ -2359,7 +2355,7 @@ function renderScenes(currentSnapshot) {
   if (!rows.length) {
     const empty = document.createElement("p");
     empty.className = "session-empty";
-    empty.textContent = previewMatches ? "適用される変更はありません。" : "変更内容はここに表示されます。";
+    empty.textContent = previewMatches ? "変更なし" : "—";
     rows.push(empty);
   }
   while (elements.scenePreviewList.firstChild) elements.scenePreviewList.firstChild.remove();
@@ -2441,7 +2437,7 @@ function renderRecorderTracks(tracks) {
   if (!tracks.length) {
     const empty = document.createElement("p");
     empty.className = "session-empty";
-    empty.textContent = "録音を開始するとWAV Trackが表示されます。";
+    empty.textContent = "—";
     elements.recorderTracks.append(empty);
   }
 }
@@ -2654,7 +2650,7 @@ function renderStatusBreakdown(currentSnapshot) {
     ]);
   });
   elements.statusBotCount.textContent = String(bots.length);
-  elements.statusBotList.replaceChildren(...(botRows.length ? botRows : [statusEmptyRow("Bot profileはありません")]));
+  elements.statusBotList.replaceChildren(...(botRows.length ? botRows : [statusEmptyRow("—")]));
 
   const channels = new Map(currentSnapshot.channels.map((channel) => [channel.id, channel]));
   const voiceChannels = new Map((discord.availableVoiceChannels ?? []).map((channel) => [channel.id, channel.name]));
@@ -2670,7 +2666,7 @@ function renderStatusBreakdown(currentSnapshot) {
     ]);
   });
   elements.statusUserCount.textContent = String(sources.length);
-  elements.statusUserList.replaceChildren(...(userRows.length ? userRows : [statusEmptyRow("受信中のUser sourceはありません")]));
+  elements.statusUserList.replaceChildren(...(userRows.length ? userRows : [statusEmptyRow("—")]));
 }
 
 function setStatusCard(valueElement, value, detailElement, detail, severity) {
@@ -2835,7 +2831,7 @@ function renderSummary(currentSnapshot, bot) {
   } else {
     elements.botState.textContent = bot?.health ?? "NO PROFILE";
     elements.botState.style.color = bot?.health === "READY" ? "var(--green)" : bot ? "var(--amber)" : "var(--muted)";
-    elements.botName.textContent = bot ? `${bot.label} / ${bot.role}` : "RX Bot profileがありません";
+    elements.botName.textContent = bot ? `${bot.label} / ${bot.role}` : "—";
     elements.voiceChannel.textContent = bot?.voiceChannelName ?? (bot?.voiceChannelId ? `VC ${bot.voiceChannelId}` : "未接続");
   }
 
@@ -3060,7 +3056,7 @@ elements.previewScene.addEventListener("click", () => {
 });
 elements.overwriteScene.addEventListener("click", () => {
   const scene = snapshot?.scenes?.find((candidate) => candidate.id === selectedSceneId);
-  if (!scene || !confirm("Scene「" + scene.name + "」を現在のMIXで上書きしますか？\n以前の内容には戻せません。")) return;
+  if (!scene || !confirm("Scene「" + scene.name + "」を現在のMIXで上書きしますか？\nこの操作は元に戻せません。")) return;
   scenePreview = null;
   scenePreviewSignature = "";
   sendCommand({ type: "SAVE_SCENE", sceneId: scene.id, name: scene.name, confirmed: true });

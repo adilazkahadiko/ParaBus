@@ -200,7 +200,7 @@ test("physical I/O guidance distinguishes device readiness from valid Main routi
   state.output.state = "FAULT";
   assert.match(context.mainOutputGuidance(state), /STATUS.*手動復旧/);
   for (const id of ["io-output-guidance", "setup-open-route", "route-open-devices"]) assert.ok(html.includes(`id="${id}"`), id);
-  assert.match(html, /開始前に音量を下げてください.*保存済みの経路/);
+  assert.match(html, /音量を下げてから開始/);
   assert.match(manual, /受信だけなら不要/);
   assert.match(styles, /\.io-main \{ grid-column: 1 \/ -1;/);
 });
@@ -498,7 +498,7 @@ test("desktop SESSION requires Scene Preview and preserves recall safety locks",
     "scene-preview-summary",
     "scene-preview-list",
   ]) assert.match(html, new RegExp(`id="${id}"`), `missing desktop Scene element #${id}`);
-  assert.match(html, /Recall前に必ずPreviewを表示します/);
+  assert.doesNotMatch(html, /Recall前に必ずPreviewを表示します/);
   assert.match(script, /message\.payload\.data\?\.kind === "scene-preview"/);
   assert.match(script, /scenePreview\.excludedParticipants/);
   assert.match(script, /Scene保存後に参加/);
@@ -530,11 +530,11 @@ test("desktop SESSION records explicit Output, VC MIX and User selections with c
     "recorder-folder",
     "recorder-tracks",
   ]) assert.match(html, new RegExp(`id="${id}"`), `missing desktop Recorder element #${id}`);
-  assert.match(html, /チェックした音声ごとに、1chの48 kHz Float WAV/);
+  assert.doesNotMatch(html, /チェックした音声ごとに、1chの48 kHz Float WAV/);
   assert.match(html, /DROPPED/);
   assert.match(script, /const preferredOutput = recorder\.startedAt \? recorder\.matrixOutput : currentMix\?\.physicalOutputs\?\.\[0\]\?\.output \?\? 0/);
   assert.match(script, /MATRIX: "MAIN", VC_BUS: "VC MIX PRE", DISCORD_USER: "USER PRE", LOCAL_INPUT: "INPUT PRE"/);
-  assert.match(html, /VC MIXとUser \/ InputはPRE録音/);
+  assert.doesNotMatch(html, /VC MIXとUser \/ InputはPRE録音/);
   assert.match(script, /type: "START_RECORDING", matrixOutput, includeUsers, includeBuses, selection, confirmed: true/);
   assert.match(script, /type: "STOP_RECORDING", confirmed: true/);
   assert.match(script, /録音を停止してWAV Headerを確定しますか/);
@@ -542,7 +542,7 @@ test("desktop SESSION records explicit Output, VC MIX and User selections with c
   assert.match(script, /key: `\$\{index\}:\$\{track\.kind\}`/);
   assert.doesNotMatch(script, /recorderTrackRefs\.get\(track\.fileName\)/);
   assert.match(script, /recorderTargetRefs = new Map/);
-  assert.match(html, /途中参加のUserを自動追加しません/);
+  assert.doesNotMatch(html, /途中参加のUserを自動追加しません/);
 });
 
 test("recording checkboxes survive meter updates, freeze while busy, and never silently add or remove targets", () => {
@@ -660,7 +660,7 @@ test("desktop Receiver Owner view preserves manual fail-closed recovery rules", 
     "receiver-owner-list",
   ]) assert.match(html, new RegExp(`id="${id}"`), `missing Receiver Owner element #${id}`);
   assert.match(html, /<details class="receiver-owner-panel"/);
-  assert.match(html, /自動切替しません。停止時はそのVCだけ無音です/);
+  assert.doesNotMatch(html, /自動切替しません。停止時はそのVCだけ無音です/);
   assert.match(script, /const groups = currentSnapshot\.discord\?\.receiverOwnership \?\? \[\]/);
   assert.match(script, /groups\.filter\(\(group\) => group\.status === "ACTIVE"\)/);
   assert.match(script, /currentSnapshot\.state === "ON_AIR" && group\.status === "ACTIVE"/);
@@ -757,7 +757,7 @@ test("desktop SETUP manages multiple Bot profiles without exposing tokens or cha
   }
   assert.match(script, /type="password"/);
   assert.match(script, /<option value="RX">RX（受信）<\/option><option value="TX">TX（送信）<\/option><option value="DUPLEX">RX\+TX（双方向）<\/option>/);
-  assert.match(html, /Tokenは保存後に再表示されません/);
+  assert.match(html, /保存後は再表示されません/);
   assert.match(script, /fetch\("\/api\/settings"/);
   assert.match(script, /method: "POST"/);
   assert.match(script, /"x-dbr-session-nonce": desktopSessionNonce/);
@@ -804,7 +804,7 @@ test("desktop SETUP owns the guarded DBR restart while STATUS only links to reco
 
 test("desktop ROUTE uses input-to-TX and VC-to-OUT matrices with manual TX", () => {
   for (const id of ["vc-route-list", "route-matrix-mode", "tx-assignment-list", "io-input-device", "io-input-channels", "apply-io-input", "io-output-device", "io-output-endpoint", "refresh-io"]) assert.ok(html.includes(`id="${id}"`), id);
-  assert.match(html, /Input Ch → TX Bot/); assert.match(html, /物理OUTは使いません/);
+  assert.match(html, /TX ASSIGNMENT/); assert.doesNotMatch(html, /物理OUTは使いません/);
   assert.match(script, /type: "SET_TX_INPUT", profileId, channelId/);
   assert.match(script, /type: "START_TX", profileId, confirmed: true/);
   assert.match(script, /type: "STOP_TX", profileId, confirmed: true/);
