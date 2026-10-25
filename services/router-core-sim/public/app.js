@@ -160,7 +160,6 @@ const elements = {
   receiverOwnerList: document.querySelector("#receiver-owner-list"),
   refreshIo: document.querySelector("#refresh-io"),
   ioOutputState: document.querySelector("#io-output-state"),
-  ioOutputGuidance: document.querySelector("#io-output-guidance"),
   setupOpenRoute: document.querySelector("#setup-open-route"),
   routeOpenDevices: document.querySelector("#route-open-devices"),
   ioOutputDevice: document.querySelector("#io-output-device"),
@@ -660,7 +659,7 @@ function renderDesktopSettings(settings) {
   if (!settings.bots.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "—";
+    empty.textContent = "Botなし";
     elements.botProfileList.append(empty);
   }
   settingsDirty = false;
@@ -1461,13 +1460,15 @@ function renderRestart(currentSnapshot) {
   elements.restartDetail.hidden = !blocked;
   elements.restartDetail.textContent = !localSettingsAvailable ? "このPCからのみ操作できます" : restartRequested
     ? "再起動しています"
-    : currentSnapshot.state === "ON_AIR"
-      ? "設定ロックをOFFにすると再起動・終了できます"
-      : currentSnapshot.state === "FAULT"
-        ? "先に障害を確認してください"
-        : recorderState !== "IDLE"
-          ? "録音処理が終わるまで再起動・終了できません"
-          : "設定ロックOFF・録音停止中のみ再起動・終了できます";
+    : shutdownRequested
+      ? "終了しています"
+      : currentSnapshot.state === "ON_AIR"
+        ? "設定ロックをOFFにすると再起動・終了できます"
+        : currentSnapshot.state === "FAULT"
+          ? "先に障害を確認してください"
+          : recorderState !== "IDLE"
+            ? "録音処理が終わるまで再起動・終了できません"
+            : "設定ロックOFF・録音停止中のみ再起動・終了できます";
 }
 
 function renderTxAssignments(currentSnapshot) {
@@ -2355,7 +2356,7 @@ function renderScenes(currentSnapshot) {
   if (!rows.length) {
     const empty = document.createElement("p");
     empty.className = "session-empty";
-    empty.textContent = previewMatches ? "変更なし" : "—";
+    empty.textContent = previewMatches ? "変更なし" : "プレビューなし";
     rows.push(empty);
   }
   while (elements.scenePreviewList.firstChild) elements.scenePreviewList.firstChild.remove();
@@ -2364,7 +2365,7 @@ function renderScenes(currentSnapshot) {
 
 function renderRecallSafe(currentSnapshot) {
   const safe = new Set(currentSnapshot.recallSafe ?? []);
-  elements.recallSafeCount.textContent = `${safe.size} SAFE`;
+  elements.recallSafeCount.textContent = String(safe.size);
   if (!elements.recallSafePanel.open) return;
   const filter = elements.recallSafeFilter.value.trim().toLowerCase();
   const parameters = (currentSnapshot.sceneParameters ?? []).filter(parameter => `${parameter.label} ${parameter.parameter}`.toLowerCase().includes(filter));
@@ -2437,7 +2438,7 @@ function renderRecorderTracks(tracks) {
   if (!tracks.length) {
     const empty = document.createElement("p");
     empty.className = "session-empty";
-    empty.textContent = "—";
+    empty.textContent = "トラックなし";
     elements.recorderTracks.append(empty);
   }
 }

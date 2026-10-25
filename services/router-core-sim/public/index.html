@@ -190,7 +190,7 @@
               </div>
             </details>
             <details id="recall-safe-panel" class="migration-controls">
-              <summary>RECALL SAFE <span id="recall-safe-count">0 SAFE</span></summary>
+              <summary>RECALL SAFE <span id="recall-safe-count">0</span></summary>
               <label>絞り込み<input id="recall-safe-filter" type="search" placeholder="User / VC / Fader"></label>
               <div id="recall-safe-list" class="recall-safe-list"></div>
             </details>
@@ -275,7 +275,7 @@
             <h3>SUPPORT BUNDLE</h3>
             <p data-local-access-note hidden>このPCからのみ操作できます</p>
             <label>ログ日数 <input data-support-days type="number" min="1" max="30" value="7" /></label>
-            <p>Token・録音・設定原本は含みません</p>
+            <p>Token・録音・設定原本は含みません（Bot名は含みます）</p>
             <button data-support-create type="button">Support Bundleを作成</button>
             <button data-support-open type="button">出力先を開く</button>
             <p data-support-status role="status" style="overflow-wrap:anywhere"></p>
@@ -352,7 +352,7 @@
                   <select id="io-output-endpoint"><option value="">Endpointを再検出してください</option></select>
                 </label></details>
                 <p id="io-output-detail" class="io-detail">現在：物理出力は停止中です。</p>
-                <div class="io-route-next"><span id="io-output-guidance" hidden></span><button id="setup-open-route" type="button">ルーティング</button></div>
+                <div class="io-route-next"><button id="setup-open-route" type="button">ルーティング</button></div>
               </section>
 
               <section class="io-card io-cue" aria-labelledby="cue-output-title">
@@ -446,7 +446,7 @@
             </header>
             <label class="shared-guild-setting">共通Server ID<input id="shared-guild-id" type="text" inputmode="numeric" maxlength="20" spellcheck="false" placeholder="新しいBotにも自動入力"></label>
             <div class="bot-add-actions"><button id="export-bot-profiles" type="button">Bot設定を書き出し（Tokenなし）</button><label>Bot設定を読み込み<input id="import-bot-profiles" type="file" accept="application/json,.json"></label></div>
-            <p class="security-note">保存後は再表示されません</p>
+            <p class="security-note">Tokenは保存後に再表示されません</p>
             <div class="bulk-bot-tokens">
               <label for="bulk-bot-tokens">Bot Token をまとめて追加</label>
               <textarea id="bulk-bot-tokens" rows="3" autocomplete="off" spellcheck="false" placeholder="Tokenを1行に1つずつ貼り付け"></textarea>

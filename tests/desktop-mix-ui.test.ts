@@ -199,7 +199,7 @@ test("physical I/O guidance distinguishes device readiness from valid Main routi
   assert.equal(JSON.stringify(state), before, "guidance is read-only");
   state.output.state = "FAULT";
   assert.match(context.mainOutputGuidance(state), /STATUS.*手動復旧/);
-  for (const id of ["io-output-guidance", "setup-open-route", "route-open-devices"]) assert.ok(html.includes(`id="${id}"`), id);
+  for (const id of ["setup-open-route", "route-open-devices"]) assert.ok(html.includes(`id="${id}"`), id);
   assert.match(html, /音量を下げてから開始/);
   assert.match(manual, /受信だけなら不要/);
   assert.match(styles, /\.io-main \{ grid-column: 1 \/ -1;/);
@@ -757,7 +757,7 @@ test("desktop SETUP manages multiple Bot profiles without exposing tokens or cha
   }
   assert.match(script, /type="password"/);
   assert.match(script, /<option value="RX">RX（受信）<\/option><option value="TX">TX（送信）<\/option><option value="DUPLEX">RX\+TX（双方向）<\/option>/);
-  assert.match(html, /保存後は再表示されません/);
+  assert.match(html, /Tokenは保存後に再表示されません/);
   assert.match(script, /fetch\("\/api\/settings"/);
   assert.match(script, /method: "POST"/);
   assert.match(script, /"x-dbr-session-nonce": desktopSessionNonce/);

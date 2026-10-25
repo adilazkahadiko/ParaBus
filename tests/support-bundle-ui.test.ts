@@ -17,7 +17,7 @@ test("canonical desktop diagnostics offer authenticated support ZIP creation and
     assert.match(html, /id="support-bundle"/);
     assert.match(html, /data-support-days type="number" min="1" max="30" value="7"/);
     assert.match(html, /data-support-status role="status"/);
-    assert.match(html, /Token・録音・設定原本は含みません/);
+    assert.match(html, /Token・録音・設定原本は含みません（Bot名は含みます）/);
     assert.match(readFileSync(new URL(`../services/router-core-sim/public/${script}`, import.meta.url), "utf8"), /mountSupportBundle\(document.querySelector\("#support-bundle"\), fetch, localSettingsAvailable\)/);
   }
   const script = readFileSync(new URL("../services/router-core-sim/public/support-bundle.js", import.meta.url), "utf8").replace(/^export /gm, "");
