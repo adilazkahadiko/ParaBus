@@ -142,6 +142,39 @@ test("remote desktop desktop skips all private API loaders/saves and guards rest
   assert.equal(requests, 0); assert.equal(notices.length, 0);
 });
 
+test("restart detail follows pending lifecycle actions and guard reasons without changing controls", () => {
+  const fallback = "設定ロックOFF・録音停止中のみ再起動・終了できます";
+  const cases = [
+    { state: "SETUP", blocked: false, text: fallback },
+    { state: "READY", recorder: "IDLE", blocked: false, text: fallback },
+    { state: "ON_AIR", blocked: true, text: "設定ロックをOFFにすると再起動・終了できます" },
+    { state: "FAULT", blocked: true, text: "先に障害を確認してください" },
+    { recorder: "RECORDING", blocked: true, text: "録音処理が終わるまで再起動・終了できません" },
+    { recorder: "FINALIZING", blocked: true, text: "録音処理が終わるまで再起動・終了できません" },
+    { local: false, blocked: true, text: "このPCからのみ操作できます" },
+    { restart: true, blocked: true, text: "再起動しています" },
+    { shutdown: true, blocked: true, text: "終了しています" },
+    { shutdown: true, state: "ON_AIR", recorder: "RECORDING", blocked: true, text: "終了しています" },
+    { shutdown: true, state: "FAULT", blocked: true, text: "終了しています" },
+    { restart: true, shutdown: true, blocked: true, text: "再起動しています" },
+    { local: false, shutdown: true, blocked: true, text: "このPCからのみ操作できます" },
+  ];
+  for (const scenario of cases) {
+    const { context, elements, commands } = ui(["renderRestart"], {
+      localSettingsAvailable: scenario.local ?? true,
+      restartRequested: scenario.restart ?? false,
+      shutdownRequested: scenario.shutdown ?? false,
+    });
+    context.renderRestart({ state: scenario.state ?? "SETUP", ...(scenario.recorder ? { recorder: { state: scenario.recorder } } : {}) });
+    const label = JSON.stringify(scenario);
+    assert.equal(elements.restartDetail.textContent, scenario.text, label);
+    assert.equal(elements.restartDetail.hidden, !scenario.blocked, label);
+    assert.equal(elements.restartRouter.disabled, scenario.blocked, label);
+    assert.equal(elements.shutdownRouter.disabled, scenario.blocked, label);
+    assert.equal(commands.length, 0, label);
+  }
+});
+
 test("desktop LAN banner stays visible and remote local-only controls stay disabled after meter updates", () => {
   const roots = [new Element(), new Element()];
   const controls = roots.map(root => { const button = new Element(); root.children = [button]; return button; });

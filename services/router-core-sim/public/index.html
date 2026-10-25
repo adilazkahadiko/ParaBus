@@ -21,11 +21,11 @@
       </nav>
       <div class="top-status" aria-label="現在の安全状態">
         <span id="lan-access-badge" class="status warning lan-access-badge" hidden>LAN公開中（認証なし）</span>
-        <span id="control-state" class="status waiting" title="操作画面とParaBus本体の接続状態">システム: 接続中</span>
-        <span id="receiver-guard" class="status warning" title="受信できないVCは自動的に無音になります">受信: 確認中</span>
-        <span id="output-guard" class="status safe" title="現在の音声出力状態">出力: 確認中</span>
-        <button id="application-control" class="status safety-control warning" type="button" title="ONにすると構成変更を防ぎます">設定ロック: 確認中</button>
-        <button id="emergency-state" class="status safety-control emergency" type="button" title="全出力を即時ミュートします">緊急停止</button>
+        <span id="control-state" class="status waiting">システム: 接続中</span>
+        <span id="receiver-guard" class="status warning">受信: 確認中</span>
+        <span id="output-guard" class="status safe">出力: 確認中</span>
+        <button id="application-control" class="status safety-control warning" type="button">設定ロック: 確認中</button>
+        <button id="emergency-state" class="status safety-control emergency" type="button">緊急停止</button>
       </div>
     </header>
 
@@ -36,12 +36,12 @@
         <div class="summary-item">
           <span>APPLICATION</span>
           <strong id="application-state">—</strong>
-          <small id="next-action">状態を取得しています</small>
+          <small id="next-action">—</small>
         </div>
         <div class="summary-item">
           <span>RX BOT</span>
           <strong id="bot-state">—</strong>
-          <small id="bot-name">検証profileを待っています</small>
+          <small id="bot-name">—</small>
         </div>
         <div class="summary-item">
           <span>VOICE CHANNEL</span>
@@ -50,14 +50,14 @@
         <div class="summary-item">
           <span>PARTICIPANTS</span>
           <strong id="participant-count">0</strong>
-          <small id="participant-help">VC参加者を待っています</small>
+          <small id="participant-help">—</small>
         </div>
       </section>
 
       <section class="mix" aria-labelledby="mix-title">
         <div class="section-heading">
           <div>
-            <h2 id="mix-title">参加者</h2>
+            <h2 id="mix-title">PARTICIPANTS</h2>
           </div>
         </div>
         <div id="mix-bot-filter" class="mix-bot-filter" role="group" aria-label="表示する受信Bot"></div>
@@ -75,13 +75,13 @@
         </nav>
 
         <div id="empty-state" class="empty-state">
-          Discord VCへ参加すると、ここに参加者が表示されます。
+          参加者なし
         </div>
         <div id="participants" class="participants" aria-live="polite"></div>
       </section>
       <section id="tx-mix-panel" class="vc-masters" aria-label="TX送信フェーダー" hidden>
         <div class="vc-masters-heading">
-          <h3>Discord送信</h3>
+          <h3>TX MASTERS</h3>
           <button class="tx-stop-all danger-action" type="button">全TX停止</button>
         </div>
         <div class="tx-mix-list vc-master-list"></div>
@@ -91,7 +91,7 @@
       <section id="session-view" class="session-view" aria-labelledby="session-title" hidden>
         <div class="section-heading">
           <div>
-            <h2 id="session-title">録音 / Scene</h2>
+            <h2 id="session-title">SESSION</h2>
           </div>
         </div>
 
@@ -99,11 +99,10 @@
           <section class="session-card recorder-card" aria-labelledby="recorder-title">
             <header>
               <div>
-                <h3 id="recorder-title">録音</h3>
+                <h3 id="recorder-title">RECORDER</h3>
               </div>
               <span id="recorder-state" class="session-state">IDLE</span>
             </header>
-            <p class="session-guidance">録音の開始・停止は、本線やCueの出力を変更しません。</p>
 
             <div class="recorder-metrics">
               <div><span>録音時間</span><strong id="recorder-duration">00:00:00</strong></div>
@@ -149,8 +148,7 @@
               <small id="recorder-message"></small>
             </div>
             <details id="recorder-track-details" class="session-details">
-              <summary>録音トラック・形式</summary>
-              <p class="session-guidance">チェックした音声ごとに、1chの48 kHz Float WAVを保存します。Output 1/2は2ファイルです。VC MIXとUser / InputはPRE録音のため、通常のフェーダー・ミュートに影響されません。PENDINGと緊急停止は無音です。対象は開始時に固定し、途中参加のUserを自動追加しません。DROPPEDは録音で欠落したブロック数です。</p>
+              <summary>TRACKS</summary>
               <div id="recorder-tracks" class="recorder-tracks"></div>
             </details>
           </section>
@@ -158,21 +156,20 @@
           <section class="session-card scene-card" aria-labelledby="scene-title">
             <header>
               <div>
-                <h3 id="scene-title">Sceneの呼び出し</h3>
+                <h3 id="scene-title">SCENE</h3>
               </div>
               <span id="scene-current" class="session-state" aria-label="現在のScene">NO SCENE</span>
             </header>
-            <p class="session-guidance">適用するとMIXが変わります。先に変更内容を確認してください。</p>
             <div class="scene-select-row">
               <label>
                 <span>保存済みScene</span>
                 <select id="scene-select"><option value="">保存済みSceneなし</option></select>
               </label>
-              <button id="preview-scene" type="button" disabled>1. 変更を確認</button>
+              <button id="preview-scene" type="button" disabled>変更を確認</button>
             </div>
             <div class="scene-preview-heading">
               <strong id="scene-preview-summary">Sceneを選んで変更を確認してください</strong>
-              <button id="recall-scene" class="primary-action" type="button" disabled>2. 確認して適用</button>
+              <button id="recall-scene" class="primary-action" type="button" disabled>適用</button>
             </div>
             <div id="scene-preview-list" class="scene-preview-list"></div>
             <details id="scene-save-details" class="session-details">
@@ -187,18 +184,13 @@
             </details>
             <details id="scene-maintenance-details" class="session-details">
               <summary>選択中のSceneを上書き・削除</summary>
-              <p class="session-guidance">上書き・削除は元に戻せません。設定ロック中／FAULT時は操作できません。</p>
               <div class="scene-maintenance-actions">
                 <button id="overwrite-scene" type="button" disabled>現在のMIXで上書き</button>
                 <button id="delete-scene" class="danger-action" type="button" disabled>選択中のSceneを削除</button>
               </div>
             </details>
-            <details class="session-details">
-              <summary>Sceneの保護について</summary>
-              <p class="session-guidance">Recall前に必ずPreviewを表示します。保護・ロックされた項目は変更しません。保存後に参加したUserは対象外として表示されます。</p>
-            </details>
             <details id="recall-safe-panel" class="migration-controls">
-              <summary>Recall Safe · 項目ごとのScene保護 <span id="recall-safe-count">0 SAFE</span></summary>
+              <summary>RECALL SAFE <span id="recall-safe-count">0</span></summary>
               <label>絞り込み<input id="recall-safe-filter" type="search" placeholder="User / VC / Fader"></label>
               <div id="recall-safe-list" class="recall-safe-list"></div>
             </details>
@@ -209,7 +201,7 @@
       <section id="route-view" class="route-view" aria-labelledby="route-title" hidden>
         <div class="section-heading">
           <div>
-            <h2 id="route-title">音声経路</h2>
+            <h2 id="route-title">ROUTE</h2>
           </div>
           <button id="route-open-devices" type="button">デバイス設定</button>
         </div>
@@ -220,7 +212,7 @@
           <section class="route-overview" aria-labelledby="route-overview-title">
             <header>
               <div>
-                <h3 id="route-overview-title">VC一覧</h3>
+                <h3 id="route-overview-title">VC</h3>
               </div>
               <span id="route-overview-count" class="io-state">0 VC</span>
             </header>
@@ -234,14 +226,12 @@
           </section>
 
           <section class="migration-controls" aria-label="VCグループ">
-            <h3>VCグループ</h3>
+            <h3>VC GROUP</h3>
             <div class="io-route"><label>グループ<select id="group-bus-select"><option value="">新規作成</option></select></label><label>新規グループ名<input id="group-bus-name" maxlength="80" placeholder="赤チーム"></label><button id="apply-group-bus" type="button">グループを適用</button><button id="remove-group-bus" class="danger-action" type="button">グループを削除</button></div>
             <fieldset id="group-bus-members"><legend>含めるVC MIX</legend></fieldset>
-            <p>各VCのフェーダー・MUTE後の音声を合算します。出力先はマトリクス、音量はMIXで操作します。グループの入れ子は不可。構成は現在のセッション内で有効です。</p>
           </section>
           <section class="migration-controls" id="tx-assignment-panel">
-            <h3>Input Ch → TX Bot</h3>
-            <p>交点で入力を選択／解除。同じInputを複数Botへ送れます。MONOは1ch、STEREOは選択chと次のchをL/Rに使用します。物理OUTは使いません。送信音量・ON/OFFはMIXのTX MASTERSで操作します。</p>
+            <h3>TX ASSIGNMENT</h3>
             <div id="tx-assignment-list" class="route-matrix-scroll" tabindex="0" aria-label="Input ChからTX Botへの割り当て"></div>
           </section>
           <details class="receiver-owner-panel" aria-labelledby="receiver-owner-title">
@@ -251,7 +241,6 @@
               <span id="receiver-owner-state" class="receiver-state warning">確認中</span>
             </summary>
             <div class="receiver-owner-body">
-              <p class="receiver-guidance">VCごとに1台だけ受信します。自動切替しません。停止時はそのVCだけ無音です。</p>
               <div id="receiver-owner-list" class="receiver-owner-list"></div>
             </div>
           </details>
@@ -261,38 +250,38 @@
       <section id="status-view" class="status-view" aria-labelledby="status-title" hidden>
         <div class="section-heading">
           <div>
-            <h2 id="status-title">状態</h2>
+            <h2 id="status-title">STATUS</h2>
           </div>
         </div>
 
         <div class="status-content">
           <div class="status-overview">
             <span id="status-overall" class="health-badge warning">確認中</span>
-            <div class="status-guidance"><strong id="status-next-action">状態を取得しています</strong><small id="status-action-detail">—</small></div>
+            <div class="status-guidance"><strong id="status-next-action">—</strong><small id="status-action-detail">—</small></div>
             <button id="status-open-recovery" type="button">SETUPで確認</button>
           </div>
           <div class="health-grid health-paths" aria-label="音声経路の状態">
-            <article><span>MAIN · 本線</span><strong id="status-io">—</strong><small id="status-io-detail">—</small></article>
-            <article><span>CUE · 試聴</span><strong id="status-cue">—</strong><small id="status-cue-detail">—</small></article>
-            <article><span>DISCORD · 接続</span><strong id="status-discord">—</strong><small id="status-discord-detail">—</small></article>
+            <article><span>MAIN</span><strong id="status-io">—</strong><small id="status-io-detail">—</small></article>
+            <article><span>CUE</span><strong id="status-cue">—</strong><small id="status-cue-detail">—</small></article>
+            <article><span>DISCORD</span><strong id="status-discord">—</strong><small id="status-discord-detail">—</small></article>
           </div>
           <div class="health-grid" aria-label="システムの状態">
             <article><span>APPLICATION</span><strong id="status-application">—</strong><small id="status-application-detail">—</small></article>
             <article><span>AUDIO ENGINE</span><strong id="status-audio">—</strong><small id="status-audio-detail">—</small></article>
-            <article><span>INPUT · TX用</span><strong id="status-input">—</strong><small id="status-input-detail">—</small></article>
+            <article><span>INPUT</span><strong id="status-input">—</strong><small id="status-input-detail">—</small></article>
             <article><span>RECORDER</span><strong id="status-recorder">—</strong><small id="status-recorder-detail">—</small></article>
           </div>
           <section id="support-bundle" class="status-stats" aria-label="Support Bundle" data-local-only>
-            <h3>Support Bundle · 診断</h3>
+            <h3>SUPPORT BUNDLE</h3>
             <p data-local-access-note hidden>このPCからのみ操作できます</p>
-            <p>障害時は実行フォルダではなく、匿名化したSupport BundleのZIPだけを共有してください。ON AIR中も作成できます。</p>
             <label>ログ日数 <input data-support-days type="number" min="1" max="30" value="7" /></label>
+            <p>Token・録音・設定原本は含みません（Bot名は含みます）</p>
             <button data-support-create type="button">Support Bundleを作成</button>
             <button data-support-open type="button">出力先を開く</button>
-            <p data-support-status role="status" style="overflow-wrap:anywhere">出力先: settingsRoot/support/ · Token・録音・設定原本は含みません。Bot profileIdとlabelは残ります。</p>
+            <p data-support-status role="status" style="overflow-wrap:anywhere"></p>
           </section>
           <details class="status-stats">
-            <summary>統計 · STATS</summary>
+            <summary>STATS</summary>
             <p id="status-runtime-info" class="hint" style="overflow-wrap:anywhere">—</p>
             <div class="status-stats-toolbar">
               <small id="status-stats-since">累積値</small>
@@ -320,7 +309,7 @@
             </div>
           </details>
           <details class="status-events">
-            <summary>イベント · LOG <span id="status-event-count">0</span></summary>
+            <summary>LOG <span id="status-event-count">0</span></summary>
             <div class="io-route"><label>LEVEL<select id="status-log-level"><option value="ALL">ALL</option><option>INFO</option><option>WARNING</option><option>CRITICAL</option></select></label><label>FILTER<input id="status-log-filter" type="search" placeholder="Bot / Scene / Device"></label><button id="clear-event-log" class="danger-action" type="button">ログを消去</button></div>
             <div id="status-event-list"></div>
           </details>
@@ -331,7 +320,7 @@
       <section id="setup-view" class="setup-view" aria-labelledby="setup-title" hidden>
         <div class="section-heading">
           <div>
-            <h2 id="setup-title">設定</h2>
+            <h2 id="setup-title">SETUP</h2>
           </div>
         </div>
 
@@ -339,15 +328,15 @@
           <section class="io-panel" aria-labelledby="io-title">
             <header>
               <div>
-                <h3 id="io-title">音声デバイス</h3>
+                <h3 id="io-title">AUDIO DEVICES</h3>
               </div>
               <button id="refresh-io" type="button">再検出</button>
             </header>
-            <div class="io-warning compact-warning">開始前に音量を下げてください · 保存済みの経路から音が出る場合があります · 自動復帰なし</div>
+            <div class="io-warning compact-warning">音量を下げてから開始</div>
 
             <div class="io-grid">
               <section class="io-card io-main" aria-labelledby="output-title">
-                <header><div><h4 id="output-title">Main</h4></div><span id="io-output-state" class="io-state">停止中</span></header>
+                <header><div><h4 id="output-title">MAIN</h4></div><span id="io-output-state" class="io-state">停止中</span></header>
                 <div class="io-main-controls">
                 <label>
                   <span>出力デバイス</span>
@@ -363,11 +352,11 @@
                   <select id="io-output-endpoint"><option value="">Endpointを再検出してください</option></select>
                 </label></details>
                 <p id="io-output-detail" class="io-detail">現在：物理出力は停止中です。</p>
-                <div class="io-route-next"><p id="io-output-guidance">デバイス開始後、ROUTEで出力先chを割り当ててください。</p><button id="setup-open-route" type="button">ルーティング</button></div>
+                <div class="io-route-next"><button id="setup-open-route" type="button">ルーティング</button></div>
               </section>
 
               <section class="io-card io-cue" aria-labelledby="cue-output-title">
-                <header><div><h4 id="cue-output-title">Cue</h4></div><span id="io-cue-output-state" class="io-state">未使用</span></header>
+                <header><div><h4 id="cue-output-title">CUE</h4></div><span id="io-cue-output-state" class="io-state">未使用</span></header>
                 <label>
                   <span>出力デバイス</span>
                   <select id="io-cue-output-device"></select>
@@ -390,7 +379,7 @@
               </section>
 
               <section class="io-card io-input" aria-labelledby="input-title">
-                <header><div><h4 id="input-title">入力</h4></div><span id="io-input-state" class="io-state">未使用</span></header>
+                <header><div><h4 id="input-title">INPUT</h4></div><span id="io-input-state" class="io-state">未使用</span></header>
                 <label>
                   <span>入力デバイス</span>
                   <select id="io-input-device"></select>
@@ -414,7 +403,7 @@
           </section>
 
           <section class="application-settings" aria-label="メインUIのLAN公開">
-            <div><h3>アクセス</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
+            <div><h3>ACCESS</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
           </section>
           <section id="legacy-post-recovery" class="application-settings" data-local-only hidden>
             <h3>旧POST設定の確認</h3>
@@ -422,8 +411,8 @@
             <div id="legacy-post-list"></div>
           </section>
           <details class="migration-controls" id="output-test-panel">
-            <summary>Main Output · テストトーン</summary>
-            <p>音量を下げて確認してください。1chずつテストします。ON_AIR / FAULT中は操作できません。</p>
+            <summary>MAIN OUTPUT TEST</summary>
+            <p>音量を下げてから</p>
             <div id="output-test-tones" class="output-test-tones" aria-label="出力chごとのテストトーン"></div>
           </details>
           <section class="application-settings restart-settings" aria-labelledby="restart-title" data-local-only>
@@ -435,16 +424,11 @@
             <button id="shutdown-router" class="danger-action" type="button" disabled>ParaBus を終了</button>
           </section>
 
-          <details class="security-note">
-            <summary>Tokenについて</summary>
-            <span>Tokenは保存後に再表示されません。JSON・state API・ログにも出しません。</span>
-          </details>
-
           <form id="bot-setup-form" class="bot-profile-panel" autocomplete="off" data-local-only>
             <p data-local-access-note hidden>このPCからのみ設定できます</p>
             <section class="application-settings" aria-labelledby="application-settings-title">
               <div>
-                <h3 id="application-settings-title">Application</h3>
+                <h3 id="application-settings-title">APPLICATION</h3>
                 <small>次回起動から反映されます</small>
               </div>
               <label>
@@ -455,18 +439,18 @@
             </section>
             <header class="bot-profile-toolbar">
               <div>
-                <h3>Bots</h3>
+                <h3>BOTS</h3>
                 <small id="bot-profile-count">0 profiles</small>
               </div>
               <div class="bot-add-actions"><button id="add-bot-profile" type="button">＋ RX</button><button id="add-tx-profile" type="button">＋ TX</button><button id="add-duplex-profile" type="button">＋ RX+TX</button></div>
             </header>
             <label class="shared-guild-setting">共通Server ID<input id="shared-guild-id" type="text" inputmode="numeric" maxlength="20" spellcheck="false" placeholder="新しいBotにも自動入力"></label>
             <div class="bot-add-actions"><button id="export-bot-profiles" type="button">Bot設定を書き出し（Tokenなし）</button><label>Bot設定を読み込み<input id="import-bot-profiles" type="file" accept="application/json,.json"></label></div>
+            <p class="security-note">Tokenは保存後に再表示されません</p>
             <div class="bulk-bot-tokens">
               <label for="bulk-bot-tokens">Bot Token をまとめて追加</label>
               <textarea id="bulk-bot-tokens" rows="3" autocomplete="off" spellcheck="false" placeholder="Tokenを1行に1つずつ貼り付け"></textarea>
               <button id="add-bot-tokens" type="button" disabled>まとめて追加</button>
-              <small>RXとして追加します。Server IDのみ引き継ぎ、VC IDは各Botで設定してください。保存するまで反映されません。</small>
             </div>
             <div id="bot-profile-list" class="bot-profile-list"></div>
             <div class="setup-runtime">
@@ -475,10 +459,6 @@
             </div>
           </form>
 
-          <details class="id-help">
-            <summary>IDの調べ方</summary>
-            <span>Discordの開発者モードを有効にし、サーバー名・ボイスチャンネルを右クリックして「IDをコピー」します。</span>
-          </details>
         </div>
       </section>
     </main>
@@ -497,7 +477,7 @@
         </label>
         <div class="vc-master-actions">
           <button class="vc-master-cue cue-toggle" type="button" aria-pressed="false">CUE</button>
-          <button class="vc-master-mute channel-toggle" type="button" aria-pressed="true">MIX ON</button>
+          <button class="vc-master-mute channel-toggle" type="button" aria-pressed="true">MASTER ON</button>
         </div>
       </section>
     </template>

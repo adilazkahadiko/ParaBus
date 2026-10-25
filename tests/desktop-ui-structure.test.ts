@@ -54,7 +54,7 @@ test("participant approval retains generation and revision safety after detail r
 });
 
 test("Receiver Owner keeps revision-protected manual failover", () => {
-  ids("receiver-owner-list"); commands("SET_RECEIVER_OWNER"); assert.match(script, /expectedReceiverGeneration/); assert.match(script, /expectedCurrentOwner/); assert.match(html, /自動切替しません/);
+  ids("receiver-owner-list"); commands("SET_RECEIVER_OWNER"); assert.match(script, /expectedReceiverGeneration/); assert.match(script, /expectedCurrentOwner/);
 });
 
 test("ROUTE retains participant Direct Out and Bus mapping in the matrix", () => {
@@ -77,7 +77,7 @@ test("SETUP exposes Bot fields without the deferred Tablet prototype", () => {
 
 test("SESSION preserves preview-first recall, Recall Safe and selected PRE recording", () => {
   ids("scene-select", "preview-scene", "recall-scene", "recall-safe-list", "recorder-users", "recorder-buses", "recorder-outputs", "start-recording", "stop-recording");
-  commands("PREVIEW_SCENE", "RECALL_SCENE", "SET_RECALL_SAFE", "START_RECORDING", "STOP_RECORDING"); assert.match(html, /PRE録音/);
+  commands("PREVIEW_SCENE", "RECALL_SCENE", "SET_RECALL_SAFE", "START_RECORDING", "STOP_RECORDING"); assert.doesNotMatch(html, /VC MIXとUser \/ InputはPRE録音/);
 });
 
 test("metering retains Peak, RMS, hold, clip and audio-taper faders", () => {
