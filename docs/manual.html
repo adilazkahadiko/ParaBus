@@ -104,7 +104,12 @@
           <div class="step"><div class="number">3</div><strong>UIを開く</strong><p>ParaBusアイコンをダブルクリックします。既定ブラウザーで操作画面が開きます。</p></div>
         </div>
         <div class="callout"><strong>Windowsはコンソール窓を出しません</strong>本体は通知領域で動作します。アイコンが見えない場合は通知領域の <code>^</code> を押してください。SmartScreenが出たら、取得元を確認したうえで<strong>詳細情報 → 実行</strong>を選びます。Botは未接続で待機するため、SETUPから対象Botを接続します。互換用の<code>start-router.cmd</code>も使用できます。</div>
-        <p>現在の配布は Windows のみです。</p>
+        <h3>Macの初回起動</h3>
+        <p>macOSはテスト用パッケージです。実機での検証はWindowsほど行っていません。</p>
+        <p>ZIPは書き込み可能な専用フォルダーへ展開します。<code>ParaBus.app</code>だけを移動せず、runtime・scriptsなどと一緒に置きます。</p>
+        <ol><li><strong>ParaBus.appをダブルクリック</strong>。警告が出たら<strong>完了</strong>で閉じます。</li><li><strong>システム設定 → プライバシーとセキュリティ → このまま開く</strong>で、信頼できるParaBusの起動を許可します。</li><li>必要ならもう一度ダブルクリックします。同じ展開フォルダーでは通常、2回目以降の許可は不要です。ブラウザーに操作画面が開きます。</li></ol>
+        <p>Apple Developerの署名・公証は行いません。許可手順は<a href="https://support.apple.com/ja-jp/102445">Appleの初回起動案内</a>も参照してください。OS更新や管理ポリシーによっては再確認が必要です。</p>
+        <p>初回起動後、展開フォルダー内だけの<code>com.apple.quarantine</code>属性を解除します。Gatekeeper全体は変更しません。OSの隔離実行で隣のファイルが見えない場合は、runtime・scripts・ParaBus.appが入った<strong>展開フォルダーを選択</strong>してください。互換用の<code>start-router.command</code>も残しています。</p>
       </section>
 
       <section id="tablet" data-search-section><h2>タブレット操作</h2><p>再設計のため、現在の版では提供していません。旧設定が残っていても専用ポートは起動しません。</p></section>
@@ -206,14 +211,14 @@
           <tr><td>PARTICIPANTS（MIX）</td><td>参加者検索、チャンネルバンク、ALLOW、受信INメーター、VC MIX送信ON/OFF・音量、CUE</td></tr>
           <tr><td>VC MIX（MIX）</td><td>各VCのMasterフェーダー、レベルメーター、CUE、MASTER ON / MASTER MUTED</td></tr>
           <tr><td>TX MASTERS（MIX）</td><td>BotごとのDiscord送信音量フェーダー、送信ON/OFF、全TX停止</td></tr>
-          <tr><td>VC（ROUTE）</td><td>VC MIX・参加者Direct OutからMain Output各出力chへのルーティングマトリクス</td></tr>
+          <tr><td>VC（ROUTE）</td><td>VC MIX・VC GROUP・参加者Direct OutからMain Output各出力chへのルーティングマトリクス</td></tr>
           <tr><td>VC GROUP（ROUTE）</td><td>グループBusの作成・削除、含めるVC MIXの指定</td></tr>
           <tr><td>TX ASSIGNMENT（ROUTE）</td><td>物理入力chからTX Botへの割り当てマトリクス（MONO / STEREO）</td></tr>
           <tr><td>Receiver Owner（ROUTE）</td><td>各VCを受信するBotの手動割り当て・切り替え</td></tr>
           <tr><td>STATUS</td><td>MAIN / CUE / DISCORDの音声経路、APPLICATION / AUDIO ENGINE / INPUT / RECORDERの状態、詳細診断</td></tr>
           <tr><td>SUPPORT BUNDLE（STATUS）</td><td>運用ログや統計情報をまとめた障害調査用ZIPの作成・出力先確認</td></tr>
           <tr><td>STATS（STATUS）</td><td>DISCORD RX/TX、RX SOURCES、AUDIO I/O、RECORDERの累積統計、BOTS / USERS一覧</td></tr>
-          <tr><td>LOG（STATUS）</td><td>Event履歴表示、INFO / WARNING / CRITICAL、レベル・文字列フィルター、ログ消去</td></tr>
+          <tr><td>LOG（STATUS）</td><td>Event履歴表示、INFO / WARNING / CRITICAL、レベル・文字列フィルター、確認付き消去</td></tr>
           <tr><td>RECORDER（SESSION）</td><td>Main Output / VC MIX / User・Inputの個別WAV録音、時間・DROPPED・空き容量表示</td></tr>
           <tr><td>SCENE（SESSION）</td><td>現在のMIXの新規保存、保存済みSceneの選択、変更を確認、適用、上書き・削除</td></tr>
           <tr><td>RECALL SAFE（SESSION）</td><td>Scene適用時に現在値を維持するパラメーターの保護設定・検索絞り込み</td></tr>
@@ -261,7 +266,7 @@
         <p>VCごとに1台のBotだけが受信します。自動切替はしません。受信Botが停止した場合は、そのVCだけが無音になります。切り替えはROUTEのReceiver Ownerで手動で行います。</p>
         <h3>VCグループ（グループBus）の作成・削除</h3>
         <p><strong>ROUTE → VC GROUP</strong>で新規グループ名を入力し、<strong>グループを適用</strong>を押します。削除はグループを選んで<strong>グループを削除</strong>を押します。含めるVC MIXも同じ場所で選択できます。</p>
-        <div class="callout warning"><strong>ON AIR中は構成を固定</strong>グループの適用・削除はできません。参加者Send、Mute、PFL、Bus Masterは引き続き操作できます。</div>
+        <div class="callout warning"><strong>ON AIR中は構成を固定</strong>グループの適用・削除とPolicy変更はできません。参加者Send、Mute、PFL、Bus Masterは引き続き操作できます。</div>
       </section>
 
       <section id="bots" data-search-section>
@@ -283,7 +288,7 @@
         <ol>
           <li><strong>SETUP → AUDIO DEVICES</strong>を開きます。</li>
           <li>機器一覧を更新し、MAIN / CUE / INPUTから対象を選びます。開始前にモニター音量を下げてください。保存済みの経路から音が出る場合があります。起動・再起動後、機器は自動では開始しません。</li>
-          <li>Windows endpointの自動一致ができない場合は、手動確認の折り畳みを開いて同じ機器のendpointを明示指定します。ASIO等では不要です。</li>
+          <li>Windows endpointの自動一致ができない場合は、手動確認の折り畳みを開いて同じ機器のendpointを明示指定します。ASIO・Core Audio等では不要です。</li>
           <li><strong>デバイスを開始</strong>を押し、音量と保存済みROUTEを確認して確定します。開始後、ROUTEで出力先chを割り当ててください。</li>
         </ol>
         <div class="callout"><strong>初期状態はMock 64ch Output</strong>実deviceはoperatorが選択するまで開きません。Mockならスピーカーへ音を出さず、64ch mappingを安全に試せます。</div>
@@ -313,7 +318,7 @@
           <tr><td>OUT 1〜 / 出力なし</td><td>物理出力chへの割り当て／解除。交点ボタンを押して切り替えます</td></tr>
           <tr><td>PRE</td><td>Channel Faderの影響を受けない。LV1側mix、multitrack向け</td></tr>
           <tr><td>POST（既存設定の互換用）</td><td>保存済みのチャンネル音量・Muteを反映する経路。MIX画面にはPOST専用操作を表示しない。VC MIX送信の音量・ON/OFFとは独立</td></tr>
-          <tr><td>CUE</td><td>マトリクス右端のCUEボタンでその経路を試聴</td></tr>
+          <tr><td>CUE</td><td>マトリクス右端のCUEボタンでその行の音声を試聴</td></tr>
         </tbody></table>
         <div class="callout warning"><strong>MappingはSETUPで確定する</strong>ON AIR中は出力先、PRE / POST、test toneの変更が拒否されます。deviceのch数を超えるOUTは選択できません。</div>
       </section>
@@ -405,7 +410,7 @@
           <tr><td>WindowsのParaBusアイコンがない</td><td><code>ParaBus.exe</code>をもう一度実行します。テストZIPではNode.js同梱です。runtime・scriptsを含むフォルダー一式が揃っているか確認します。</td></tr>
           <tr><td>起動失敗と通知された</td><td>ParaBusアイコンを右クリック → ログを開く。port 4173の競合や初回依存導入の失敗を確認します。</td></tr>
           <tr><td>UIが開かない</td><td>ParaBusアイコン → UIを開く。それでも開かなければログを確認し、<code>http://127.0.0.1:4173</code>へアクセスします。</td></tr>
-          <tr><td>DISCORD WAITINGのまま</td><td>SETUPのBOTSでBotが有効か、Bot token、Guild / VC ID、Botの表示・接続権限を確認し、<strong>VCへ接続</strong>を押します。ボタンも無効ならDiscord Adapterのログを確認します。</td></tr>
+          <tr><td>DISCORD WAITINGのまま</td><td>SETUPのBOTSでBotが有効か、Bot token、Guild / VC ID、Botの表示・接続権限を確認し、<strong>接続</strong>を押します。ボタンも無効ならDiscord Adapterのログを確認します。</td></tr>
           <tr><td>User channelが増えない</td><td>対象VCでUserが発話しているか、Botがserver deafになっていないか、TX Bot除外IDに入っていないか確認します。</td></tr>
           <tr><td>meterが動かない</td><td>channelがstaleでないか、MUTE、fader、VC Sendを確認します。Discord受信自体はPK dBFSで切り分けます。</td></tr>
           <tr><td>音が大き過ぎる</td><td>赤meterを確認し、channel fader、VC Send、Bus Masterの順に下げます。LimiterはONのままにします。</td></tr>
@@ -416,10 +421,10 @@
 
       <section id="shutdown" data-search-section>
         <h2>終了・ログ・保守</h2>
-        <h3>再起動と終了</h3><p>実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
+        <h3>再起動と終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
         <p><strong>SETUP → ParaBus本体を再起動</strong>は、BotとAudio I/Oを停止して本体を起動し直します。再起動後、Botは未接続で待機し、CUEと物理I/Oは自動では開始しません。拒否される条件は終了と同じです。</p>
         <p>Windowsではトレイの<strong>終了</strong>も同じ条件で停止します。ブラウザーのタブを閉じただけではアプリは停止しません。強制終了時の子プロセス監視もありますが、通常は終了ボタンを使ってください。録音中の強制終了はファイルを損なうおそれがあります。</p>
-        <h3>ログ</h3><p>通知領域のParaBusアイコン → <strong>ログを開く</strong>。展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
+        <h3>ログ</h3><p>WindowsはParaBusアイコン → <strong>ログを開く</strong>。Macは展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
         <p>運用ログは<code>logs/operational-YYYY-MM-DD.jsonl</code>へ実行中も追記されます。終了を待つ必要はありません。障害時は実行フォルダではなく、診断画面で作成した<strong>Support Bundle</strong>だけを共有してください。</p>
         <h3>開発者向け検証</h3>
         <pre>npm.cmd run typecheck
