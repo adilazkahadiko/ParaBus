@@ -39,6 +39,8 @@ import {
   injectDesktopAccess,
   isLocalDesktopAddress,
   resolveDesktopAccess,
+  desktopAllowedHosts,
+  isDesktopHostAllowed,
 } from "./desktop-control-auth.ts";
 import {
   createProductionRustManagement,
@@ -53,6 +55,12 @@ const port = Number(process.env.PORT ?? 4173);
 const desktopAccess = resolveDesktopAccess(port, process.env.DBR_OPERATOR_ORIGIN ?? startupEnvironment.DBR_OPERATOR_ORIGIN, startupEnvironment.DBR_LAN_ACCESS === "1");
 const host = desktopAccess.host;
 const operatorOrigin = desktopAccess.origin;
+const allowedHosts = desktopAllowedHosts(port, desktopAccess);
+const frameProtectionHeaders = {
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": "frame-ancestors 'none'",
+};
+const frameProtectionHeaderLines = Object.entries(frameProtectionHeaders).map(([name, value]) => `${name}: ${value}\r\n`).join("");
 const desktopSessionNonce = createDesktopSessionNonce();
 const publicDirectory = join(import.meta.dirname, "../public");
 const manualFile = join(import.meta.dirname, "../../../docs/manual.html");
@@ -116,6 +124,13 @@ control.currentSceneId = storedScenes.currentSceneId;
 discordIngest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
 const systemMonitor = new SystemMonitor();
 let supportBundleBusy = false;
+function executeExternalControlCommand(command: ControlCommand): CommandResult {
+  if (command?.type === "DEVICE_LOST" || command?.type === "INPUT_DEVICE_LOST") {
+    return { ok: false, revision: control.revision, error: "Internal command is unavailable" };
+  }
+  return executeControlCommand(command);
+}
+
 function executeControlCommand(command: ControlCommand): CommandResult {
   if (
     command.type === "SET_STATE"
@@ -291,8 +306,21 @@ function serveDocumentation(filename: string, response: ServerResponse): void {
   }
 }
 
-const server = createServer(async (request, response) => {
+async function handleHttpRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  for (const [name, value] of Object.entries(frameProtectionHeaders)) response.setHeader(name, value);
   try {
+    if (!isDesktopHostAllowed(request.headers, allowedHosts)) {
+      writeJson(response, 403, { ok: false, error: "Forbidden" });
+      return;
+    }
+    if (request.headers.expect) {
+      if (request.headers.expect.toLowerCase() !== "100-continue") {
+        response.writeHead(417);
+        response.end();
+        return;
+      }
+      response.writeContinue();
+    }
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
     if (request.method === "GET" && url.pathname === "/index.html") {
       response.writeHead(302, { location: "/", "cache-control": "no-store" });
@@ -424,7 +452,7 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && url.pathname === "/api/command") {
       requireDesktopControlRequest(request);
-      const result = executeControlCommand((await readJson(request)) as ControlCommand);
+      const result = executeExternalControlCommand((await readJson(request)) as ControlCommand);
       writeJson(response, result.ok ? 200 : 409, result);
       broadcastState();
       return;
@@ -457,14 +485,27 @@ const server = createServer(async (request, response) => {
     const summary = error instanceof RustManagementUnavailableError ? safeOperatorSummary("audio-output") : safeOperatorSummary("control");
     writeJson(response, status, { ok: false, error: summary });
   }
+}
+
+// Handle missing Host and Expect requests here too, keeping the Host check and response headers consistent.
+const server = createServer({ requireHostHeader: false }, handleHttpRequest);
+server.on("checkContinue", handleHttpRequest);
+server.on("checkExpectation", handleHttpRequest);
+
+server.on("clientError", (_error, socket) => {
+  if (socket.writable) rejectHttpSocket(socket, 400);
 });
 
 server.on("upgrade", (request, socket) => {
+  if (!isDesktopHostAllowed(request.headers, allowedHosts)) {
+    rejectHttpSocket(socket, 403);
+    return;
+  }
   let url: URL;
   try {
     url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
   } catch {
-    socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+    rejectHttpSocket(socket, 400);
     return;
   }
   if (url.pathname !== "/ws" || !request.headers["sec-websocket-key"]) {
@@ -474,7 +515,7 @@ server.on("upgrade", (request, socket) => {
   try {
     requireDesktopControlRequest(request, url.searchParams.get("nonce"));
   } catch {
-    socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+    rejectHttpSocket(socket, 403);
     return;
   }
   const accept = createHash("sha1")
@@ -484,7 +525,7 @@ server.on("upgrade", (request, socket) => {
     "HTTP/1.1 101 Switching Protocols\r\n" +
       "Upgrade: websocket\r\n" +
       "Connection: Upgrade\r\n" +
-      `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+      `Sec-WebSocket-Accept: ${accept}\r\n` + frameProtectionHeaderLines + "\r\n",
   );
   websocketClients.add(socket);
   websocketBuffers.set(socket, Buffer.alloc(0));
@@ -493,6 +534,11 @@ server.on("upgrade", (request, socket) => {
   socket.on("data", (data) => handleWebSocketData(socket, data));
   broadcastWebSocket([socket], () => ({ type: "state", payload: desktopSnapshot() }));
 });
+
+function rejectHttpSocket(socket: Duplex, status: 400 | 403): void {
+  const reason = status === 403 ? "Forbidden" : "Bad Request";
+  socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n${frameProtectionHeaderLines}\r\n`);
+}
 
 function handleWebSocketData(socket: Duplex, data: Buffer): void {
   try {
@@ -543,7 +589,7 @@ function handleWebSocketFrame(socket: Duplex, frame: Buffer, offset: number, len
     for (let index = 0; index < length; index += 1) payload[index] = frame[offset + index] ^ mask[index % 4];
     const message = JSON.parse(payload.toString("utf8"));
     if (message.type === "command") {
-      const result = executeControlCommand(message.payload as ControlCommand);
+      const result = executeExternalControlCommand(message.payload as ControlCommand);
       broadcastWebSocket([socket], () => ({ type: "command-result", payload: result }));
       broadcastState();
     }

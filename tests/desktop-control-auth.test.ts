@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import { tmpdir, networkInterfaces } from "node:os";
 import { join } from "node:path";
+import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 import test from "node:test";
 import {
   DesktopControlAuthError,
@@ -15,6 +16,8 @@ import {
   resolveDesktopAccess,
   isLocalDesktopAddress,
   injectDesktopAccess,
+  desktopAllowedHosts,
+  isDesktopHostAllowed,
 } from "../services/router-core-sim/src/desktop-control-auth.ts";
 
 test("desktop control auth requires one exact Origin and process nonce", () => {
@@ -58,6 +61,24 @@ test("desktop LAN opt-in uses only startup IPv4 origins and preserves the nonce 
   assert.match(html, /"localSettingsAvailable":false/);
 });
 
+test("desktop Host allowlist includes only loopback, enabled LAN URLs and the operator origin", () => {
+  const interfaces = { eth0: [{ family: "IPv4", internal: false, address: "192.0.2.10" }] } as unknown as ReturnType<typeof networkInterfaces>;
+  for (const lanEnabled of [false, true]) {
+    const access = resolveDesktopAccess(4173, "https://operator.example:8443", lanEnabled, interfaces);
+    const allowed = desktopAllowedHosts(4173, access);
+    for (const host of ["127.0.0.1:4173", "localhost:4173", "LOCALHOST:4173", "[::1]:4173", "operator.example:8443"]) {
+      assert.equal(isDesktopHostAllowed({ host }, allowed), true, host);
+    }
+    assert.equal(isDesktopHostAllowed({ host: "192.0.2.10:4173" }, allowed), lanEnabled);
+    for (const host of [undefined, "", "localhost", "127.0.0.1:4174", "operator.example", "operator.example:4173",
+      "other.example:4173", "operator.example:8443.evil.example", "user@localhost:4173", "http://localhost:4173", "localhost:4173/path"]) {
+      assert.equal(isDesktopHostAllowed({ host }, allowed), false, String(host));
+    }
+  }
+  const allowed = desktopAllowedHosts(4173, resolveDesktopAccess(4173, "https://operator.example", false, interfaces));
+  assert.equal(isDesktopHostAllowed({ host: "operator.example" }, allowed), true, "default operator port follows URL host syntax");
+});
+
 test("LAN desktop commands work over HTTP/WS while every local-only API still rejects non-loopback sockets", async t => {
   const lanIp = Object.values(networkInterfaces()).flatMap(entries => entries ?? []).find(entry => entry.family === "IPv4" && !entry.internal)?.address;
   assert.ok(lanIp, "integration test needs a real non-loopback IPv4 interface");
@@ -76,6 +97,8 @@ test("LAN desktop commands work over HTTP/WS while every local-only API still re
   assert.match(remoteHtml, /"localSettingsAvailable":false/); assert.match(localHtml, /"localSettingsAvailable":true/);
   assert.match(remoteHtml, /"lanEnabled":true/); assert.ok(output.includes(`LAN公開中: ${lanOrigin}`));
   const nonce = remoteHtml.match(/name="dbr-session-nonce" content="([A-Za-z0-9_-]{43})"/)![1];
+  assert.match(await websocketHandshake(port, lanOrigin, nonce, lanIp), /^HTTP\/1\.1 101 /);
+  assert.equal((await requestWithHost(port, `${lanIp}:${port}`, "/api/state")).status, 200);
   assert.equal((await postCommand(lanOrigin, nonce, lanOrigin, { type: "EMERGENCY_MUTE", active: true })).status, 200);
   assert.equal((await (await fetch(origin + "/api/state")).json() as { emergencyMuted: boolean }).emergencyMuted, true);
   const result = await websocketCommand(port, lanOrigin, nonce, { type: "SET_STATE", state: "SETUP" }, lanIp);
@@ -89,6 +112,29 @@ test("LAN desktop commands work over HTTP/WS while every local-only API still re
     assert.equal((await fetch(lanOrigin + path, { method: "POST", headers, body: '{"confirmed":true}' })).status, 400, path);
   }
   assert.equal((await fetch(origin + "/api/settings")).status, 200, "loopback settings retain their original behavior");
+});
+
+test("configured operator Host works over HTTP and WebSocket while launcher loopback stays available", async t => {
+  const port = await availablePort();
+  const origin = "https://operator.example:8443";
+  const root = mkdtempSync(join(tmpdir(), "dbr-desktop-operator-"));
+  writeFileSync(join(root, ".env"), `DBR_OPERATOR_ORIGIN=${origin}\n`);
+  const child = spawn(process.execPath, ["--experimental-test-module-mocks", "tests/helpers/server-without-rust.ts"], {
+    cwd: new URL("..", import.meta.url), env: { ...process.env, PORT: String(port), DBR_OPERATOR_ORIGIN: undefined,
+      DBR_SETTINGS_ROOT: root, DBR_LAN_ACCESS: "0", DBR_LAUNCHER_MANAGED: "0",
+      DISCORD_IPC_ENDPOINT: process.platform === "win32" ? String.raw`\\.\pipe\dbr-operator-${process.pid}-${randomUUID()}` : join(root, "discord.sock"),
+      RECORDER_FOLDER: join(root, "recordings") }, stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = ""; child.stdout?.on("data", chunk => output += chunk); child.stderr?.on("data", chunk => output += chunk);
+  t.after(async () => { await stopChild(child); rmSync(root, { recursive: true, force: true }); });
+  await waitUntil(() => output.includes("listening on"), () => output);
+  const local = await fetch(`http://127.0.0.1:${port}`);
+  assert.equal(local.status, 200);
+  const html = await local.text();
+  const nonce = html.match(/name="dbr-session-nonce" content="([A-Za-z0-9_-]{43})"/)![1];
+  assert.equal((await requestWithHost(port, "operator.example:8443", "/api/state")).status, 200);
+  assert.match(await websocketHandshake(port, origin, nonce, "127.0.0.1", "operator.example:8443"), /^HTTP\/1\.1 101 /);
+  assert.equal((await requestWithHost(port, "operator.example", "/api/state")).status, 403);
 });
 
 test("desktop HTTP and WebSocket command surfaces reject unauthorized browser clients", async (t) => {
@@ -143,8 +189,72 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
   const nonce = html.match(/<meta name="dbr-session-nonce" content="([A-Za-z0-9_-]{43})"/i)?.[1];
   assert.ok(nonce, "bootstrap HTML contains the process-lifetime nonce");
   assert.match(html, /"lanEnabled":false/);
+  for (const host of [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]) {
+    assert.equal((await requestWithHost(port, host, "/")).status, 200, host);
+    assert.match(await websocketHandshake(port, origin, nonce, "127.0.0.1", host), /^HTTP\/1\.1 101 /);
+  }
+  const invalidHosts = [`unlisted.example:${port}`, "localhost", `127.0.0.1:${port + 1}`, `127.0.0.2:${port}`,
+    `127.0.0.1:${port}.example`, `user@127.0.0.1:${port}`, `127.0.0.1:${port}/`, null];
+  for (const host of invalidHosts) {
+    for (const [method, path] of [["GET", "/"], ["GET", "/api/state"], ["GET", "/missing"], ["POST", "/api/command"]]) {
+      const response = await requestWithHost(port, host, path, method);
+      assert.equal(response.status, 403, `${method} ${path}: ${host}`);
+      assertFrameProtection(response.headers);
+    }
+    for (const expect of ["100-continue", "unsupported"]) {
+      const response = await requestWithHost(port, host, "/api/state", "GET", expect);
+      assert.equal(response.status, 403, `${expect}: ${host}`);
+      assertFrameProtection(response.headers);
+    }
+    for (const path of ["/ws", "/other"]) {
+      const response = await websocketHandshake(port, origin, nonce, "127.0.0.1", host, path);
+      assert.match(response, /^HTTP\/1\.1 403 /);
+      assert.match(response, /\r\nX-Frame-Options: DENY\r\n/i);
+      assert.match(response, /\r\nContent-Security-Policy: frame-ancestors 'none'\r\n/i);
+    }
+  }
+  for (const [expect, status] of [["100-continue", 200], ["unsupported", 417]] as const) {
+    const response = await requestWithHost(port, `127.0.0.1:${port}`, "/api/state", "GET", expect);
+    assert.equal(response.status, status);
+    assertFrameProtection(response.headers);
+  }
+  const malformed = await websocketHandshake(port, origin, nonce, "127.0.0.1", `127.0.0.1:${port}`, "/bad path");
+  assert.match(malformed, /^HTTP\/1\.1 400 /);
+  assert.match(malformed, /\r\nX-Frame-Options: DENY\r\n/i);
+  assert.match(malformed, /\r\nContent-Security-Policy: frame-ancestors 'none'\r\n/i);
+  for (const [path, method, status] of [
+    ["/", "GET", 200], ["/app.js", "GET", 200], ["/styles.css", "GET", 200], ["/manual", "GET", 200],
+    ["/checklist", "GET", 200], ["/api/state", "GET", 200], ["/api/settings", "GET", 200],
+    ["/index.html", "GET", 302], ["/favicon.ico", "GET", 204], ["/missing", "GET", 404],
+    ["/", "PUT", 405], ["/api/command", "POST", 403],
+  ] as const) {
+    const response = await fetch(origin + path, { method, redirect: "manual" });
+    assert.equal(response.status, status, path);
+    assert.equal(response.headers.get("x-frame-options"), "DENY", path);
+    assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'", path);
+    await response.arrayBuffer();
+  }
+  const commandHeaders = { origin, "x-dbr-session-nonce": nonce, "content-type": "application/json" };
+  for (const [body, status] of [["{", 400], ['{"type":"UNKNOWN"}', 409]] as const) {
+    const response = await fetch(origin + "/api/command", { method: "POST", headers: commandHeaders, body });
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get("x-frame-options"), "DENY");
+    assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
+    await response.arrayBuffer();
+  }
+  const beforeInternal = await (await fetch(origin + "/api/state")).json() as Record<string, unknown>;
+  for (const type of ["DEVICE_LOST", "INPUT_DEVICE_LOST"]) {
+    const command = { type, deviceId: "test-only-device", source: "internal" };
+    const response = await postCommand(origin, nonce, origin, command);
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).ok, false);
+    assert.equal((await websocketCommand(port, origin, nonce, command)).ok, false);
+    const after = await (await fetch(origin + "/api/state")).json() as Record<string, unknown>;
+    for (const field of ["state", "revision", "emergencyMuted", "emergencyEpoch"]) assert.equal(after[field], beforeInternal[field], `${type}: ${field}`);
+  }
   const lanIp = Object.values(networkInterfaces()).flatMap(entries => entries ?? []).find(entry => entry.family === "IPv4" && !entry.internal)?.address;
   if (lanIp) {
+    assert.equal((await requestWithHost(port, `${lanIp}:${port}`, "/api/state")).status, 403, "LAN Host is unavailable without opt-in");
     await assert.rejects(() => fetch(`http://${lanIp}:${port}/api/state`), "default server is not reachable on LAN interfaces");
     assert.equal((await postCommand(origin, nonce, `http://${lanIp}:${port}`, { type: "EMERGENCY_MUTE", active: true })).status, 403);
   }
@@ -244,16 +354,34 @@ async function availablePort(): Promise<number> {
   return address.port;
 }
 
-async function websocketHandshake(port: number, origin: string, nonce?: string, host = "127.0.0.1"): Promise<string> {
+function assertFrameProtection(headers: IncomingHttpHeaders): void {
+  assert.equal(headers["x-frame-options"], "DENY");
+  assert.equal(headers["content-security-policy"], "frame-ancestors 'none'");
+}
+
+async function requestWithHost(port: number, host: string | null, path: string, method = "GET", expect?: string): Promise<{ status: number; headers: IncomingHttpHeaders }> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({ hostname: "127.0.0.1", port, path, method, setHost: false, agent: false,
+      headers: { ...(host === null ? {} : { host }), ...(expect ? { expect } : {}) } }, response => {
+      response.resume();
+      response.once("end", () => resolve({ status: response.statusCode!, headers: response.headers }));
+    });
+    request.setTimeout(2_000, () => request.destroy(new Error("HTTP request timed out")));
+    request.once("error", reject);
+    request.end();
+  });
+}
+
+async function websocketHandshake(port: number, origin: string, nonce?: string, host = "127.0.0.1", hostHeader: string | null = `${host}:${port}`, route = "/ws"): Promise<string> {
   return new Promise((resolve, reject) => {
     const client = createConnection(port, host);
     const timer = setTimeout(() => { client.destroy(); reject(new Error("WebSocket handshake timed out")); }, 2_000);
     client.once("error", (error) => { clearTimeout(timer); reject(error); });
     client.once("connect", () => {
-      const path = nonce === undefined ? "/ws" : `/ws?nonce=${encodeURIComponent(nonce)}`;
+      const path = nonce === undefined ? route : `${route}?nonce=${encodeURIComponent(nonce)}`;
       client.write(
         `GET ${path} HTTP/1.1\r\n` +
-        `Host: 127.0.0.1:${port}\r\n` +
+        (hostHeader === null ? "" : `Host: ${hostHeader}\r\n`) +
         `Origin: ${origin}\r\n` +
         "Upgrade: websocket\r\n" +
         "Connection: Upgrade\r\n" +
@@ -285,7 +413,7 @@ async function websocketCommand(port: number, origin: string, nonce: string, com
     client.once("connect", () => {
       client.write(
         `GET /ws?nonce=${encodeURIComponent(nonce)} HTTP/1.1\r\n` +
-        `Host: 127.0.0.1:${port}\r\n` +
+        `Host: ${host}:${port}\r\n` +
         `Origin: ${origin}\r\n` +
         "Upgrade: websocket\r\n" +
         "Connection: Upgrade\r\n" +

@@ -56,7 +56,7 @@ test("unrelated UI settings save preserves the receiver owner with legacy RX and
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const store = new SettingsStore(root, {});
   store.save({ bots: ["RX", "SPARE"].map((role, i) => ({ id: `RX0${i + 1}`, label: `Receiver ${i}`, role,
-    token: `fake-token-${i}`, tokenEnv: `TEST_TOKEN_${i}`, guildId: "100000000000000001", voiceChannelId: "100000000000000002", enabled: true })) });
+    token: `fake-token-${i}`, tokenEnv: `DISCORD_BOT_TOKEN_${i}`, guildId: "100000000000000001", voiceChannelId: "100000000000000002", enabled: true })) });
   const ownership = (bots: ReturnType<SettingsStore["snapshot"]>["bots"]) => {
     const ingest = new DiscordIngestServer(new AudioEngine(48_000, 480, 4), "test-only", null, null);
     for (const [i, bot] of bots.entries()) {

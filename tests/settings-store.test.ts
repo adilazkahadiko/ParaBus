@@ -17,6 +17,40 @@ function fixture(): { root: string; store: SettingsStore } {
   return { root, store: new SettingsStore(root, {}) };
 }
 
+test("Settings reject non-token environment names before writing either settings file", t => {
+  const { root, store } = fixture();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const beforeEnv = readFileSync(store.environmentPath);
+  const beforeRack = readFileSync(store.rackPath);
+  const bot = store.snapshot().bots[0];
+  for (const tokenEnv of ["ROUTER_CORE_BIN", "DBR_LAN_ACCESS", "PORT", "NODE_OPTIONS", "RECORDER_FOLDER",
+    "DISCORD_BOT_TOKEN_", "DISCORD_BOT_TOKEN_RX-01", "DISCORD_BOT_TOKEN_rx01", "DISCORD_BOT_TOKENOTHER"]) {
+    assert.throws(() => store.save({
+      operator: { port: 4191, lanAccess: true },
+      bots: [
+        { ...bot, token: "replacement-token" },
+        { ...bot, id: "RX02", tokenEnv, token: "another-token" },
+      ],
+    }), /Token環境変数名が不正/, tokenEnv);
+    assert.deepEqual(readFileSync(store.environmentPath), beforeEnv, tokenEnv);
+    assert.deepEqual(readFileSync(store.rackPath), beforeRack, tokenEnv);
+  }
+});
+
+test("Settings-generated token environment names accept all valid profile ID characters", t => {
+  const { root, store } = fixture();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bot = store.snapshot().bots[0];
+  for (const id of ["RX01", "tx-game_01", "_", "-", "0", "a".repeat(32)]) {
+    const expected = `DISCORD_BOT_TOKEN_${id.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}`;
+    const snapshot = store.save({ bots: [{ ...bot, id, tokenEnv: undefined, token: "generated-test-token" }] });
+    assert.equal(snapshot.bots[0].tokenEnv, expected);
+    assert.equal(snapshot.bots[0].tokenConfigured, true);
+    assert.match(expected, /^DISCORD_BOT_TOKEN(_[A-Z0-9_]+)?$/);
+    assert.equal(JSON.parse(readFileSync(store.rackPath, "utf8")).bots[0].tokenEnv, expected);
+  }
+});
+
 test("desktop saves preserve deferred Tablet preferences and do not reserve its inactive port", t => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -50,7 +84,7 @@ test("APEX Bot capacity agrees between Settings and Adapter, including DUPLEX co
   const configuration = (roles: BotRole[]) => {
     const bots = roles.map((role, index) => ({
       id: `BOT${index}`, label: `Bot ${index}`, role, enabled: true,
-      tokenEnv: `TOKEN_${index}`, token: `test-secret-${index}`,
+      tokenEnv: `DISCORD_BOT_TOKEN_${index}`, token: `test-secret-${index}`,
       guildId: "100000000000000001", voiceChannelId: String(100000000000000101n + BigInt(index)),
     }));
     const environment = Object.fromEntries(bots.map((bot) => [bot.tokenEnv, bot.token]));
@@ -100,15 +134,15 @@ test("Settings snapshot exposes only token configured state", () => {
 test("TX destination settings round-trip and duplicate or invalid slots are rejected by both backends", (t) => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const bot = { id: "TX1", label: "Team 1", role: "TX", tokenEnv: "TX1_TOKEN", token: "test-secret", guildId: "100000000000000001", voiceChannelId: "100000000000000101", txDestination: "TEAM_01" };
+  const bot = { id: "TX1", label: "Team 1", role: "TX", tokenEnv: "DISCORD_BOT_TOKEN_TX1", token: "test-secret", guildId: "100000000000000001", voiceChannelId: "100000000000000101", txDestination: "TEAM_01" };
   assert.equal(store.save({ bots: [bot] }).bots[0].txDestination, "TEAM_01");
-  assert.equal(parseBotRackConfig({ bots: [bot] }, { TX1_TOKEN: "test-secret" })[0].txDestination, "TEAM_01");
+  assert.equal(parseBotRackConfig({ bots: [bot] }, { DISCORD_BOT_TOKEN_TX1: "test-secret" })[0].txDestination, "TEAM_01");
   const before = readFileSync(store.rackPath, "utf8");
-  const duplicate = { ...bot, id: "TX2", tokenEnv: "TX2_TOKEN", token: "other-secret" };
+  const duplicate = { ...bot, id: "TX2", tokenEnv: "DISCORD_BOT_TOKEN_TX2", token: "other-secret" };
   assert.throws(() => store.save({ bots: [bot, duplicate] }), /送信先区分が重複/);
-  assert.throws(() => parseBotRackConfig({ bots: [bot, duplicate] }, { TX1_TOKEN: "test-secret", TX2_TOKEN: "other-secret" }), /duplicate TX destination/);
+  assert.throws(() => parseBotRackConfig({ bots: [bot, duplicate] }, { DISCORD_BOT_TOKEN_TX1: "test-secret", DISCORD_BOT_TOKEN_TX2: "other-secret" }), /duplicate TX destination/);
   assert.throws(() => store.save({ bots: [{ ...bot, txDestination: "TEAM_21" }] }), /送信先区分が不正/);
-  assert.throws(() => parseBotRackConfig({ bots: [{ ...bot, txDestination: "TEAM_21" }] }, { TX1_TOKEN: "test-secret" }), /invalid txDestination/);
+  assert.throws(() => parseBotRackConfig({ bots: [{ ...bot, txDestination: "TEAM_21" }] }, { DISCORD_BOT_TOKEN_TX1: "test-secret" }), /invalid txDestination/);
   assert.equal(readFileSync(store.rackPath, "utf8"), before);
 });
 
@@ -204,11 +238,13 @@ test("Settings snapshot migrates legacy single Bot values without exposing its t
   try {
     writeFileSync(join(root, ".env"), "DISCORD_BOT_TOKEN=legacy.secret-token\nDISCORD_GUILD_ID=100000000000000001\nDISCORD_VOICE_CHANNEL_ID=100000000000000101\n");
     writeFileSync(join(root, "discord-bots.example.json"), JSON.stringify({ bots: [] }));
-    const snapshot = new SettingsStore(root, {}).snapshot();
+    const store = new SettingsStore(root, {});
+    const snapshot = store.snapshot();
     assert.equal(snapshot.bots[0].tokenEnv, "DISCORD_BOT_TOKEN");
     assert.equal(snapshot.bots[0].tokenConfigured, true);
     assert.equal(snapshot.bots[0].guildId, "100000000000000001");
     assert.equal(JSON.stringify(snapshot).includes("legacy.secret-token"), false);
+    assert.equal(store.save({ bots: snapshot.bots }).bots[0].tokenEnv, "DISCORD_BOT_TOKEN");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

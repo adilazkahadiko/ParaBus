@@ -12,6 +12,19 @@ function clearEmergency(control: ControlPlane, confirmed?: boolean) {
   });
 }
 
+test("internal output and input device notifications still enter FAULT and silence outputs", () => {
+  for (const type of ["DEVICE_LOST", "INPUT_DEVICE_LOST"] as const) {
+    const engine = AudioEngine.createDemo(1);
+    const control = new ControlPlane(engine);
+    const before = control.revision;
+    const result = control.execute({ type, deviceId: "test-only-device" });
+    assert.equal(result.ok, true);
+    assert.equal(control.state, "FAULT");
+    assert.equal(engine.emergencyMuted, true);
+    assert.equal(control.revision, before + 1);
+  }
+});
+
 test("central command validation rejects malformed numeric and boolean values without mutation", () => {
   const engine = AudioEngine.createDemo(1);
   const control = new ControlPlane(engine);
