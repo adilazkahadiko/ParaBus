@@ -13,7 +13,7 @@ The control UI is in Japanese, with some headings in English.
 > and always keep a backup audio path. Do not use ParaBus as your only, untested broadcast path.
 >
 > - Long-running hardware tests after the diagnostic hook removal, UI cleanup, suspension of tablet support and dependency updates have not been performed.
-> - Live Discord connections after the dependency updates have not been verified.
+> - The maintainer confirmed live Discord connection and audio send/receive with the beta.2 Windows ZIP, but only in a short test.
 
 ## Features
 
