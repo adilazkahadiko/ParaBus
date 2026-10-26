@@ -16,7 +16,7 @@ The control UI is in Japanese, with some headings in English.
 > - The maintainer confirmed live Discord connection and audio send/receive with the beta.2 Windows ZIP, but only in a short test.
 > - On Windows 11 PCs with Smart App Control on, the bundled unsigned audio DLLs may be blocked from loading, preventing startup. The maintainer confirmed this with beta.2 on 2026-10-27.
 > - Check the status in **Windows Security → App & browser control → Smart App Control settings** ([Microsoft instructions](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)). ParaBus currently has no workaround; code signing is being considered. Keep OS protection settings unchanged.
-> - In beta.2, the tray says “初回導入が必要です” (initial installation required), but reinstalling does not resolve this block. In the upcoming beta.3 and later, a detected app-control block will have a separate notification.
+> - In beta.2, the tray says “初回導入が必要です” (initial installation required), but reinstalling does not resolve this block. In beta.3 and later, a detected app-control block has a separate notification.
 
 ![ParaBus VC MIX screen with per-participant channel strips and level meters](assets/readme/mix.png)
 
@@ -39,10 +39,10 @@ and [Discord bot setup](docs/DISCORD_RX.md).
 
 ## Download
 
-**Windows x64 beta: [v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)**
+**Windows x64 beta: [v0.1.0-beta.3](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3)**
 
-[Download ParaBus-windows-x64-v0.1.0-beta.2.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/ParaBus-windows-x64-v0.1.0-beta.2.zip) ·
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/SHA256SUMS.txt)
+[Download ParaBus-windows-x64-v0.1.0-beta.3.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.3/ParaBus-windows-x64-v0.1.0-beta.3.zip) ·
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.3/SHA256SUMS.txt)
 
 The ZIP includes Node.js, corresponding source and third-party notices. Extract it into a new folder.
 
