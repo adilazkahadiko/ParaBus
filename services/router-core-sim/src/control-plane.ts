@@ -826,7 +826,6 @@ export class ControlPlane {
     if (this.state === "ON_AIR" && next !== "ON_AIR" && !confirmed) {
       return this.denied("ON AIR解除には確認が必要です", true);
     }
-    if (this.state === "ON_AIR" && next !== "ON_AIR") this.endParticipantSession();
     this.state = next;
     this.log("INFO", `State changed to ${next}`);
     this.revision += 1;
