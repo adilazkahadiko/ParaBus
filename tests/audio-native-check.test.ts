@@ -16,7 +16,7 @@ test("native audio gate rejects missing/invalid bindings and never enumerates or
   assert.deepEqual(checkAudioNative((name) => {
     assert.equal(name, "naudiodon2");
     return audio;
-  }), { state: "READY", reason: null });
+  }), { state: "READY", reason: null, classification: null, classificationSource: null });
   assert.equal(checkAudioNative(() => { throw new Error("missing native DLL"); }).state, "UNAVAILABLE");
   assert.equal(checkAudioNative(() => ({ ...audio, AudioIO: forbidden })).state, "UNAVAILABLE", "unpatched abort is rejected before device access");
   for (const invalid of [null, {}, { ...audio, AudioIO: null }, { ...audio, SampleFormatFloat32: 2 }]) {

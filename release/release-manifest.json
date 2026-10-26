@@ -17,6 +17,7 @@
     "docs/manual.html",
     "scripts/opus-native-check.ts",
     "scripts/audio-native-check.ts",
+    "scripts/native-check-result.ts",
     "scripts/asio-native-check.ts",
     "scripts/build-windows-asio.ps1",
     "scripts/patch-naudiodon.ts",
