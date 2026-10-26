@@ -45,7 +45,8 @@ segfault-handler除去・UI整理・タブレット提供停止・依存更新�
 旧設定は自動変更しません。POST復旧で音が出る場合があるため、確認してから操作してください。
 元の配布候補eb206444c332ではnative読み込みと実ParaBus.exeの起動・通常終了を確認済みです。
 beta.2ではundici 6.29.1・brace-expansion 1.1.21へ更新し、VCマスターをMASTER ON / MASTER MUTEDと表示します。
-音声処理・nativeは変更していません。依存更新後のDiscord実接続・長時間実機試験は未実施です。
+音声処理・nativeは変更していません。beta.2のWindows ZIP版で、メンテナーが実Discordへの接続と音声の送受信を確認しました。
+短時間の試験のみで、長時間の実機試験は未実施です。
 BUILD COMMITと各部品のSHA-256は同梱のcomponent-provenance.jsonを参照してください。
 
 ソースとライセンス
