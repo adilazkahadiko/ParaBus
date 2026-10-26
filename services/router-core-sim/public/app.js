@@ -2926,7 +2926,7 @@ elements.emergencyState.addEventListener("click", () => {
 elements.applicationControl.addEventListener("click", () => {
   if (!snapshot) return;
   if (snapshot.state === "FAULT") {
-    if (!confirm("FAULTを確認済みにしてSETUPへ戻しますか？\nEmergency Muteは解除されません。Audio I/Oを手動で確認してください。")) return;
+    if (!confirm("FAULTを確認済みにしてSETUPへ戻しますか？\nTrusted以外の参加者の承認はリセットされ、再承認が必要になります。\nEmergency Muteは解除されません。Audio I/Oを手動で確認してください。")) return;
     sendCommand({ type: "ACKNOWLEDGE_FAULT", confirmed: true });
     return;
   }

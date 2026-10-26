@@ -219,6 +219,51 @@ test("approval and revoke remain available ON AIR without bypassing structural l
   target.profiles.flush();
 });
 
+test("Production Lock ON then OFF preserves approval, gate and approval lifetime in SETUP and READY", t => {
+  for (const next of ["SETUP", "READY"] as const) {
+    const target = runtime(temporaryRoot(t));
+    const guest = joinParticipant(target, userA, "Approved Guest");
+    const trusted = joinParticipant(target, userB, "Trusted Guest");
+    assert.equal(target.control.execute({ type: "SET_USER_TRUSTED", channelId: trusted.id, trusted: true, confirmed: true }).ok, true);
+    assert.equal(setApproval(target, guest, true).ok, true);
+    assert.equal(setApproval(target, trusted, true).ok, true);
+    const before = [...target.sessions.sessions.values()].map(session => ({ ...session }));
+    assert.equal(target.control.execute({ type: "SET_STATE", state: "ON_AIR", confirmed: true }).ok, true);
+    assert.equal(target.control.execute({ type: "SET_USER_STRIP_ORDER", discordUserIds: [userB, userA] }).ok, false);
+    assert.equal(target.control.execute({ type: "SET_STATE", state: next }).confirmationRequired, true);
+    assert.equal(target.control.execute({ type: "SET_STATE", state: next, confirmed: true }).ok, true);
+    assert.deepEqual([...target.sessions.sessions.values()], before, "unlock must not reset generation, revision, approval or audio activity");
+    assert.equal(guest.approvalGateOpen, true);
+    assert.equal(trusted.approvalGateOpen, true);
+    assert.equal(target.control.alerts.some(event => event.message.startsWith("session approval reset:")), false);
+    assert.equal(target.control.execute({ type: "SET_USER_STRIP_ORDER", discordUserIds: [userB, userA] }).ok, true);
+    target.profiles.flush();
+  }
+});
+
+test("acknowledging FAULT still resets ordinary approvals and preserves Trusted approval", t => {
+  const target = runtime(temporaryRoot(t));
+  const guest = joinParticipant(target, userA, "Approved Guest");
+  const trusted = joinParticipant(target, userB, "Trusted Guest");
+  assert.equal(target.control.execute({ type: "SET_USER_TRUSTED", channelId: trusted.id, trusted: true, confirmed: true }).ok, true);
+  assert.equal(setApproval(target, guest, true).ok, true);
+  assert.equal(setApproval(target, trusted, true).ok, true);
+  const generation = target.sessions.sessions.get(userA)!.sessionGeneration;
+  assert.equal(target.control.execute({ type: "DEVICE_LOST", deviceId: "test-output" }).ok, true);
+  assert.equal(guest.approvalGateOpen, true, "entering FAULT does not itself end the approval lifetime");
+  assert.equal(target.control.execute({ type: "ACKNOWLEDGE_FAULT", confirmed: false }).confirmationRequired, true);
+  assert.equal(guest.approvalGateOpen, true);
+  assert.equal(target.control.execute({ type: "ACKNOWLEDGE_FAULT", confirmed: true }).ok, true);
+  assert.equal(target.control.state, "SETUP");
+  assert.equal(target.sessions.sessions.get(userA)!.sessionApproval, "PENDING");
+  assert.notEqual(target.sessions.sessions.get(userA)!.sessionGeneration, generation);
+  assert.equal(guest.approvalGateOpen, false);
+  assert.equal(target.sessions.sessions.get(userB)!.sessionApproval, "APPROVED");
+  assert.equal(trusted.approvalGateOpen, true);
+  assert.equal(target.engine.emergencyMuted, true, "acknowledgement still does not release Emergency Mute");
+  target.profiles.flush();
+});
+
 test("approval commands use per-session generation and revision CAS", (t) => {
   const root = temporaryRoot(t);
   const target = runtime(root);
