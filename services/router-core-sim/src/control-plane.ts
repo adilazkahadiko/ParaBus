@@ -20,6 +20,8 @@ import type { UserSessionRegistry } from "./user-session-registry.ts";
 import { StaleSafetyStateError } from "./stale-state.ts";
 import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
 import type { TabletSnapshotSource } from "./tablet-server.ts";
+import type { OperationalEvent } from "./operational-log.ts";
+import { AUDIO_FAULT_CLASSIFICATIONS, audioFaultMessage, localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 
 const STRUCTURAL_COMMANDS = new Set(["SET_LIMITER", "SELECT_OUTPUT_DEVICE", "SELECT_CUE_OUTPUT_DEVICE", "SELECT_INPUT_DEVICE", "SET_DIRECT_OUTPUT", "CLEAR_DIRECT_OUTPUT", "SET_BUS_OUTPUT", "CLEAR_BUS_OUTPUT", "SET_MONITOR_OUTPUT", "SET_BUS_BINDING", "SET_OUTPUT_TEST_TONE", "CREATE_VC_BUS", "REMOVE_VC_BUS", "SET_NEW_PARTICIPANT_POLICY", "SET_USER_STRIP_ORDER", "RESET_USER_STRIP_ORDER", "DELETE_SCENE", "CLEAR_EVENT_LOG", "SET_TX_SOURCE", "ASSIGN_TX_VOICE_CHANNEL", "CONNECT_DISCORD_BOT", "SET_RECALL_SAFE"]);
 const POLICIES = new Set(["SAFE", "HOLD", "PRESET"]);
@@ -93,7 +95,7 @@ function validateCommand(command: unknown): command is ControlCommand {
     case "START_ARMED": return confirmed() && optional(command, "expectedRevision", (value) => safetyVersion(value, 1));
     case "CLEAR_ALL": return true;
     case "START_RECORDING": return integer(command.matrixOutput, 0) && isBoolean(command.includeUsers) && isBoolean(command.includeBuses) && optional(command, "selection", isRecorderSelection) && confirmed();
-    case "DEVICE_LOST": case "INPUT_DEVICE_LOST": return isUtf8String(command.deviceId, MAX_DEVICE_ID_BYTES);
+    case "DEVICE_LOST": case "INPUT_DEVICE_LOST": return isUtf8String(command.deviceId, MAX_DEVICE_ID_BYTES) && optional(command, "fault", value => isRecord(value) && AUDIO_FAULT_CLASSIFICATIONS.includes(value.classification as typeof AUDIO_FAULT_CLASSIFICATIONS[number]) && (value.hostApi === null || isString(value.hostApi, 128)) && typeof value.reason === "string");
     case "ACKNOWLEDGE_FAULT": return isBoolean(command.confirmed);
     default: return false;
   }
@@ -128,7 +130,7 @@ export class ControlPlane {
   readonly inputManager?: AudioInputManager;
   readonly recorder?: RecorderManager;
   readonly userSessions?: UserSessionRegistry;
-  readonly eventSink?: (event: RouterSnapshot["alerts"][number]) => void;
+  readonly eventSink?: (event: OperationalEvent) => void;
   state: OnAirState = "SETUP";
   revision = 1;
   emergencyEpoch = 0;
@@ -137,7 +139,7 @@ export class ControlPlane {
   currentSceneId: string | null = null;
   readonly recallSafe = new Set<string>();
 
-  constructor(engine: AudioEngine, outputManager?: AudioOutputManager, txController?: DiscordTxController, inputManager?: AudioInputManager, recorder?: RecorderManager, userSessions?: UserSessionRegistry, eventSink?: (event: RouterSnapshot["alerts"][number]) => void, cueOutputManager?: AudioOutputManager) {
+  constructor(engine: AudioEngine, outputManager?: AudioOutputManager, txController?: DiscordTxController, inputManager?: AudioInputManager, recorder?: RecorderManager, userSessions?: UserSessionRegistry, eventSink?: (event: OperationalEvent) => void, cueOutputManager?: AudioOutputManager) {
     this.engine = engine;
     this.outputManager = outputManager;
     this.cueOutputManager = cueOutputManager;
@@ -650,12 +652,14 @@ export class ControlPlane {
         case "DEVICE_LOST":
           this.state = "FAULT";
           this.engageEmergencyMute(`Output device lost: ${command.deviceId}`);
+          this.log("CRITICAL", audioFaultMessage("MAIN_OUTPUT", command.fault), command.fault?.reason);
           this.log("CRITICAL", "OUTPUT DEVICE LOST; output forced to silence");
           break;
         case "INPUT_DEVICE_LOST":
           this.state = "FAULT";
           this.inputManager?.failClosed(`Input device lost: ${command.deviceId}`);
           this.engageEmergencyMute();
+          this.log("CRITICAL", audioFaultMessage("INPUT", command.fault), command.fault?.reason);
           this.log("CRITICAL", "INPUT DEVICE LOST; input buffers cleared and all outputs fail closed");
           break;
         case "ACKNOWLEDGE_FAULT":
@@ -1096,10 +1100,10 @@ export class ControlPlane {
     return changed;
   }
 
-  private log(level: LogLevel, message: string): void {
+  private log(level: LogLevel, message: string, localDetail?: string): void {
     const event = { level, message: sanitizeOperatorMessage(message, "Operator event"), at: new Date().toISOString() };
     this.alerts.push(event);
     if (this.alerts.length > 500) this.alerts.splice(0, this.alerts.length - 500);
-    this.eventSink?.(event);
+    this.eventSink?.({ ...event, ...(localDetail ? { localDetail: localAudioFaultDetail(localDetail) } : {}) });
   }
 }

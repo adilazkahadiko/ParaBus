@@ -167,20 +167,56 @@ function Stop-Router {
     return $true
 }
 
+function Get-DependencyFailureNotification {
+    param([int]$ExitCode, [string]$CheckOutput)
+    if ($ExitCode -eq 0) { return $null }
+    foreach ($line in ($CheckOutput -split "`r?`n")) {
+        try {
+            $check = $line | ConvertFrom-Json -ErrorAction Stop
+            if ($check.state -eq 'UNAVAILABLE' -and $check.classification -eq 'APP_CONTROL_BLOCKED') {
+                return @{
+                    TrayText = "ParaBus - アプリ制御で停止"
+                    Title = "Windowsのアプリ制御が音声部品をブロックしました"
+                    Message = "スマート アプリ コントロールなどにより、音声部品の読み込みが拒否されました。再導入では解決しません。「ログを開く」で詳細を確認できます。OSの保護設定は変更しないでください。"
+                }
+            }
+        } catch {}
+    }
+    return @{
+        TrayText = "ParaBus - 音声部品を確認"
+        Title = "音声部品を読み込めません"
+        Message = "ZIP版は配布元のZIPを新しいフォルダーへすべて展開したか確認してください。「ログを開く」で詳細を確認できます。起動時の自動再導入は行いません。"
+    }
+}
+
+function Add-RouterLog {
+    param([string]$Text)
+    [System.IO.File]::AppendAllText($script:LogPath, ($Text + "`r`n"), (New-Object System.Text.UTF8Encoding $false))
+}
+
 function Test-DependenciesReady {
-    Add-Content -LiteralPath $script:LogPath -Value "`r`n[$(Get-Date -Format s)] Native dependency check (no device enumeration)"
+    Add-RouterLog "`r`n[$(Get-Date -Format s)] Native dependency check (no device enumeration)"
     $installInfo = New-Object System.Diagnostics.ProcessStartInfo
     $installInfo.FileName = "cmd.exe"
-    $installInfo.Arguments = '/d /c node.exe scripts/audio-native-check.ts >> "' + $script:LogPath + '" 2>&1 && node.exe scripts/opus-native-check.ts >> "' + $script:LogPath + '" 2>&1'
+    $installInfo.Arguments = '/d /c node.exe scripts/audio-native-check.ts && node.exe scripts/opus-native-check.ts'
     $installInfo.WorkingDirectory = $script:ProjectDirectory
     $installInfo.UseShellExecute = $false
     $installInfo.CreateNoWindow = $true
+    $installInfo.RedirectStandardOutput = $true
+    $installInfo.RedirectStandardError = $true
+    $installInfo.StandardOutputEncoding = [Text.Encoding]::UTF8
+    $installInfo.StandardErrorEncoding = [Text.Encoding]::UTF8
     $installInfo.EnvironmentVariables["PATH"] = (Split-Path -Parent $script:NodeExecutable) + ";" + $env:PATH
     $install = [System.Diagnostics.Process]::Start($installInfo)
+    $outputTask = $install.StandardOutput.ReadToEndAsync()
+    $errorTask = $install.StandardError.ReadToEndAsync()
     $install.WaitForExit()
+    $checkOutput = $outputTask.Result
+    Add-RouterLog ($checkOutput + $errorTask.Result)
     if ($install.ExitCode -ne 0) {
-        $script:Tray.Text = "ParaBus - 依存不足"
-        Show-Notification "初回導入が必要です" "docs/SOURCE_RELEASE.mdの導入手順を確認してください。「ログを開く」で詳細を確認できます。起動時の自動再導入は行いません。" ([System.Windows.Forms.ToolTipIcon]::Error)
+        $notification = Get-DependencyFailureNotification $install.ExitCode $checkOutput
+        $script:Tray.Text = $notification.TrayText
+        Show-Notification $notification.Title $notification.Message ([System.Windows.Forms.ToolTipIcon]::Error)
         return $false
     }
     return $true
@@ -195,7 +231,7 @@ function Start-Router {
         if (-not $script:NodeExecutable) { $script:NodeExecutable = Resolve-NodeExecutable }
     }
     catch {
-        Add-Content -LiteralPath $script:LogPath -Value "`r`n[$(Get-Date -Format s)] $($_.Exception.Message)"
+        Add-RouterLog "`r`n[$(Get-Date -Format s)] $($_.Exception.Message)"
         $script:Tray.Text = "ParaBus - Node 22が必要"
         Show-Notification "修正版のNode.js 22が必要です" "Node.js 22.23.4以上23未満をインストールしてから再起動してください。" ([System.Windows.Forms.ToolTipIcon]::Error)
         return
@@ -204,7 +240,7 @@ function Start-Router {
         return
     }
     $script:Tray.Text = "ParaBus - 起動中"
-    Add-Content -LiteralPath $script:LogPath -Value "`r`n[$(Get-Date -Format s)] Router start"
+    Add-RouterLog "`r`n[$(Get-Date -Format s)] Router start"
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
     $processInfo.FileName = "cmd.exe"
     $processInfo.Arguments = '/d /c node.exe scripts/start-router.ts >> "' + $script:LogPath + '" 2>&1'

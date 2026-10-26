@@ -220,7 +220,7 @@ beta.1の配布物は変更せず、beta.2ではundici 6.29.1・brace-expansion 
 第三者から非公開で受け取ったコードを含まないと確認しました。第三者OSSは各ライセンスで提供します。
 この所有者確認は、独立した法的監査や全依存の法的評価を意味しません。
 
-## Windows公開ベータ版（v0.1.0-beta.3、2026-10-27）
+## Windowsベータ版（v0.1.0-beta.3、2026-10-27）（準備中・未公開）
 
 beta.2から依存ライブラリ・音声native・同梱Node.jsの変更はありません。
 package-lock.json、Cargo.lock、release/native-input-lock.json、.nvmrcはbeta.2から変更していません。

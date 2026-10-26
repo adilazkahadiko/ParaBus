@@ -3,8 +3,9 @@ import { join } from "node:path";
 import { finished } from "node:stream/promises";
 import type { LogLevel, RouterSnapshot, RuntimeInfoSnapshot } from "../../../packages/shared-types/src/index.ts";
 import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
+import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 
-export type OperationalEvent = RouterSnapshot["alerts"][number] & { runtimeInfo?: RuntimeInfoSnapshot };
+export type OperationalEvent = RouterSnapshot["alerts"][number] & { runtimeInfo?: RuntimeInfoSnapshot; localDetail?: string };
 
 const DAY_MS = 86_400_000;
 const NETWORK_WARN_MS = 250;
@@ -43,6 +44,7 @@ export class OperationalLog {
       level: event.level,
       message: sanitizeOperatorMessage(event.message, "Operational event"),
       ...(event.runtimeInfo ? { runtimeInfo: { ...event.runtimeInfo } } : {}),
+      ...(event.localDetail ? { localDetail: localAudioFaultDetail(event.localDetail) } : {}),
     };
     try {
       const line = `${JSON.stringify(safe)}\n`;
