@@ -2,9 +2,7 @@
 
 これはベータ版のソース一式です。検証範囲・既知の問題は[BETA.txt](BETA.txt)を参照してください。
 SoundGrid / LV1での本番実機確認は未完了です。
-[現在公開中のWindows x64 v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
-beta.3は準備中・未公開です。以下のbeta.3のコマンド例は公開準備用で、タグ・Releaseの作成を意味しません。
-beta.3の公開時にはREADME・SECURITYなどの公開版リンクを更新するPRが別途必要です。
+[Windows x64 v0.1.0-beta.3](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
 
 Windows ZIP版は新しい専用フォルダーへ展開し、`ParaBus.exe`を開いて通知領域のPBアイコンから操作します。
 ソース版は下の導入を済ませてから`start-router.cmd`で起動します。ZIP版の起動にソース版の依存導入は不要です。

@@ -13,7 +13,7 @@ Discordの音声を参加者・VCごとに受信し、ミックス・録音・�
 > - メンテナーがbeta.2のWindows ZIP版で実Discordへの接続と音声の送受信を確認しましたが、短時間の試験のみです。
 > - Windows 11でスマート アプリ コントロールがオンの場合、同梱の署名のない音声DLLの読み込みが拒否され、起動しないことがあります。2026-10-27にメンテナーのPCでbeta.2を使って確認しました。
 > - 状態は **Windows セキュリティ → アプリ & ブラウザー コントロール → スマート アプリ コントロールの設定** で確認できます（[Microsoftの案内](https://support.microsoft.com/ja-jp/windows/security/windows-security/app-browser-control-in-the-windows-security-app)）。現時点でParaBus側の回避策はありません。コード署名を検討しています。OSの保護設定は変更しないでください。
-> - beta.2ではトレイに「初回導入が必要です」と表示されますが、再導入では解決しません。準備中のbeta.3以降では、拒否を判定できた場合にアプリ制御によるブロックとして通知します。
+> - beta.2ではトレイに「初回導入が必要です」と表示されますが、再導入では解決しません。beta.3以降では、拒否を判定できた場合にアプリ制御によるブロックとして通知します。
 
 ![参加者ごとのチャンネルストリップとレベルメーターが並ぶ ParaBus の VC MIX 画面](assets/readme/mix.png)
 
@@ -36,10 +36,10 @@ Botの準備は[Discord設定](docs/DISCORD_RX.md)を参照してください。
 
 ## ダウンロード
 
-**Windows x64 ベータ版：[v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)**
+**Windows x64 ベータ版：[v0.1.0-beta.3](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3)**
 
-[ParaBus-windows-x64-v0.1.0-beta.2.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/ParaBus-windows-x64-v0.1.0-beta.2.zip) ／
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/SHA256SUMS.txt)
+[ParaBus-windows-x64-v0.1.0-beta.3.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.3/ParaBus-windows-x64-v0.1.0-beta.3.zip) ／
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.3/SHA256SUMS.txt)
 
 Node.js・対応ソース・第三者表記を同梱しています。新しい専用フォルダーへ展開してください。
 

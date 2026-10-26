@@ -1,7 +1,6 @@
-ParaBus Windows x64 v0.1.0-beta.3（準備中・未公開）（2026-10-27）
+ParaBus Windows x64 v0.1.0-beta.3（2026-10-27）
 
-現在公開中の版: v0.1.0-beta.2
-公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
@@ -25,7 +24,7 @@ Windows 11でスマート アプリ コントロールがオンの場合、同�
 Microsoftの案内: https://support.microsoft.com/ja-jp/windows/security/windows-security/app-browser-control-in-the-windows-security-app
 現時点でParaBus側の回避策はありません。コード署名を検討しています。OSの保護設定は変更しないでください。
 beta.2ではトレイに「初回導入が必要です」と表示されますが、再導入では解決しません。
-準備中のbeta.3以降では、拒否を判定できた場合にアプリ制御によるブロックとして通知します。
+beta.3以降では、拒否を判定できた場合にアプリ制御によるブロックとして通知します。
 
 使い始めの確認
 ・起動してBotへ接続できるか、参加者の音がMain/Cueで聞こえるか。
@@ -40,7 +39,7 @@ beta.2ではトレイに「初回導入が必要です」と表示されます�
 設定ロックをOFFにし、表示中の障害を確認する必要があります。
 ブラウザーを閉じるだけではアプリは終了しません。
 
-beta.3の変更（準備中・未公開）
+beta.3の変更
 ・操作画面の接続先を制限しました。通常の設定で使えるのは127.0.0.1／localhost／[::1]と、
   LAN接続を有効にしたときにSETUPに表示されるLANのURLだけです。
   LANからPC名や古いIPアドレスで開くと拒否（403）されるため、表示されるURLを使ってください。
@@ -54,7 +53,12 @@ beta.3の変更（準備中・未公開）
 ・機器が外れたことを知らせる内部用の命令は、外部から受け付けないようにしました。
 ・操作画面の説明文を減らし、詳しい説明をマニュアルへ移しました。
 ・マニュアル・Discord設定・READMEなどの文書を更新しました。
-・音声処理・native・依存ライブラリ・Node.jsはbeta.2から変更していません。
+・音声部品がWindowsのアプリ制御に拒否されたと判定できた場合は、トレイに専用の通知を出します。
+  通常の読み込み失敗の通知も、ZIP版向けの案内にしました。
+・音声デバイスがFAULTになったとき、理由の分類とhost APIをログに残すようにしました。
+  Support Bundleには理由の分類とhost APIを残し、デバイス名やパス、エラーの原文は含めません。
+・トレイからログをBOMなしUTF-8で追記するようにし、日本語の文字化けを修正しました。
+・音声の信号処理、native部品、依存ライブラリ、Node.jsはbeta.2から変更していません。
 
 この版について
 Node.js 22.23.4を同梱しています。
