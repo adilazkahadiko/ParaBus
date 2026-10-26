@@ -1,16 +1,20 @@
 # Discord受信の起動方法
 
-## いちばん簡単な起動方法（Windows）
+## Windows ZIP版の起動
 
-プロジェクトフォルダーにある **`start-router.cmd` をダブルクリック**してください。黒いCMD画面は
-すぐ閉じ、その後はタスクバー右端の通知領域に常駐します。アイコンが見当たらない場合は、通知領域の
-`^` を押して隠れているアイコンを表示してください。
+新しい専用フォルダーへ展開し、**`ParaBus.exe`を開いてください**。通知領域の「PB」アイコンを
+ダブルクリックするか、右クリックして **UIを開く** を選ぶと操作画面を開けます。アイコンが見当たらない場合は、
+通知領域の`^`を押して隠れているアイコンを表示してください。既存の運用フォルダーへ上書きしないでください。
 
-初回だけ日本語のDiscord Bot設定ページが開きます。Bot名、Guild ID、Voice Channel ID、Bot Tokenを
-入力して「Botを有効化」をチェックし、「設定を保存」を押します。対象Botだけが再起動なしでVCへ接続します。
+## ソース版の起動（Windows）
 
-2回目以降は **`start-router.cmd` をダブルクリック**し、SETUPの対象Botで **接続** を押します。
-「使用する」がONでも、起動・ParaBus本体再起動だけではDiscordへ接続しません。
+[ソースからの導入](SOURCE_RELEASE.md#ソースからの導入)を済ませ、プロジェクトフォルダーの
+**`start-router.cmd`をダブルクリック**してください。CMD画面は閉じ、通知領域のPBアイコンから操作します。
+起動時に依存の自動インストールは行いません。ZIP版の手順は[README](../README.ja.md#windows用zip)を参照してください。
+
+どちらの起動方法でも、Botは未接続で待機します。PBアイコンの **Discord Bot設定を開く** または
+操作画面の **SETUP → BOTS** から設定し、保存後に対象Botの **接続** を押してください。
+**使用** にチェックが入っていても、設定保存・起動・ParaBus本体再起動だけではDiscordへ接続しません。
 
 通知領域のアイコンでは次の操作ができます。
 
@@ -23,21 +27,30 @@
 - 右クリック → ログを開く
 - 右クリック → 終了
 
-Discordへ接続せず画面だけ試したい場合は、Botの接続操作や新しい有効化をせず起動してください。
-Bot未接続・無音で待機します。
+Discordへ接続せず画面だけ試したい場合は、Botの **接続**・**復旧** を押さず、音声デバイスも開始しないでください。
 
 ## 終了方法
 
-通知領域のアイコンを右クリックし、「終了」を選びます。CoreとDiscord接続がまとめて終了します。
+実行PCから、次のいずれかで終了を要求します。
+
+- **SETUP → ParaBus を終了**：確認ダイアログで承認します。
+- **PBアイコン右クリック → 終了**：確認ダイアログなしで終了を要求します。
+
+どちらも設定ロックがOFFで、FAULT状態ではなく、録音停止・保存完了していることが必要です。
+トレイからの終了要求が拒否された場合は「終了できません」と通知し、強制終了はしません。
+Core・Discord接続・ランチャーを終了します。ブラウザーのタブを閉じただけでは終了せず、LANの別PCからも終了できません。
 
 ## 設定を変更する場合
 
-通知領域のParaBus（PB）アイコンから **Discord Bot設定を開く** を選び、画面で編集・保存します。有効 / 無効の変更は
-対象BotのVC接続へすぐ反映されます。保存済みBotはカードの **VCへ接続** / **VCから切断** でも個別操作できます。
+通知領域のPBアイコンから **Discord Bot設定を開く** を選ぶか、**SETUP → BOTS** を開きます。
+各Botの **詳細** で名前・役割・Server ID・VC ID・Tokenを入力し、**使用** にチェックを入れて **設定を保存** を押します。
+保存だけでは接続中Botの状態は変わりません。保存済みBotはカードの **接続** / **切断** で個別に操作します。
+接続エラー・再接続中は **接続** が **復旧** になり、確認後に1回だけ切断して再接続します。
 
 Guild / VC IDやTokenを変更した接続中Botは、保存後に一度切断して再接続してください。
-個別切断しても「使用する」の保存値は変わりませんが、次回起動・本体再起動時は未接続で待機します。
-接続後の通信断に対する自動復帰は維持します。接続開始はON AIR中に拒否され、切断は確認後に実行できます。
+個別切断しても **使用** の保存値は変わりませんが、次回起動・本体再起動時は未接続で待機します。
+接続後の通信断に対する自動復帰は維持します。画面からの設定保存・接続・切断・復旧は、設定ロック中（ON_AIR）とFAULT中は操作できません。
+切断・復旧には確認が必要です。
 
 既存Botトークンは画面へ再表示されず「設定済み」とだけ表示されます。空欄のまま保存すれば現在値を
 保持し、新しい値を入力した場合だけ更新します。Token本体は `.env` にだけ保存され、状態API、
@@ -46,7 +59,7 @@ Bot Rack JSON、ログ、Gitには含まれません。
 ## まず1 Botで送受信する
 
 通常は、現在のBotのRoleを **RX+TX（双方向）** にします。同じVoiceConnectionでDiscord音声を受信し、
-GAME StemをDiscordへ送信できます。RX用とTX用に同じTokenを2回登録しないでください。
+物理入力の音声をDiscordへ送信できます。RX用とTX用に同じTokenを2回登録しないでください。
 
 直接ファイルを管理する場合のRole名は `DUPLEX` です。
 
@@ -54,10 +67,11 @@ GAME StemをDiscordへ送信できます。RX用とTX用に同じTokenを2回登
 {"id":"BOT01","label":"送受信 Bot 01","role":"DUPLEX","txSubtype":"GAME","txAudioMode":"STEREO","tokenEnv":"DISCORD_BOT_TOKEN_BOT01","guildId":"...","voiceChannelId":"...","enabled":true}
 ```
 
-## 複数Bot / 最大20 RX + 4 TXを設定する
+## 複数Bot / RX最大24・TX最大22・合計最大24を設定する
 
-設定ページで **+ 送受信Bot**、**+ RX Bot** または **+ TX Bot** を押します。各BotのProfile ID、表示名、Role、
-Guild ID、Voice Channel ID、Tokenを入力してください。TXではStemとMONO / STEREOも選びます。
+**SETUP → BOTS** で **＋ RX+TX**、**＋ RX** または **＋ TX** を押します。各Botの **詳細** で名前・役割・
+Server ID・VC ID・Tokenを入力します。TX / RX+TXでは **TX MODE** のMONO / STEREOも選びます。
+内部Profile IDは固定で、画面から編集しません。RX+TXは受信枠・送信枠を各1つ使い、合計では1台と数えます。
 
 直接ファイルを管理する上級者向けには、次の形式も引き続き利用できます。
 
@@ -77,7 +91,8 @@ DISCORD_BOT_TOKEN_TX_COMMENTARY01=COMMENTARY TX Botのトークン
 DISCORD_BOT_TOKEN_TX_IFB01=IFB TX Botのトークン
 ```
 
-Studio Returnを使う場合はTX profileも追加します。
+物理入力をDiscordへ送る場合はTX profileも使えます。以下のGAME / CASTER / COMMENTARY / IFBは
+互換用の`txSubtype`を持つ設定例で、現行UIでの固定Stem選択や4 TX上限を意味しません。
 
 ```json
 {"id":"TX_GAME01","label":"TX GAME","role":"TX","txSubtype":"GAME","txAudioMode":"STEREO","tokenEnv":"DISCORD_BOT_TOKEN_TX_GAME01","guildId":"...","voiceChannelId":"...","enabled":true}
@@ -86,12 +101,14 @@ Studio Returnを使う場合はTX profileも追加します。
 {"id":"TX_IFB01","label":"TX IFB","role":"TX","txSubtype":"IFB","txAudioMode":"MONO","tokenEnv":"DISCORD_BOT_TOKEN_TX_IFB01","guildId":"...","voiceChannelId":"...","enabled":true}
 ```
 
-トークンをJSONへ直接書かないでください。設定保存後、UIの**BOT RACK**タブで接続数、Gateway / Voice状態、
-Ping、再接続回数を確認します。必要なら設定タブの**VCへ接続** / **VCから切断**でBotごとに操作します。
+トークンをJSONへ直接書かないでください。保存・接続後は **SETUP → BOTS** の各カードで、接続先と
+**接続中** / **未接続** / **接続エラー** などの状態を確認します。全BotのREADY台数と設定台数は **STATUS → DISCORD** の
+`n / N READY`、各BotのSTATE・PING・TX / RECONNECTは **STATUS → STATS → BOTS** で確認します。
+操作画面のタブは **MIX / ROUTE / STATUS / SESSION / SETUP** です。接続・切断・復旧の操作は **SETUP → BOTS** で行います。
 
 ## コマンドから起動する場合
 
-ターミナルを使う場合も1コマンドです。
+ソース版をターミナルから起動する場合は、導入済みのプロジェクトフォルダーで実行します。
 
 ```powershell
 npm.cmd run app
@@ -111,8 +128,10 @@ TX BotはSelf Deafで送信だけ、DUPLEX BotはSelf Mute / DeafともOFFで送
 Discordで誰かが話すと、そのユーザー専用のチャンネルとメーターが自動で追加されます。新しい
 ユーザーのVC送信レベルは安全のため `-12 dB` から始まります。
 
-画面上部が `DISCORD RX 接続済み数/設定数` にならない場合は、`.env` とBot RackのサーバーID・ボイスチャンネルID、Botの
-接続権限を確認してください。
+全BotのREADY台数と設定台数は **STATUS → DISCORD** の `n / N READY`、個別の接続状態は **SETUP → BOTS** の各カードで確認します。
+MIX上部の **RX BOT** は表示対象の受信Botを示し、全Botの接続数とは区別します。
+接続できない場合は、各BotのServer ID・VC ID・Tokenの設定済み状態と接続権限を確認してください。
+参加者の受信品質は **STATUS → STATS → USERS** のPACKETS・QUALITY・QUEUE・LASTで確認できます。
 
 ## 補足: 内部の音声経路
 

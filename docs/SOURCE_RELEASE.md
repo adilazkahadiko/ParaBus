@@ -4,6 +4,9 @@
 SoundGrid / LV1での本番実機確認は未完了です。
 [Windows x64 v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
 
+Windows ZIP版は新しい専用フォルダーへ展開し、`ParaBus.exe`を開いて通知領域のPBアイコンから操作します。
+ソース版は下の導入を済ませてから`start-router.cmd`で起動します。ZIP版の起動にソース版の依存導入は不要です。
+
 ## 含めるもの・含めないもの
 
 TypeScript / Rust source、UI、起動・ビルドscript、test、設定example、lockfile、LICENSE、
@@ -76,7 +79,8 @@ npm.cmd run check:opus-native
 ```
 
 各コマンドが成功してから`start-router.cmd`を使い、[Bot設定手順](DISCORD_RX.md)へ進みます。
-起動・本体再起動だけではBotは接続せず、SETUPから手動で接続します。
+起動・本体再起動・設定保存だけではBotは接続せず、SETUP → BOTSの各Botで「接続」を押します。
+接続エラー・再接続中は「復旧」と表示されます。状態の確認はSETUPのBotカードとSTATUS → DISCORD / STATSを使います。
 `npm ci`成功だけではoptional音声依存の導入成功を保証しません。確認が失敗したら起動に進まず、
 `npm.cmd ci --legacy-peer-deps --foreground-scripts`でビルドエラーを確認してください。
 **既存運用環境では再導入しないでください。** `npm ci`は`node_modules`を作り直すため、

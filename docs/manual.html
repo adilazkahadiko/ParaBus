@@ -163,8 +163,8 @@
           <tr><td>GUILD ID</td><td>DiscordサーバーID。17〜20桁</td></tr>
           <tr><td>VOICE CHANNEL ID</td><td>接続するボイスチャンネルID。17〜20桁</td></tr>
           <tr><td>BOT TOKEN</td><td>未設定時または変更時だけ入力。既存値は再表示されない</td></tr>
-          <tr><td>VCへ接続</td><td>保存済みの有効なBotだけを接続する。ON AIR中は安全のため拒否される</td></tr>
-          <tr><td>VCから切断</td><td>確認後、そのBotの受信・送信を停止して切断する。ほかのBotは維持する</td></tr>
+          <tr><td>接続</td><td>保存済みの有効なBotだけを接続する。ON AIR中は安全のため拒否される</td></tr>
+          <tr><td>切断</td><td>確認後、そのBotの受信・送信を停止して切断する。ほかのBotは維持する</td></tr>
         </tbody></table>
         <div class="callout"><strong>「設定済み」なら空欄でよい</strong>Token欄を空欄のまま保存すると、現在のTokenを保持します。保存後も欄は空になり、Tokenは再表示されません。JSON・state API・ログにも出しません。</div>
         <div class="callout warning"><strong>設定変更中は先に保存</strong>Guild / VC IDやTokenを変えた場合は保存後に対象Botを一度切断し、再接続します。起動・本体再起動時は有効なBotも未接続で待機するため、SETUPから接続してください。接続後の通信断からの自動復帰は維持します。PORT変更はParaBus再起動後に反映されます。</div>
@@ -414,7 +414,7 @@
           <tr><td>User channelが増えない</td><td>対象VCでUserが発話しているか、Botがserver deafになっていないか、TX Bot除外IDに入っていないか確認します。</td></tr>
           <tr><td>meterが動かない</td><td>channelがstaleでないか、MUTE、fader、VC Sendを確認します。Discord受信自体はPK dBFSで切り分けます。</td></tr>
           <tr><td>音が大き過ぎる</td><td>赤meterを確認し、channel fader、VC Send、Bus Masterの順に下げます。LimiterはONのままにします。</td></tr>
-          <tr><td>Bot設定を変えたが反映されない</td><td>設定を保存し、対象Botを<strong>VCから切断</strong>してから<strong>VCへ接続</strong>します。未保存の変更がある間は接続できません。</td></tr>
+          <tr><td>Bot設定を変えたが反映されない</td><td>設定を保存し、対象Botを<strong>切断</strong>してから<strong>接続</strong>します。未保存の変更がある間は接続できません。</td></tr>
           <tr><td>終了しても残っている</td><td>ブラウザーを閉じるだけでは停止しません。実行PCのSETUP → ParaBus を終了を選びます。</td></tr>
         </tbody></table>
       </section>
@@ -435,7 +435,7 @@ npm.cmd run test:load</pre>
 
       <section id="limits" data-search-section>
         <h2>現在の実装範囲</h2>
-        <p>Phase 0のAudio EngineからPhase 9のGAME / CASTER / COMMENTARY / IFB、TX Bot Pool、Mix Minus、WAV Recorder、認証付きTablet Controlまで実装済みです。</p>
+        <p>Phase 0のAudio EngineからPhase 9のGAME / CASTER / COMMENTARY / IFB、TX Bot Pool、Mix Minus、WAV Recorderまで実装済みです。認証付きTablet Controlは試作として保管していますが、現在は保留中で起動しません。</p>
         <ul><li>SoundGrid / LV1の実機64ch acceptanceは未実施。</li><li>実Discord 20 VCでの24時間acceptanceは未実施。</li><li>実Discord / SoundGridを組み合わせた4 Stem Return acceptanceは未実施。</li><li>SceneはCoreのmemory保存で、再起動後の永続化は未実装。</li><li>true peak / dBTPは未実装。</li><li>Recorderは32-bit float WAVのみで、自動file splitは未実装。</li><li>Discord Voice receiveは公開安定APIとして保証されないためAdapterを隔離しています。</li></ul>
         <p>ソースからの導入と公開前の確認は、同梱の <code>docs/SOURCE_RELEASE.md</code> を参照してください。過去の開発ログ・検証メモは公開候補に含めません。</p>
       </section>
