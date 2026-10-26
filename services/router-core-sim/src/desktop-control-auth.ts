@@ -34,6 +34,17 @@ export function isLocalDesktopAddress(address: string | undefined): boolean {
   return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }
 
+export function desktopAllowedHosts(port: number, access: ReturnType<typeof resolveDesktopAccess>): ReadonlySet<string> {
+  return new Set([
+    `127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`,
+    ...[access.origin, ...(access.lanEnabled ? access.urls : [])].map(url => new URL(url).host),
+  ]);
+}
+
+export function isDesktopHostAllowed(headers: IncomingHttpHeaders, allowedHosts: ReadonlySet<string>): boolean {
+  return typeof headers.host === "string" && allowedHosts.has(headers.host.toLowerCase());
+}
+
 export function injectDesktopAccess(html: string, access: { lanEnabled: boolean; urls: string[]; localSettingsAvailable: boolean }): string {
   const value = JSON.stringify(access).replaceAll("<", "\\u003c");
   const script = `<script id="desktop-access" type="application/json">${value}</script>`;

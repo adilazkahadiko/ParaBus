@@ -259,7 +259,7 @@ export class SettingsStore {
       const txSubtype = txCapable && ["GAME", "CASTER", "COMMENTARY", "IFB", "CUSTOM"].includes(String(entry.txSubtype)) ? entry.txSubtype as TxSubtype : txCapable ? "CUSTOM" : null;
       const txAudioMode = txCapable && entry.txAudioMode === "STEREO" ? "STEREO" : txCapable ? "MONO" : null;
       const tokenEnv = stringValue(entry.tokenEnv) || tokenEnvironmentName(id);
-      if (!/^[A-Z_][A-Z0-9_]*$/.test(tokenEnv)) throw new Error(`${id}: Token環境変数名が不正です`);
+      if (!/^DISCORD_BOT_TOKEN(_[A-Z0-9_]+)?$/.test(tokenEnv)) throw new Error(`${id}: Token環境変数名が不正です`);
       if (seenTokenEnvironments.has(tokenEnv)) throw new Error(`Token環境変数名が重複しています: ${tokenEnv}`);
       seenTokenEnvironments.add(tokenEnv);
       const guildId = stringValue(entry.guildId);
