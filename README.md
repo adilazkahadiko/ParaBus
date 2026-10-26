@@ -15,6 +15,8 @@ The control UI is in Japanese, with some headings in English.
 > - Long-running hardware tests after the diagnostic hook removal, UI cleanup, suspension of tablet support and dependency updates have not been performed.
 > - The maintainer confirmed live Discord connection and audio send/receive with the beta.2 Windows ZIP, but only in a short test.
 
+![ParaBus VC MIX screen with per-participant channel strips and level meters](assets/readme/mix.png)
+
 ## Features
 
 - Receive and mix Discord audio per participant and per voice channel, with up to 24 RX bots, 22 TX bots and 24 bots in total per PC
@@ -24,6 +26,10 @@ The control UI is in Japanese, with some headings in English.
 - Record selected Main Output channels, VC MIX and User / Input tracks as 48 kHz, 32-bit float mono WAV files
 - Preview Scene changes before applying them, with Recall Safe protection
 - Use emergency mute and browser controls, locally or from another PC on a trusted LAN
+
+![ParaBus ROUTE screen assigning each participant's Direct Out to its own output channel](assets/readme/route.png)
+
+*Screenshots use demo data (24 test participants, mock output). No real Discord accounts are shown.*
 
 Docs are currently in Japanese: [operator manual](docs/manual.html) (download and open it in a browser if GitHub shows it as code)
 and [Discord bot setup](docs/DISCORD_RX.md).
