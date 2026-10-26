@@ -1,6 +1,7 @@
-ParaBus Windows x64 v0.1.0-beta.3（2026-10-27）
+ParaBus Windows x64 v0.1.0-beta.3（準備中・未公開）（2026-10-27）
 
-公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3
+現在公開中の版: v0.1.0-beta.2
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
@@ -15,7 +16,16 @@ ParaBus Windows x64 v0.1.0-beta.3（2026-10-27）
 Node.js等の開発ツールのインストールは不要です。Windows x64用です。
 ASIOを使う場合は、機器メーカーの正規64bitドライバーを別途インストールします。
 アプリはコード署名していません。SmartScreenが出た場合は、取得元を確認して判断してください。
-OS全体の保護設定を変更する必要はありません。
+OSの保護設定は変更しないでください。アプリ制御で起動を拒否される場合は、下の「既知の問題」を参照してください。
+
+既知の問題
+Windows 11でスマート アプリ コントロールがオンの場合、同梱の署名のない音声DLLの
+読み込みが拒否され、起動しないことがあります。2026-10-27にメンテナーのPCでbeta.2を使って確認しました。
+状態はWindows セキュリティ → アプリ & ブラウザー コントロール → スマート アプリ コントロールの設定で確認できます。
+Microsoftの案内: https://support.microsoft.com/ja-jp/windows/security/windows-security/app-browser-control-in-the-windows-security-app
+現時点でParaBus側の回避策はありません。コード署名を検討しています。OSの保護設定は変更しないでください。
+beta.2ではトレイに「初回導入が必要です」と表示されますが、再導入では解決しません。
+準備中のbeta.3以降では、拒否を判定できた場合にアプリ制御によるブロックとして通知します。
 
 使い始めの確認
 ・起動してBotへ接続できるか、参加者の音がMain/Cueで聞こえるか。
@@ -30,7 +40,7 @@ OS全体の保護設定を変更する必要はありません。
 設定ロックをOFFにし、表示中の障害を確認する必要があります。
 ブラウザーを閉じるだけではアプリは終了しません。
 
-beta.3の変更
+beta.3の変更（準備中・未公開）
 ・操作画面の接続先を制限しました。通常の設定で使えるのは127.0.0.1／localhost／[::1]と、
   LAN接続を有効にしたときにSETUPに表示されるLANのURLだけです。
   LANからPC名や古いIPアドレスで開くと拒否（403）されるため、表示されるURLを使ってください。
