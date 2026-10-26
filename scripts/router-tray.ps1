@@ -189,8 +189,13 @@ function Get-DependencyFailureNotification {
     }
 }
 
+function Add-RouterLog {
+    param([string]$Text)
+    [System.IO.File]::AppendAllText($script:LogPath, ($Text + "`r`n"), (New-Object System.Text.UTF8Encoding $false))
+}
+
 function Test-DependenciesReady {
-    Add-Content -LiteralPath $script:LogPath -Value "`r`n[$(Get-Date -Format s)] Native dependency check (no device enumeration)"
+    Add-RouterLog "`r`n[$(Get-Date -Format s)] Native dependency check (no device enumeration)"
     $installInfo = New-Object System.Diagnostics.ProcessStartInfo
     $installInfo.FileName = "cmd.exe"
     $installInfo.Arguments = '/d /c node.exe scripts/audio-native-check.ts && node.exe scripts/opus-native-check.ts'
@@ -207,7 +212,7 @@ function Test-DependenciesReady {
     $errorTask = $install.StandardError.ReadToEndAsync()
     $install.WaitForExit()
     $checkOutput = $outputTask.Result
-    Add-Content -LiteralPath $script:LogPath -Value ($checkOutput + $errorTask.Result)
+    Add-RouterLog ($checkOutput + $errorTask.Result)
     if ($install.ExitCode -ne 0) {
         $notification = Get-DependencyFailureNotification $install.ExitCode $checkOutput
         $script:Tray.Text = $notification.TrayText
@@ -226,7 +231,7 @@ function Start-Router {
         if (-not $script:NodeExecutable) { $script:NodeExecutable = Resolve-NodeExecutable }
     }
     catch {
-        Add-Content -LiteralPath $script:LogPath -Value "`r`n[$(Get-Date -Format s)] $($_.Exception.Message)"
+        Add-RouterLog "`r`n[$(Get-Date -Format s)] $($_.Exception.Message)"
         $script:Tray.Text = "ParaBus - Node 22が必要"
         Show-Notification "修正版のNode.js 22が必要です" "Node.js 22.23.4以上23未満をインストールしてから再起動してください。" ([System.Windows.Forms.ToolTipIcon]::Error)
         return
@@ -235,7 +240,7 @@ function Start-Router {
         return
     }
     $script:Tray.Text = "ParaBus - 起動中"
-    Add-Content -LiteralPath $script:LogPath -Value "`r`n[$(Get-Date -Format s)] Router start"
+    Add-RouterLog "`r`n[$(Get-Date -Format s)] Router start"
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
     $processInfo.FileName = "cmd.exe"
     $processInfo.Arguments = '/d /c node.exe scripts/start-router.ts >> "' + $script:LogPath + '" 2>&1'
