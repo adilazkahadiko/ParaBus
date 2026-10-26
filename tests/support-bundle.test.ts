@@ -13,6 +13,8 @@ import { DiscordIngestServer } from "../services/router-core-sim/src/discord-ing
 import { createSupportBundle, supportDiagnostics } from "../services/router-core-sim/src/support-bundle.ts";
 import type { DiscordBotSnapshot } from "../packages/shared-types/src/index.ts";
 import { AudioSchedulerTiming, OutputWriteTiming, RxQueueTiming, audioTimingSummary } from "../services/router-core-sim/src/audio-timing.ts";
+import { AUDIO_FAULT_CLASSIFICATIONS } from "../services/router-core-sim/src/audio-fault-diagnostics.ts";
+import { OperationalLog } from "../services/router-core-sim/src/operational-log.ts";
 
 const userId = "100000000000000123", guildId = "200000000000000123", vcId = "300000000000000123";
 const participant = "秘密参加者🦊", guild = "会社の秘密Guild", vc = "非公開のVC";
@@ -100,6 +102,33 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   await utimes(join(root, "logs", "router.log"), new Date(now), new Date(now));
   return { root, request: { settingsRoot: root, projectRoot: root, runtimeInfo, diagnostics: supportDiagnostics(snapshot()), now } };
 }
+
+test("fault diagnostics retain classification and host API in Bundle while raw errors stay only in the local log", async t => {
+  const { root, request } = await fixture(t);
+  await writeFile(join(root, "logs/operational-2026-10-06.jsonl"), "");
+  const log = new OperationalLog(root, 7, () => new Date(now));
+  const control = new ControlPlane(AudioEngine.createDemo(0), undefined, undefined, undefined, undefined, undefined, event => log.append(event));
+  const reason = "PRIVATE_DEVICE C:\\private\\driver.dll raw driver error\r\n\0" + "x".repeat(2000);
+  for (const classification of AUDIO_FAULT_CLASSIFICATIONS) for (const type of ["DEVICE_LOST", "INPUT_DEVICE_LOST"] as const) {
+    assert.equal(control.execute({ type, deviceId: "PRIVATE_DEVICE", fault: { classification, hostApi: "ASIO", reason } }).ok, true);
+  }
+  assert.equal(control.execute({ type: "DEVICE_LOST", deviceId: "PRIVATE_DEVICE", fault: { classification: "UNKNOWN", hostApi: "PRIVATE_HOST", reason } }).ok, true);
+  await log.close();
+  const local = (await readFile(log.pathFor(), "utf8")).trim().split("\n").map(line => JSON.parse(line));
+  const details = local.filter(event => event.message.startsWith("Audio fault:"));
+  assert.equal(details.length, 13);
+  for (const event of details) { assert.match(event.localDetail, /PRIVATE_DEVICE.*raw driver error/); assert.equal(event.localDetail.length, 1024); assert.doesNotMatch(event.localDetail, /[\r\n\0]/); }
+  assert.doesNotMatch(JSON.stringify(control.snapshot().alerts), /PRIVATE_DEVICE|private|localDetail|raw driver/);
+  const injection = { at: now, level: "CRITICAL", message: "Audio fault: target=INPUT classification=STREAM_ERROR hostApi=PRIVATE_HOST", localDetail: reason };
+  await writeFile(log.pathFor(), (await readFile(log.pathFor(), "utf8")) + JSON.stringify(injection) + "\n");
+  const bundle = await createSupportBundle(request), bytes = await readFile(bundle.path), entries = unzip(bytes);
+  const exported = entries.get("logs/operational-2026-10-06.jsonl")!;
+  for (const classification of AUDIO_FAULT_CLASSIFICATIONS) for (const target of ["MAIN_OUTPUT", "INPUT"]) assert.ok(exported.includes(`Audio fault: target=${target} classification=${classification} hostApi=ASIO`));
+  assert.ok(exported.includes("Audio fault: target=MAIN_OUTPUT classification=UNKNOWN hostApi=UNKNOWN"));
+  assert.ok(exported.includes("OUTPUT DEVICE LOST; output forced to silence"));
+  assert.ok(exported.includes("INPUT DEVICE LOST; input buffers cleared and all outputs fail closed"));
+  for (const secret of ["PRIVATE_DEVICE", "PRIVATE_HOST", "raw driver error", "localDetail", "C:\\private\\driver.dll"]) assert.equal(bytes.includes(Buffer.from(secret)), false, secret);
+});
 
 test("support ZIP retains numeric audio timing and summary grammar without exporting names, IDs or extra fields", async t => {
   const { root, request } = await fixture(t);

@@ -3,6 +3,8 @@ import type { DeviceInfo, IoStreamWrite } from "naudiodon2";
 import type {
   AudioOutputDevice,
   AudioOutputSnapshot,
+  AudioFaultClassification,
+  AudioFaultDiagnostic,
   WindowsEndpointBindingSnapshot,
 } from "../../../packages/shared-types/src/index.ts";
 import type { WindowsDevicePresenceProvider } from "./windows-device-presence.ts";
@@ -39,7 +41,7 @@ export class AudioOutputManager {
   readonly sampleRate: number;
   readonly blockSize: number;
   readonly maximumChannels: number;
-  onFault?: (deviceId: string, message: string) => void;
+  onFault?: (deviceId: string, message: string, diagnostic: AudioFaultDiagnostic) => void;
   #portAudio: PortAudioModule | null;
   #devices: AudioOutputDevice[] = [];
   #stream: IoStreamWrite | null = null;
@@ -110,7 +112,7 @@ export class AudioOutputManager {
     }
     this.#devices = devices;
     if (this.#platform !== "win32" && this.#selectedDeviceId?.startsWith("pa:") && this.#state === "READY" && !devices.some((device) => this.matchesSelectedDevice(device))) {
-      this.fail(this.#selectedDeviceId, "選択中の出力デバイスが見つかりません");
+      this.fail(this.#selectedDeviceId, "選択中の出力デバイスが見つかりません", "DEVICE_UNAVAILABLE");
     }
     return devices.map((device) => ({ ...device }));
   }
@@ -148,7 +150,7 @@ export class AudioOutputManager {
       this.#activeChannelCount = channelCount;
       this.#state = "READY";
       try {
-        this.#asioDuplex.selectOutput({ deviceId: numericId!, channelCount, sampleRate: this.sampleRate, blockSize: this.blockSize }, (message) => this.fail(device.id, message));
+        this.#asioDuplex.selectOutput({ deviceId: numericId!, channelCount, sampleRate: this.sampleRate, blockSize: this.blockSize }, (message) => this.fail(device.id, message, "ASIO_FAULT"));
       } catch (error) {
         this.failClosed(error instanceof Error ? error.message : String(error));
         throw new Error(`出力デバイスを開けません: ${this.#error}`);
@@ -171,10 +173,10 @@ export class AudioOutputManager {
         },
       });
       stream.on("error", (error) => {
-        if (stream === this.#stream && generation === this.#streamGeneration) this.fail(device.id, error instanceof Error ? error.message : String(error));
+        if (stream === this.#stream && generation === this.#streamGeneration) this.fail(device.id, error instanceof Error ? error.message : String(error), "STREAM_ERROR");
       });
       stream.on("close", () => {
-        if (stream === this.#stream && generation === this.#streamGeneration && !this.#closing && this.#state === "READY") this.fail(device.id, "出力ストリームが終了しました");
+        if (stream === this.#stream && generation === this.#streamGeneration && !this.#closing && this.#state === "READY") this.fail(device.id, "出力ストリームが終了しました", "STREAM_ENDED");
       });
       this.#buffers = Array.from({ length: 8 }, () => Buffer.allocUnsafe((this.blockSize + (wasapi ? 1 : 0)) * channelCount * 4));
       this.#writeViews.clear();
@@ -291,13 +293,13 @@ export class AudioOutputManager {
           if (priming && --this.#primingRemaining === 0) {
             try {
               stream.start();
-            } catch (error) { this.fail(this.#selectedDeviceId ?? "unknown", String(error)); }
+            } catch (error) { this.fail(this.#selectedDeviceId ?? "unknown", String(error), "STREAM_ERROR"); }
           }
         }
       });
     } catch (error) {
       this.#availableBuffers.push(buffer);
-      this.fail(this.#selectedDeviceId ?? "unknown", error instanceof Error ? error.message : String(error));
+      this.fail(this.#selectedDeviceId ?? "unknown", error instanceof Error ? error.message : String(error), "STREAM_ERROR");
     }
   }
 
@@ -360,10 +362,11 @@ export class AudioOutputManager {
     return this.#state === "READY" && this.#selectedDeviceId?.startsWith("pa:") === true;
   }
 
-  private fail(deviceId: string, message: string): void {
+  private fail(deviceId: string, message: string, classification: AudioFaultClassification = "UNKNOWN"): void {
     if (this.#state === "FAULT") return;
+    const diagnostic = { classification, hostApi: this.#selectedDeviceIdentity?.hostApi ?? null };
     this.failClosed(message);
-    this.onFault?.(deviceId, message);
+    this.onFault?.(deviceId, message, diagnostic);
   }
 
   private closeStream(): void {
@@ -378,7 +381,7 @@ export class AudioOutputManager {
       const generation = this.#streamGeneration;
       try {
         Promise.resolve(stream.abort()).catch((error) => {
-          if (generation === this.#streamGeneration) this.fail(this.#selectedDeviceId ?? "unknown", String(error));
+          if (generation === this.#streamGeneration) this.fail(this.#selectedDeviceId ?? "unknown", String(error), "STREAM_ERROR");
         });
       } catch (error) { this.#error = String(error); }
     }
@@ -427,7 +430,7 @@ export class AudioOutputManager {
     this.#presenceUnavailableUnsubscribe = provider.onUnavailable?.(() => {
       if (stream !== this.#stream || generation !== this.#streamGeneration || this.#state !== "READY") return;
       if (this.#windowsEndpointBinding) this.#windowsEndpointBinding = { ...this.#windowsEndpointBinding, monitoring: "UNAVAILABLE" };
-      this.fail(this.#selectedDeviceId ?? "unknown", "Windows output presence provider is unavailable");
+      this.fail(this.#selectedDeviceId ?? "unknown", "Windows output presence provider is unavailable", "PRESENCE_PROVIDER_UNAVAILABLE");
     }) ?? null;
     const check = async () => {
       if (this.#presencePollPending || stream !== this.#stream || generation !== this.#streamGeneration || this.#state !== "READY") return;
@@ -438,12 +441,12 @@ export class AudioOutputManager {
         const endpoint = endpoints.find((candidate) => candidate.id === endpointId && candidate.direction === "render");
         if (!endpoint || endpoint.state !== "ACTIVE") {
           if (this.#windowsEndpointBinding) this.#windowsEndpointBinding = { ...this.#windowsEndpointBinding, state: endpoint?.state ?? "NOT_PRESENT" };
-          this.fail(this.#selectedDeviceId ?? "unknown", "Selected Windows output endpoint is unavailable");
+          this.fail(this.#selectedDeviceId ?? "unknown", "Selected Windows output endpoint is unavailable", "DEVICE_UNAVAILABLE");
         }
       } catch {
         if (stream === this.#stream && generation === this.#streamGeneration && this.#state === "READY") {
           if (this.#windowsEndpointBinding) this.#windowsEndpointBinding = { ...this.#windowsEndpointBinding, monitoring: "UNAVAILABLE" };
-          this.fail(this.#selectedDeviceId ?? "unknown", "Windows output presence provider is unavailable");
+          this.fail(this.#selectedDeviceId ?? "unknown", "Windows output presence provider is unavailable", "PRESENCE_PROVIDER_UNAVAILABLE");
         }
       } finally {
         if (stream === this.#stream && generation === this.#streamGeneration) this.#presencePollPending = false;

@@ -27,6 +27,7 @@ import { resolveCoreOwnership } from "./core-ownership.ts";
 import { deriveOperatorHealth } from "./operator-health.ts";
 import { operatorFacingSnapshot, safeOperatorSummary, sanitizeOperatorMessage } from "./operator-sanitize.ts";
 import { OperationalHealthTracker, OperationalLog } from "./operational-log.ts";
+import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 import { SceneStore } from "./scene-store.ts";
 import { runtimeInfo } from "./runtime-info.ts";
 import { createSupportBundle, openSupportDirectory, supportDiagnostics } from "./support-bundle.ts";
@@ -172,14 +173,14 @@ const desktopSnapshot = (includeHistory = true) => {
   });
   return { ...snapshot, operatorHealth: deriveOperatorHealth(snapshot) };
 };
-outputManager.onFault = (deviceId, message) => {
-  executeControlCommand({ type: "DEVICE_LOST", deviceId: `${deviceId}: ${message}` });
+outputManager.onFault = (deviceId, message, diagnostic) => {
+  executeControlCommand({ type: "DEVICE_LOST", deviceId, fault: { ...diagnostic, reason: localAudioFaultDetail(message) } });
 };
 cueOutputManager.onFault = () => {
   control.recordExternalEvent("WARNING", "Cue output disconnected; Main output remains active");
 };
-inputManager.onFault = (deviceId, message) => {
-  executeControlCommand({ type: "INPUT_DEVICE_LOST", deviceId: `${deviceId}: ${message}` });
+inputManager.onFault = (deviceId, message, diagnostic) => {
+  executeControlCommand({ type: "INPUT_DEVICE_LOST", deviceId, fault: { ...diagnostic, reason: localAudioFaultDetail(message) } });
 };
 const websocketClients = new Set<Duplex>();
 const websocketBuffers = new WeakMap<Duplex, Buffer>();

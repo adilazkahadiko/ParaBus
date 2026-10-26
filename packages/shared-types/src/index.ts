@@ -135,6 +135,13 @@ export interface BusSnapshot {
   physicalOutputs: Array<{ output: number; gainDb: number; mute: boolean }>;
 }
 
+export type AudioFaultClassification = "STREAM_ENDED" | "STREAM_ERROR" | "DEVICE_UNAVAILABLE" | "PRESENCE_PROVIDER_UNAVAILABLE" | "ASIO_FAULT" | "UNKNOWN";
+export interface AudioFaultDiagnostic {
+  classification: AudioFaultClassification;
+  hostApi: string | null;
+}
+export interface AudioFaultReport extends AudioFaultDiagnostic { reason: string }
+
 export interface AudioOutputDevice {
   id: string;
   name: string;
@@ -705,8 +712,8 @@ export type ControlCommand =
   | { type: "STOP_TX"; profileId?: string; confirmed?: boolean }
   | { type: "START_RECORDING"; matrixOutput: number; includeUsers: boolean; includeBuses: boolean; selection?: RecorderSelection; confirmed?: boolean }
   | { type: "STOP_RECORDING"; confirmed?: boolean }
-  | { type: "DEVICE_LOST"; deviceId: string }
-  | { type: "INPUT_DEVICE_LOST"; deviceId: string }
+  | { type: "DEVICE_LOST"; deviceId: string; fault?: AudioFaultReport }
+  | { type: "INPUT_DEVICE_LOST"; deviceId: string; fault?: AudioFaultReport }
   | { type: "ACKNOWLEDGE_FAULT"; confirmed: boolean };
 
 export interface CommandResult {
