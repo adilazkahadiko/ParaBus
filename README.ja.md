@@ -12,6 +12,8 @@ Discordの音声を参加者・VCごとに受信し、ミックス・録音・�
 > - 診断hook除去・画面整理・タブレット提供停止・依存更新後の長時間実機試験は未実施です。
 > - メンテナーがbeta.2のWindows ZIP版で実Discordへの接続と音声の送受信を確認しましたが、短時間の試験のみです。
 
+![参加者ごとのチャンネルストリップとレベルメーターが並ぶ ParaBus の VC MIX 画面](assets/readme/mix.png)
+
 ## できること
 
 - Discordの参加者・VC（ボイスチャンネル）ごとの受信とミックス（1 PCあたりRX最大24 Bot・TX最大22 Bot・合計最大24 Bot）
@@ -21,6 +23,10 @@ Discordの音声を参加者・VCごとに受信し、ミックス・録音・�
 - 選択したMain Outputのch・VC MIX・User / Inputを、トラックごとに48 kHz・32-bit float・mono WAVで録音
 - Sceneの変更をプレビューしてから適用し、Recall Safeで保護
 - 緊急停止とブラウザーからの操作（実行PCまたは信頼できるLAN内の別PCから操作）
+
+![参加者ごとの Direct Out を出力chへ割り当てた ParaBus の ROUTE 画面](assets/readme/route.png)
+
+*画面はデモデータ（テスト用の参加者24人・Mock出力）で表示しています。実在のDiscordアカウントは写っていません。*
 
 操作方法は[マニュアル](docs/manual.html)（GitHubでコードとして表示される場合はダウンロードしてブラウザーで開いてください）、
 Botの準備は[Discord設定](docs/DISCORD_RX.md)を参照してください。
