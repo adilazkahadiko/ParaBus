@@ -52,7 +52,7 @@
 - [ ] Windows ZIP版は`ParaBus.exe`、ソース版は`start-router.cmd`を実際に経由して起動testした。
 - [ ] tray iconが表示され、二重起動しない。
 - [ ] UI、マニュアル、設定、再起動、ログ、終了が動く。
-- [ ] Bot未設定で起動し、SETUP → BOTSから設定を保存できる。
+- [ ] 初回`.env`生成とBot未設定での起動が動き、SETUP → BOTSから設定を保存できる。
 - [ ] 依存不足を通知・logで確認でき、自動installせず起動を止める。
 - [ ] Core起動失敗時にtrayが消えず、logへ移動できる。
 - [ ] 終了時にCore / Adapterの子processが残らない。
