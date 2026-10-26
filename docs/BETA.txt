@@ -1,16 +1,32 @@
-ParaBus v0.1.0-beta.2（2026-10-25）
+ParaBus v0.1.0-beta.3（2026-10-27）
 
 位置づけ
 試用・フィードバックのためのベータ版です。正式な安定版ではありません。
 Windows実機で検証していますが、多人数・別機種・SoundGrid/LV1での本番実機確認は未完了です。
-Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2 から取得できます。
+Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3 から取得できます。
 Windows ZIPに対応ソース・第三者表記を同梱しています。作成方法・配布構成は
 SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照してください。
 第三者依存にはそれぞれのライセンスが適用されます。ルートのTHIRD_PARTY_NOTICES.mdを参照。
 本文の1058fb681f93・2b920eb1aafd・ed4c57df4431は、旧private履歴での検証・部品取得IDです。
 公開履歴のcommitとして探す必要はありません。配布物のBUILDと出自の記録はcomponent-provenance.jsonを参照。
 
-最近の変更
+beta.3の変更
+・操作画面の接続先を制限しました。通常の設定で使えるのは127.0.0.1／localhost／[::1]と、
+  LAN接続を有効にしたときにSETUPに表示されるLANのURLだけです。
+  LANからPC名や古いIPアドレスで開くと拒否（403）されるため、表示されるURLを使ってください。
+  許可するアドレスは起動時に決まります。起動中にPCのIPアドレスが変わった場合は、アプリを再起動してください。
+・Bot Tokenの環境変数名はDISCORD_BOT_TOKEN、またはDISCORD_BOT_TOKEN_に
+  英大文字・数字・アンダースコアを続けた名前に限ります。
+  設定を手で別の名前に変更している場合は、操作画面から設定を保存できません。
+  アプリを終了し、discord-bots.jsonのtokenEnvと.env（またはOS側）の対応する環境変数名を、
+  Botごとに重複しないDISCORD_BOT_TOKEN_RX01などに揃えてから起動し直してください。
+・操作画面をほかのページに埋め込めないようにしました。
+・機器が外れたことを知らせる内部用の命令は、外部から受け付けないようにしました。
+・操作画面の説明文を減らし、詳しい説明をマニュアルへ移しました。
+・マニュアル・Discord設定・READMEなどの文書を更新しました。
+・音声処理・native・依存ライブラリ・Node.jsはbeta.2から変更していません。
+
+beta.2までの変更
 ・beta.2ではundiciを6.29.1、brace-expansionを1.1.21へ更新。音声処理・nativeは変更していません。
   開発用のみのhttp-cache-semantics 4.3.0・ip-address 10.7.4も更新しています。
 ・VCマスターの表示をMASTER ON / MASTER MUTEDへ変更し、個人のMIX ON/OFFと区別します。

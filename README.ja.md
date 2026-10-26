@@ -33,10 +33,10 @@ Botの準備は[Discord設定](docs/DISCORD_RX.md)を参照してください。
 
 ## ダウンロード
 
-**Windows x64 ベータ版：[v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)**
+**Windows x64 ベータ版：[v0.1.0-beta.3](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3)**
 
-[ParaBus-windows-x64-v0.1.0-beta.2.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/ParaBus-windows-x64-v0.1.0-beta.2.zip) ／
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.2/SHA256SUMS.txt)
+[ParaBus-windows-x64-v0.1.0-beta.3.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.3/ParaBus-windows-x64-v0.1.0-beta.3.zip) ／
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.3/SHA256SUMS.txt)
 
 Node.js・対応ソース・第三者表記を同梱しています。新しい専用フォルダーへ展開してください。
 

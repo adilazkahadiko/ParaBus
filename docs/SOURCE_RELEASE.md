@@ -2,7 +2,7 @@
 
 これはベータ版のソース一式です。検証範囲・既知の問題は[BETA.txt](BETA.txt)を参照してください。
 SoundGrid / LV1での本番実機確認は未完了です。
-[Windows x64 v0.1.0-beta.2](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
+[Windows x64 v0.1.0-beta.3](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3)には対応ソース・第三者表記を同梱します（下記の作成手順を参照）。
 
 Windows ZIP版は新しい専用フォルダーへ展開し、`ParaBus.exe`を開いて通知領域のPBアイコンから操作します。
 ソース版は下の導入を済ませてから`start-router.cmd`で起動します。ZIP版の起動にソース版の依存導入は不要です。
@@ -145,7 +145,7 @@ hash変更を拒否します。既知のASIO案内変更だけは、変更前後
 正常終了・失敗時の後始末とも、検証用展開先のプロセスだけを対象にします。
 
 ```powershell
-$expectedCommit = git rev-parse 'v0.1.0-beta.2^{commit}'
+$expectedCommit = git rev-parse 'v0.1.0-beta.3^{commit}'
 runtime\node.exe scripts/windows-release-smoke.ts <target配下の新規展開先ParaBus> target\exe-smoke.json $expectedCommit
 ```
 
@@ -161,5 +161,5 @@ CIから実行版を配布する場合は、対応ソースと原文表記を揃
 runtime\node.exe scripts/collect-corresponding-source.ts <clean-ci-base> target\review-sources
 runtime\node.exe scripts/audit-corresponding-source.ts target\review-sources
 # 変更はローカルcommitへ記録してから、新しい出力先に組み立てる。
-runtime\node.exe scripts/assemble-review-package.ts <clean-ci-base> target\review-sources target\beta-output v0.1.0-beta.2
+runtime\node.exe scripts/assemble-review-package.ts <clean-ci-base> target\review-sources target\beta-output v0.1.0-beta.3
 ```

@@ -1,6 +1,6 @@
-ParaBus Windows x64 v0.1.0-beta.2
+ParaBus Windows x64 v0.1.0-beta.3（2026-10-27）
 
-公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.2
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.3
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
@@ -29,6 +29,22 @@ OS全体の保護設定を変更する必要はありません。
 録音を停止して保存完了を待ち、SETUPの「ParaBus を終了」を選びます。
 設定ロックをOFFにし、表示中の障害を確認する必要があります。
 ブラウザーを閉じるだけではアプリは終了しません。
+
+beta.3の変更
+・操作画面の接続先を制限しました。通常の設定で使えるのは127.0.0.1／localhost／[::1]と、
+  LAN接続を有効にしたときにSETUPに表示されるLANのURLだけです。
+  LANからPC名や古いIPアドレスで開くと拒否（403）されるため、表示されるURLを使ってください。
+  許可するアドレスは起動時に決まります。起動中にPCのIPアドレスが変わった場合は、アプリを再起動してください。
+・Bot Tokenの環境変数名はDISCORD_BOT_TOKEN、またはDISCORD_BOT_TOKEN_に
+  英大文字・数字・アンダースコアを続けた名前に限ります。
+  設定を手で別の名前に変更している場合は、操作画面から設定を保存できません。
+  アプリを終了し、discord-bots.jsonのtokenEnvと.env（またはOS側）の対応する環境変数名を、
+  Botごとに重複しないDISCORD_BOT_TOKEN_RX01などに揃えてから起動し直してください。
+・操作画面をほかのページに埋め込めないようにしました。
+・機器が外れたことを知らせる内部用の命令は、外部から受け付けないようにしました。
+・操作画面の説明文を減らし、詳しい説明をマニュアルへ移しました。
+・マニュアル・Discord設定・READMEなどの文書を更新しました。
+・音声処理・native・依存ライブラリ・Node.jsはbeta.2から変更していません。
 
 この版について
 Node.js 22.23.4を同梱しています。
