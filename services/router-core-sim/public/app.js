@@ -50,6 +50,8 @@ const elements = {
   legacyPostList: document.querySelector("#legacy-post-list"),
   emergencyState: document.querySelector("#emergency-state"),
   controlState: document.querySelector("#control-state"),
+  sessionExpired: document.querySelector("#desktop-session-expired"),
+  reloadDesktop: document.querySelector("#reload-desktop"),
   masterPanel: document.querySelector("#vc-masters"),
   masterList: document.querySelector("#vc-master-list"),
   masterTemplate: document.querySelector("#vc-master-template"),
@@ -206,6 +208,8 @@ const desktopJsonHeaders = { "content-type": "application/json", "x-dbr-session-
 
 let socket = null;
 let reconnectTimer = null;
+let reconnectDelayMs = 1000;
+let sessionExpired = false;
 let snapshot = null;
 let selectedChannelId = null;
 let primaryBotKey = null;
@@ -254,11 +258,59 @@ function setConnection(connected) {
   elements.controlState.className = `status ${connected ? "ready" : "warning"}`;
 }
 
+function expireDesktopSession() {
+  sessionExpired = true;
+  clearTimeout(reconnectTimer);
+  if (restartRequested) {
+    location.reload();
+    return;
+  }
+  elements.sessionExpired.hidden = false;
+  elements.controlState.textContent = "システム: 再読み込みが必要です";
+}
+
+function scheduleReconnect() {
+  if (shutdownRequested || sessionExpired) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(reconnectDesktop, reconnectDelayMs);
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10_000);
+}
+
+async function reconnectDesktop() {
+  if (shutdownRequested || sessionExpired) return;
+  try {
+    // A same-origin POST carries Origin; browser WebSocket errors hide HTTP status.
+    const response = await fetch("/api/session/check", {
+      method: "POST", headers: desktopJsonHeaders, cache: "no-store", signal: AbortSignal.timeout(3000),
+    });
+    if (shutdownRequested || sessionExpired) return;
+    if (response.status === 403) {
+      expireDesktopSession();
+      return;
+    }
+    if (response.ok) {
+      reconnectDelayMs = 1000;
+      if (restartRequested) {
+        sessionExpired = true;
+        location.reload();
+      } else {
+        connect();
+      }
+      return;
+    }
+  } catch {
+    // An unreachable server or timed-out probe is retryable, unlike stale auth.
+  }
+  scheduleReconnect();
+}
+
 function connect() {
   if (shutdownRequested) return;
+  if (sessionExpired) return;
   clearTimeout(reconnectTimer);
   socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?nonce=${encodeURIComponent(desktopSessionNonce)}`);
   socket.addEventListener("open", () => {
+    reconnectDelayMs = 1000;
     restartRequested = false;
     setConnection(true);
   });
@@ -270,7 +322,7 @@ function connect() {
       elements.controlState.textContent = "ParaBusを終了しました。このタブを閉じてください";
       return;
     }
-    reconnectTimer = setTimeout(connect, 1000);
+    scheduleReconnect();
   });
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
@@ -300,6 +352,10 @@ function connect() {
 }
 
 function sendCommand(command) {
+  if (sessionExpired) {
+    showNotice("ParaBus が再起動されました。ページを再読み込みしてください", true);
+    return false;
+  }
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     showNotice("操作接続を再接続しています。少し待ってください", true);
     return false;
@@ -2936,6 +2992,8 @@ elements.applicationControl.addEventListener("click", () => {
     : "Production LockをOFFにして設定変更を許可しますか？")) return;
   sendCommand({ type: "SET_STATE", state: locking ? "ON_AIR" : "SETUP", confirmed: true });
 });
+
+elements.reloadDesktop.addEventListener("click", () => location.reload());
 
 elements.statusRefresh.addEventListener("click", async () => {
   elements.statusRefresh.disabled = true;

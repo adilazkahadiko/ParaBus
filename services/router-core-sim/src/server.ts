@@ -34,6 +34,7 @@ import { createSupportBundle, openSupportDirectory, supportDiagnostics } from ".
 import { loadBotRackConfig, loadBotRackEnvironment } from "../../discord-adapter/src/bot-config.ts";
 import {
   DesktopControlAuthError,
+  DesktopAuthFailureLog,
   assertDesktopControlAuthorized,
   createDesktopSessionNonce,
   injectDesktopSessionNonce,
@@ -204,11 +205,15 @@ function writeJson(response: ServerResponse, status: number, data: unknown): voi
   response.end(payload);
 }
 
+const desktopAuthFailures = new DesktopAuthFailureLog(message => control.recordExternalEvent("WARNING", message));
+const desktopAuthLogTimer = setInterval(() => desktopAuthFailures.flush(), 60_000);
+desktopAuthLogTimer.unref();
+
 function requireDesktopControlRequest(request: IncomingMessage, suppliedNonce?: string | null): void {
   try {
     assertDesktopControlAuthorized(request.headers, desktopAccess.allowedOrigins, desktopSessionNonce, suppliedNonce);
   } catch (error) {
-    control.recordExternalEvent("WARNING", "Unauthorized Desktop HTTP/WS command attempt rejected");
+    desktopAuthFailures.reject();
     throw error;
   }
 }
@@ -326,6 +331,11 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
     if (request.method === "GET" && url.pathname === "/index.html") {
       response.writeHead(302, { location: "/", "cache-control": "no-store" });
       response.end();
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/session/check") {
+      requireDesktopControlRequest(request);
+      writeJson(response, 200, { ok: true });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/state") {
@@ -702,6 +712,8 @@ let shuttingDown = false;
 function shutdown(exitCode = 0): void {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearInterval(desktopAuthLogTimer);
+  desktopAuthFailures.flush(true);
   control.endParticipantSession();
   userProfileStore.flush();
   for (const socket of websocketClients) socket.destroy();

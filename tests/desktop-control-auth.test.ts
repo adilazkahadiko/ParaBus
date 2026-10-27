@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import { tmpdir, networkInterfaces } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 import test from "node:test";
 import {
   DesktopControlAuthError,
+  DesktopAuthFailureLog,
   assertDesktopControlAuthorized,
   createDesktopSessionNonce,
   injectDesktopSessionNonce,
@@ -19,6 +20,34 @@ import {
   desktopAllowedHosts,
   isDesktopHostAllowed,
 } from "../services/router-core-sim/src/desktop-control-auth.ts";
+import { AudioEngine } from "../services/router-core-sim/src/audio-engine.ts";
+import { ControlPlane } from "../services/router-core-sim/src/control-plane.ts";
+
+test("desktop auth failures emit one warning then 60-second counts without accumulating UI alerts", () => {
+  let clock = 0;
+  const events: string[] = [];
+  const control = new ControlPlane(new AudioEngine(48_000, 480, 2));
+  const before = control.alerts.length;
+  const log = new DesktopAuthFailureLog(message => { events.push(message); control.recordExternalEvent("WARNING", message); }, () => clock);
+  log.reject();
+  for (let i = 0; i < 85; i++) { clock = (i + 1) * 2700; log.reject(); }
+  assert.equal(events.length, 4, "86 failed requests during four minutes produce four UI/log entries");
+  assert.equal(control.alerts.length - before, 4);
+  clock += 60_000; log.flush();
+  const counts = events.slice(1).map(message => Number(message.match(/要求(\d+)件/)![1]));
+  assert.equal(counts.reduce((sum, count) => sum + count, 0), 85);
+  const total = events.length; log.flush(); log.flush(true); assert.equal(events.length, total);
+  log.reject(); log.flush(true); assert.match(events.at(-1)!, /要求1件/);
+});
+
+test("auth summaries flush at the 60-second boundary and retain a quiet interval's final count", () => {
+  let clock = 0;
+  const events: string[] = [];
+  const log = new DesktopAuthFailureLog(message => events.push(message), () => clock);
+  log.reject(); log.reject(); clock = 59_999; log.flush(); assert.equal(events.length, 1);
+  clock = 60_000; log.flush(); assert.equal(events.length, 2); assert.match(events[1], /要求1件/);
+  clock = 120_000; log.flush(); assert.equal(events.length, 2, "no empty summary");
+});
 
 test("desktop control auth requires one exact Origin and process nonce", () => {
   const nonce = createDesktopSessionNonce();
@@ -188,6 +217,16 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
   }
   const nonce = html.match(/<meta name="dbr-session-nonce" content="([A-Za-z0-9_-]{43})"/i)?.[1];
   assert.ok(nonce, "bootstrap HTML contains the process-lifetime nonce");
+  const probe = (headers: Record<string, string>) => fetch(origin + "/api/session/check", { method: "POST", headers });
+  const probeHeaders = { origin, "x-dbr-session-nonce": nonce };
+  const ready = await probe(probeHeaders);
+  assert.equal(ready.status, 200); assert.deepEqual(await ready.json(), { ok: true });
+  assert.equal(ready.headers.get("cache-control"), "no-store");
+  assert.equal((await probe({ origin })).status, 403);
+  assert.equal((await probe({ "x-dbr-session-nonce": nonce })).status, 403);
+  assert.equal((await probe({ ...probeHeaders, origin: "https://attacker.invalid" })).status, 403);
+  for (let i = 0; i < 86; i++) assert.equal((await probe({ ...probeHeaders, "x-dbr-session-nonce": "old-nonce" })).status, 403);
+  assert.equal((await requestWithHost(port, "attacker.invalid", "/api/session/check", "POST")).status, 403);
   assert.match(html, /"lanEnabled":false/);
   for (const host of [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]) {
     assert.equal((await requestWithHost(port, host, "/")).status, 200, host);
@@ -320,7 +359,7 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
   const serialized = JSON.stringify(state);
   assert.doesNotMatch(serialized, new RegExp(nonce));
   assert.doesNotMatch(serialized, /wrong-nonce|attacker\.invalid/);
-  assert.ok(state.alerts.some((entry) => entry.message === "Unauthorized Desktop HTTP/WS command attempt rejected"));
+  assert.equal(state.alerts.filter(entry => entry.message === "操作画面の認証に失敗したHTTP・WS要求を拒否しました").length, 1);
 
   assert.match(await websocketHandshake(port, origin, nonce), /^HTTP\/1\.1 101 /);
   assert.match(await websocketHandshake(port, origin, nonce), /^HTTP\/1\.1 101 /, "an authenticated desktop reconnect succeeds");
@@ -331,6 +370,12 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
   assert.doesNotMatch(output, /wrong-nonce|attacker\.invalid/);
   assert.equal((await shutdown()).status, 202, "loopback shutdown succeeds even for a standalone Core");
   await waitUntil(() => child.exitCode === 0, () => "Core failed to exit gracefully");
+  const logText = readdirSync(join(root, "logs")).filter(name => name.endsWith(".jsonl"))
+    .map(name => readFileSync(join(root, "logs", name), "utf8")).join("");
+  assert.equal((logText.match(/操作画面の認証に失敗したHTTP・WS要求を拒否しました/g) ?? []).length, 1);
+  assert.match(logText, /同様の要求\d+件の記録を抑制しました/, "shutdown flushes the suppressed count to operational log");
+  assert.doesNotMatch(logText, new RegExp(nonce));
+  assert.doesNotMatch(logText, /wrong-nonce|old-nonce|attacker\.invalid/);
 });
 
 async function postCommand(base: string, nonce: string | undefined, origin: string, command: unknown): Promise<Response> {

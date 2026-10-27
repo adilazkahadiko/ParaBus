@@ -7,6 +7,36 @@ export const DESKTOP_NONCE_META = "dbr-session-nonce";
 
 export class DesktopControlAuthError extends Error {}
 
+/** One initial warning, then bounded summaries; never retain request data. */
+export class DesktopAuthFailureLog {
+  #lastReportAt: number | null = null;
+  #suppressed = 0;
+  readonly report: (message: string) => void;
+  readonly now: () => number;
+
+  constructor(report: (message: string) => void, now = () => performance.now()) {
+    this.report = report;
+    this.now = now;
+  }
+
+  reject(): void {
+    if (this.#lastReportAt === null) {
+      this.#lastReportAt = this.now();
+      this.report("操作画面の認証に失敗したHTTP・WS要求を拒否しました");
+      return;
+    }
+    this.#suppressed = Math.min(Number.MAX_SAFE_INTEGER, this.#suppressed + 1);
+    this.flush();
+  }
+
+  flush(force = false): void {
+    if (!this.#suppressed || this.#lastReportAt === null || (!force && this.now() - this.#lastReportAt < 60_000)) return;
+    this.report(`操作画面の認証失敗: 同様の要求${this.#suppressed}件の記録を抑制しました`);
+    this.#suppressed = 0;
+    this.#lastReportAt = this.now();
+  }
+}
+
 export function createDesktopSessionNonce(): string {
   return randomBytes(32).toString("base64url");
 }
