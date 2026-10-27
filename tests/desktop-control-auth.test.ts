@@ -24,7 +24,7 @@ import {
 import { AudioEngine } from "../services/router-core-sim/src/audio-engine.ts";
 import { ControlPlane } from "../services/router-core-sim/src/control-plane.ts";
 
-test("desktop auth failures emit one warning then 60-second counts without accumulating UI alerts", () => {
+test("desktop auth failure bursts keep UI alerts bounded and count every rejection once", () => {
   let clock = 0;
   const events: string[] = [];
   const control = new ControlPlane(new AudioEngine(48_000, 480, 2));
@@ -32,11 +32,12 @@ test("desktop auth failures emit one warning then 60-second counts without accum
   const log = new DesktopAuthFailureLog(message => { events.push(message); control.recordExternalEvent("WARNING", message); }, () => clock);
   log.reject();
   for (let i = 0; i < 85; i++) { clock = (i + 1) * 2700; log.reject(); }
-  assert.equal(events.length, 4, "86 failed requests during four minutes produce four UI/log entries");
-  assert.equal(control.alerts.length - before, 4);
+  assert.equal(events.length, 7, "86 failed requests during four minutes produce seven UI/log entries");
+  assert.equal(control.alerts.length - before, 7);
   clock += 60_000; log.flush();
-  const counts = events.slice(1).map(message => Number(message.match(/要求(\d+)件/)![1]));
-  assert.equal(counts.reduce((sum, count) => sum + count, 0), 85);
+  const summaries = events.filter(message => message.includes("抑制しました"));
+  const counts = summaries.map(message => Number(message.match(/要求(\d+)件/)![1]));
+  assert.equal(counts.reduce((sum, count) => sum + count, 0) + events.length - summaries.length, 86);
   const total = events.length; log.flush(); log.flush(true); assert.equal(events.length, total);
   log.reject(); log.flush(true); assert.match(events.at(-1)!, /要求1件/);
 });
@@ -48,6 +49,27 @@ test("auth summaries flush at the 60-second boundary and retain a quiet interval
   log.reject(); log.reject(); clock = 59_999; log.flush(); assert.equal(events.length, 1);
   clock = 60_000; log.flush(); assert.equal(events.length, 2); assert.match(events[1], /要求1件/);
   clock = 120_000; log.flush(); assert.equal(events.length, 2, "no empty summary");
+});
+
+test("the first auth failure after a quiet period is a fresh rejection, not a suppressed request", () => {
+  for (const idleMs of [60_000, 60_001, 180_000]) {
+    let clock = 0;
+    const events: string[] = [];
+    const log = new DesktopAuthFailureLog(message => events.push(message), () => clock);
+    log.reject(); clock = idleMs; log.reject(); log.flush(true);
+    assert.equal(events.length, 2);
+    assert.equal(events[0], events[1]);
+    assert.doesNotMatch(events[1], /抑制/);
+  }
+  let clock = 0;
+  const events: string[] = [];
+  const log = new DesktopAuthFailureLog(message => events.push(message), () => clock);
+  log.reject(); clock = 1; log.reject();
+  clock = 60_000; log.reject();
+  assert.equal(events.length, 3);
+  assert.match(events[1], /要求1件の記録を抑制/);
+  assert.equal(events[2], events[0], "flush the previous burst without counting this new rejection as suppressed");
+  log.flush(true); assert.equal(events.length, 3);
 });
 
 test("desktop control auth requires one exact Origin and process nonce", () => {
@@ -65,30 +87,25 @@ test("desktop control auth requires one exact Origin and process nonce", () => {
   assert.match(injectDesktopSessionNonce("<html><head></head></html>", nonce), new RegExp(`content="${nonce}"`));
 });
 
-test("state reads retain loopback health checks but require nonce and origin proof on LAN", () => {
+test("state reads retain loopback health checks and depend only on the nonce header on LAN", () => {
   const origin = "http://192.0.2.10:4173", nonce = createDesktopSessionNonce();
-  const headers = { host: "192.0.2.10:4173", origin, "x-dbr-session-nonce": nonce };
   for (const address of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) {
-    assert.doesNotThrow(() => assertDesktopStateAuthorized({}, address, [origin], nonce));
+    assert.doesNotThrow(() => assertDesktopStateAuthorized({}, address, nonce));
   }
-  assert.doesNotThrow(() => assertDesktopStateAuthorized(headers, "192.0.2.11", [origin], nonce));
   for (const address of ["192.0.2.11", "::ffff:192.0.2.11", undefined]) {
-    assert.throws(() => assertDesktopStateAuthorized({}, address, [origin], nonce), DesktopControlAuthError);
+    for (const context of [
+      {}, { origin }, { referer: origin + "/" },
+      { origin: "https://attacker.invalid", referer: "not a URL", "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" },
+      { origin: "null", referer: "http://other.example/", "sec-fetch-site": "same-site" },
+    ]) {
+      assert.doesNotThrow(() => assertDesktopStateAuthorized({ ...context, "x-dbr-session-nonce": nonce }, address, nonce));
+      for (const candidate of [undefined, "", "old", nonce.slice(0, -1), nonce.slice(0, -1) + (nonce.endsWith("A") ? "B" : "A"), [nonce, nonce]]) {
+        assert.throws(() => assertDesktopStateAuthorized({ ...context, "x-dbr-session-nonce": candidate }, address, nonce), DesktopControlAuthError);
+      }
+    }
   }
-  const browserHeaders = { ...headers, origin: undefined, referer: origin + "/?view=status", "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" };
-  assert.doesNotThrow(() => assertDesktopStateAuthorized(browserHeaders, "192.0.2.11", [origin], nonce));
-  assert.doesNotThrow(() => assertDesktopStateAuthorized({ ...browserHeaders, "sec-fetch-site": undefined, "sec-fetch-mode": undefined },
-    "192.0.2.11", [origin], nonce), "HTTP LAN browsers omit Fetch Metadata as well as Origin");
-  for (const change of [
-    { origin: "https://attacker.invalid" }, { "x-dbr-session-nonce": undefined }, { "x-dbr-session-nonce": "old" },
-    { "sec-fetch-site": "cross-site" }, { "sec-fetch-site": "same-site" },
-    { "sec-fetch-mode": "navigate" }, { referer: undefined },
-    { referer: "not a URL" }, { referer: "http://attacker.invalid/" }, { host: "other.example:4173" },
-  ]) {
-    assert.throws(() => assertDesktopStateAuthorized({ ...browserHeaders, ...change }, "192.0.2.11", [origin], nonce), DesktopControlAuthError);
-  }
-  assert.throws(() => assertDesktopControlAuthorized(browserHeaders, [origin], nonce), DesktopControlAuthError,
-    "GET origin proof must not relax command POST / WS authentication");
+  assert.throws(() => assertDesktopControlAuthorized({ "x-dbr-session-nonce": nonce }, [origin], nonce), DesktopControlAuthError,
+    "nonce-only GET authentication must not relax command POST / WS authentication");
 });
 
 test("desktop LAN opt-in uses only startup IPv4 origins and preserves the nonce requirement", () => {
@@ -156,18 +173,24 @@ test("LAN desktop commands work over HTTP/WS while every local-only API still re
   assert.equal((await fetch(origin + "/api/state")).status, 200, "local health checks need neither nonce nor Origin");
   assert.equal((await fetch(lanOrigin + "/api/state")).status, 403);
   assert.equal((await fetch(lanOrigin + "/api/state", { headers: { origin: lanOrigin } })).status, 403);
-  const stateHeaders = { origin: lanOrigin, "x-dbr-session-nonce": nonce };
+  const stateHeaders = { "x-dbr-session-nonce": nonce };
   const remoteState = await fetch(lanOrigin + "/api/state", { headers: stateHeaders });
   assert.equal(remoteState.status, 200); assert.ok(Array.isArray((await remoteState.json() as any).channels));
-  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...stateHeaders, origin: "http://evil.example" } })).status, 403);
+  assert.equal(remoteState.headers.get("access-control-allow-origin"), null);
+  const preflight = await fetch(lanOrigin + "/api/state", { method: "OPTIONS", headers: {
+    origin: "http://evil.example", "access-control-request-method": "GET", "access-control-request-headers": "x-dbr-session-nonce",
+  } });
+  assert.equal(preflight.status, 405);
+  assert.equal(preflight.headers.get("access-control-allow-origin"), null);
+  assert.equal(preflight.headers.get("access-control-allow-headers"), null);
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...stateHeaders, origin: "http://evil.example" } })).status, 200);
   assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...stateHeaders, "x-dbr-session-nonce": "old" } })).status, 403);
   const browserGet = { "x-dbr-session-nonce": nonce, referer: lanOrigin + "/", "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" };
-  assert.equal((await fetch(lanOrigin + "/api/state", { headers: browserGet })).status, 200, "same-origin browser GET can omit Origin");
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: browserGet })).status, 200);
   assert.equal((await fetch(lanOrigin + "/api/state", { headers: { "x-dbr-session-nonce": nonce, referer: lanOrigin + "/" } })).status, 200,
-    "HTTP LAN browser reads work without Fetch Metadata");
+    "Referer does not affect nonce authentication");
   assert.equal((await fetch(lanOrigin + "/api/state", { headers: { referer: lanOrigin + "/" } })).status, 403);
-  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { "x-dbr-session-nonce": nonce } })).status, 403);
-  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...browserGet, "sec-fetch-site": "cross-site" } })).status, 403);
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...browserGet, referer: "not a URL", "sec-fetch-site": "cross-site" } })).status, 200);
   assert.match(await websocketHandshake(port, lanOrigin, nonce, lanIp), /^HTTP\/1\.1 101 /);
   assert.equal((await requestWithHost(port, `${lanIp}:${port}`, "/api/state")).status, 200);
   assert.equal((await postCommand(lanOrigin, nonce, lanOrigin, { type: "EMERGENCY_MUTE", active: true })).status, 200);

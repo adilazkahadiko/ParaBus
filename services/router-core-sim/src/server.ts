@@ -227,7 +227,7 @@ function requireLocalSettingsRequest(request: IncomingMessage): void {
 
 function requireDesktopStateRequest(request: IncomingMessage): void {
   try {
-    assertDesktopStateAuthorized(request.headers, request.socket.remoteAddress, desktopAccess.allowedOrigins, desktopSessionNonce);
+    assertDesktopStateAuthorized(request.headers, request.socket.remoteAddress, desktopSessionNonce);
   } catch (error) {
     desktopAuthFailures.reject();
     throw error;

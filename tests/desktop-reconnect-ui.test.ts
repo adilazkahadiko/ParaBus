@@ -102,7 +102,7 @@ test("temporary HTTP errors retry, while shutdown also wins over an in-flight pr
   assert.equal(stopped.timers.size, 0); assert.equal(stopped.requests.length, 0);
 });
 
-test("initial and manual state fetches always carry the nonce and preserve browser origin proof", async () => {
+test("initial and manual state fetches always carry the nonce without depending on Referer", async () => {
   const calls: Array<{ url: string; options: any }> = [];
   let click: () => Promise<void> = async () => {};
   const context: any = {
@@ -120,7 +120,7 @@ test("initial and manual state fetches always carry the nonce and preserve brows
   for (const call of calls) {
     assert.equal(call.url, "/api/state");
     assert.equal(call.options.headers["x-dbr-session-nonce"], "page-nonce");
-    assert.equal(call.options.referrerPolicy, "same-origin");
+    assert.equal(call.options.referrerPolicy, undefined);
     assert.equal(call.options.cache, "no-store");
   }
 });

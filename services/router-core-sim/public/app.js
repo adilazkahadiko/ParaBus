@@ -2998,7 +2998,7 @@ elements.reloadDesktop.addEventListener("click", () => location.reload());
 elements.statusRefresh.addEventListener("click", async () => {
   elements.statusRefresh.disabled = true;
   try {
-    const response = await fetch("/api/state", { headers: desktopJsonHeaders, cache: "no-store", referrerPolicy: "same-origin" });
+    const response = await fetch("/api/state", { headers: desktopJsonHeaders, cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     statusBreakdownRenderedAt = 0;
     render(await response.json());
@@ -3271,7 +3271,7 @@ elements.closeIoInput.addEventListener("click", () => {
   sendCommand({ type: "SELECT_INPUT_DEVICE", deviceId: mock.id, channelCount: 1 });
 });
 
-fetch("/api/state", { headers: desktopJsonHeaders, cache: "no-store", referrerPolicy: "same-origin" })
+fetch("/api/state", { headers: desktopJsonHeaders, cache: "no-store" })
   .then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
   .then(render)
   .catch(() => showNotice("初期状態を取得できません。再接続を待っています", true));

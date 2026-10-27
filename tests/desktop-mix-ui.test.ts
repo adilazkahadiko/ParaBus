@@ -400,7 +400,7 @@ test("desktop STATUS derives Bot and User counters from the current snapshot and
   assert.match(script, /bot\.wsPingMs/);
   assert.match(script, /statusStatsBaseline = captureStatusBaseline\(snapshot\)/);
   assert.match(script, /Runtime累積値は保持/);
-  assert.match(script, /fetch\("\/api\/state", \{ headers: desktopJsonHeaders, cache: "no-store", referrerPolicy: "same-origin" \}\)/);
+  assert.match(script, /fetch\("\/api\/state", \{ headers: desktopJsonHeaders, cache: "no-store" \}\)/);
   const controls = script.slice(script.indexOf("elements.statusRefresh.addEventListener"), script.indexOf("elements.showMix.addEventListener"));
   assert.doesNotMatch(controls, /sendCommand\(|localStorage|sessionStorage/);
   assert.match(styles, /\.status-breakdown/);

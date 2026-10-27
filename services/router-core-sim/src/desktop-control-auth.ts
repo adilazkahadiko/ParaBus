@@ -7,7 +7,7 @@ export const DESKTOP_NONCE_META = "dbr-session-nonce";
 
 export class DesktopControlAuthError extends Error {}
 
-/** One initial warning, then bounded summaries; never retain request data. */
+/** Record isolated failures normally and summarize bursts without request data. */
 export class DesktopAuthFailureLog {
   #lastReportAt: number | null = null;
   #suppressed = 0;
@@ -20,13 +20,13 @@ export class DesktopAuthFailureLog {
   }
 
   reject(): void {
-    if (this.#lastReportAt === null) {
+    if (this.#lastReportAt === null || this.now() - this.#lastReportAt >= 60_000) {
+      this.flush();
       this.#lastReportAt = this.now();
       this.report("操作画面の認証に失敗したHTTP・WS要求を拒否しました");
       return;
     }
     this.#suppressed = Math.min(Number.MAX_SAFE_INTEGER, this.#suppressed + 1);
-    this.flush();
   }
 
   flush(force = false): void {
@@ -97,27 +97,14 @@ export function assertDesktopControlAuthorized(headers: IncomingHttpHeaders, exp
   }
 }
 
-/** Local health checks stay nonce-free. Browser GETs need an equivalent origin proof. */
-export function assertDesktopStateAuthorized(headers: IncomingHttpHeaders, remoteAddress: string | undefined, expectedOrigins: readonly string[], expectedNonce: string): void {
+/** Local health checks stay nonce-free; remote state reads require the nonce header. */
+export function assertDesktopStateAuthorized(headers: IncomingHttpHeaders, remoteAddress: string | undefined, expectedNonce: string): void {
   if (isLocalDesktopAddress(remoteAddress)) return;
-  let readOrigin = headers.origin;
-  // Same-origin browser GETs omit Origin, which scripts cannot set themselves.
-  // Referer must prove the allowed page origin and this exact Host. HTTP LAN
-  // pages also omit Fetch Metadata; reject contradictory metadata when present.
-  // Never override an explicit bad Origin, and always require the nonce header.
-  if (headers.origin === undefined && typeof headers.referer === "string"
-    && (headers["sec-fetch-site"] === undefined || headers["sec-fetch-site"] === "same-origin")
-    && (headers["sec-fetch-mode"] === undefined || ["cors", "same-origin"].includes(String(headers["sec-fetch-mode"])))) {
-    try {
-      const page = new URL(headers.referer);
-      if (!page.username && !page.password && page.host === headers.host?.toLowerCase()) {
-        readOrigin = page.origin;
-      }
-    } catch {
-      // Malformed or missing origin proof is rejected by the shared check below.
-    }
+  // LAN 公開時は操作画面と nonce が LAN に配信されるため、これは LAN 上の相手からの保護ではなく、ブラウザ経由の読み取りに対する防御と、操作の条件とそろえるためのものである
+  const nonce = headers[DESKTOP_NONCE_HEADER];
+  if (typeof nonce !== "string" || !constantTimeEqual(nonce, expectedNonce)) {
+    throw new DesktopControlAuthError("Unauthorized desktop control request");
   }
-  assertDesktopControlAuthorized({ ...headers, origin: readOrigin }, expectedOrigins, expectedNonce);
 }
 
 function constantTimeEqual(candidate: string, expected: string): boolean {
