@@ -34,7 +34,9 @@ import { createSupportBundle, openSupportDirectory, supportDiagnostics } from ".
 import { loadBotRackConfig, loadBotRackEnvironment } from "../../discord-adapter/src/bot-config.ts";
 import {
   DesktopControlAuthError,
+  DesktopAuthFailureLog,
   assertDesktopControlAuthorized,
+  assertDesktopStateAuthorized,
   createDesktopSessionNonce,
   injectDesktopSessionNonce,
   injectDesktopAccess,
@@ -204,11 +206,15 @@ function writeJson(response: ServerResponse, status: number, data: unknown): voi
   response.end(payload);
 }
 
+const desktopAuthFailures = new DesktopAuthFailureLog(message => control.recordExternalEvent("WARNING", message));
+const desktopAuthLogTimer = setInterval(() => desktopAuthFailures.flush(), 60_000);
+desktopAuthLogTimer.unref();
+
 function requireDesktopControlRequest(request: IncomingMessage, suppliedNonce?: string | null): void {
   try {
     assertDesktopControlAuthorized(request.headers, desktopAccess.allowedOrigins, desktopSessionNonce, suppliedNonce);
   } catch (error) {
-    control.recordExternalEvent("WARNING", "Unauthorized Desktop HTTP/WS command attempt rejected");
+    desktopAuthFailures.reject();
     throw error;
   }
 }
@@ -216,6 +222,15 @@ function requireDesktopControlRequest(request: IncomingMessage, suppliedNonce?: 
 function requireLocalSettingsRequest(request: IncomingMessage): void {
   if (!isLocalDesktopAddress(request.socket.remoteAddress)) {
     throw new Error("設定ページはこのPCからのみ利用できます");
+  }
+}
+
+function requireDesktopStateRequest(request: IncomingMessage): void {
+  try {
+    assertDesktopStateAuthorized(request.headers, request.socket.remoteAddress, desktopSessionNonce);
+  } catch (error) {
+    desktopAuthFailures.reject();
+    throw error;
   }
 }
 
@@ -328,7 +343,13 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       response.end();
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/session/check") {
+      requireDesktopControlRequest(request);
+      writeJson(response, 200, { ok: true });
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/state") {
+      requireDesktopStateRequest(request);
       writeJson(response, 200, desktopSnapshot());
       return;
     }
@@ -702,6 +723,8 @@ let shuttingDown = false;
 function shutdown(exitCode = 0): void {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearInterval(desktopAuthLogTimer);
+  desktopAuthFailures.flush(true);
   control.endParticipantSession();
   userProfileStore.flush();
   for (const socket of websocketClients) socket.destroy();
