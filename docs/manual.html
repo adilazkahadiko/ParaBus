@@ -189,6 +189,7 @@
             <li>同じLANの別PCのブラウザーから、表示されたURLを開きます。</li>
           </ol>
           <p><strong>同じLANの誰でも操作できる。共有LANでは使わない。</strong>ユーザー認証や通信の暗号化はありません。信頼できる専用LANでのみ有効にしてください。NonceとOriginの検査は、ログイン認証の代わりにはなりません。</p>
+          <p>LANから状態を読み取る場合にも、操作画面の認証が必要です。ただし、操作画面と認証用の情報はLANに配信されるため、同じLANの相手を区別して拒否する機能ではありません。</p>
           <p>Bot / Token設定、本体再起動、Support Bundleは別PCから操作できません。実行PCの<code>http://127.0.0.1:4173</code>で行います。実行PC自身でLAN URLを開いた場合も、設定は制限されます。</p>
           <p>無効化は<code>DBR_LAN_ACCESS=0</code>またはその行を削除して再起動します。既定は127.0.0.1だけです。<code>HOST=0.0.0.0</code>だけでは公開しません。LAN URLと許可するOriginは起動時のIPv4一覧で決まり、IPが変わったら再起動してください。</p>
         </details>
@@ -224,7 +225,7 @@
           <tr><td>SCENE（SESSION）</td><td>現在のMIXの新規保存、保存済みSceneの選択、変更を確認、適用、上書き・削除</td></tr>
           <tr><td>RECALL SAFE（SESSION）</td><td>Scene適用時に現在値を維持するパラメーターの保護設定・検索絞り込み</td></tr>
           <tr><td>AUDIO DEVICES（SETUP）</td><td>MAIN / CUE / INPUTの機器選択、Windows照合、共有Cue設定、デバイスの開始・停止</td></tr>
-          <tr><td>ACCESS / APPLICATION（SETUP）</td><td>PORT変更、メインUIのLAN公開設定（認証なし）</td></tr>
+          <tr><td>ACCESS / APPLICATION（SETUP）</td><td>PORT変更、メインUIのLAN公開設定（ログイン認証なし）</td></tr>
           <tr><td>MAIN OUTPUT TEST（SETUP）</td><td>出力chごとのテストトーン送出（1 kHz / −24 dBFS）</td></tr>
           <tr><td>BOTS（SETUP）</td><td>＋ RX / ＋ TX / ＋ RX+TX、共通Server ID、Bot設定の書き出し・読み込み、Token一括追加、各Botの接続・切断</td></tr>
         </tbody></table>
@@ -424,6 +425,7 @@
         <h2>終了・ログ・保守</h2>
         <h3>再起動と終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
         <p><strong>SETUP → ParaBus本体を再起動</strong>は、BotとAudio I/Oを停止して本体を起動し直します。再起動後、Botは未接続で待機し、CUEと物理I/Oは自動では開始しません。拒否される条件は終了と同じです。</p>
+        <p>本体の再起動後、開いたままのタブには「ParaBus が再起動されました。ページを再読み込みしてください」と案内します。再起動を操作したタブ自身は、本体の応答が戻ると自動で再読み込みします。本体が止まっている間は、再接続の間隔を最大10秒まで徐々に伸ばします。終了を操作したタブは自動で再接続しません。</p>
         <p>Windowsではトレイの<strong>終了</strong>も同じ条件で停止します。ブラウザーのタブを閉じただけではアプリは停止しません。強制終了時の子プロセス監視もありますが、通常は終了ボタンを使ってください。録音中の強制終了はファイルを損なうおそれがあります。</p>
         <h3>ログ</h3><p>WindowsはParaBusアイコン → <strong>ログを開く</strong>。Macは展開フォルダーの<code>logs/router.log</code>へ起動中も追記します。</p>
         <p>運用ログは<code>logs/operational-YYYY-MM-DD.jsonl</code>へ実行中も追記されます。終了を待つ必要はありません。障害時は実行フォルダではなく、診断画面で作成した<strong>Support Bundle</strong>だけを共有してください。</p>
