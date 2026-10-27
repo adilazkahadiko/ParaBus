@@ -36,6 +36,7 @@ import {
   DesktopControlAuthError,
   DesktopAuthFailureLog,
   assertDesktopControlAuthorized,
+  assertDesktopStateAuthorized,
   createDesktopSessionNonce,
   injectDesktopSessionNonce,
   injectDesktopAccess,
@@ -224,6 +225,15 @@ function requireLocalSettingsRequest(request: IncomingMessage): void {
   }
 }
 
+function requireDesktopStateRequest(request: IncomingMessage): void {
+  try {
+    assertDesktopStateAuthorized(request.headers, request.socket.remoteAddress, desktopAccess.allowedOrigins, desktopSessionNonce);
+  } catch (error) {
+    desktopAuthFailures.reject();
+    throw error;
+  }
+}
+
 function requireRustManagementSetup(): void {
   if (control.state !== "SETUP") {
     throw new RustManagementUnavailableError("Rust WASAPI管理はSETUP中だけ変更できます");
@@ -339,6 +349,7 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/state") {
+      requireDesktopStateRequest(request);
       writeJson(response, 200, desktopSnapshot());
       return;
     }

@@ -101,3 +101,26 @@ test("temporary HTTP errors retry, while shutdown also wins over an in-flight pr
   assert.equal(stopped.context.elements.controlState.textContent, "ParaBusを終了しました。このタブを閉じてください");
   assert.equal(stopped.timers.size, 0); assert.equal(stopped.requests.length, 0);
 });
+
+test("initial and manual state fetches always carry the nonce and preserve browser origin proof", async () => {
+  const calls: Array<{ url: string; options: any }> = [];
+  let click: () => Promise<void> = async () => {};
+  const context: any = {
+    desktopJsonHeaders: { "content-type": "application/json", "x-dbr-session-nonce": "page-nonce" },
+    elements: { statusRefresh: { disabled: false, addEventListener: (_name: string, handler: () => Promise<void>) => click = handler } },
+    statusBreakdownRenderedAt: 123, render() {}, showNotice() {},
+    fetch: async (url: string, options: any) => { calls.push({ url, options }); return { ok: true, json: async () => ({}) }; },
+  };
+  const handler = script.indexOf('elements.statusRefresh.addEventListener("click"');
+  const initial = script.lastIndexOf('fetch("/api/state"');
+  runInNewContext(script.slice(handler, script.indexOf("\n});", handler) + 4), context);
+  await click();
+  await runInNewContext(script.slice(initial, script.indexOf("\n\n", initial)), context);
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    assert.equal(call.url, "/api/state");
+    assert.equal(call.options.headers["x-dbr-session-nonce"], "page-nonce");
+    assert.equal(call.options.referrerPolicy, "same-origin");
+    assert.equal(call.options.cache, "no-store");
+  }
+});

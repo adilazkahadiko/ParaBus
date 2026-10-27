@@ -97,6 +97,29 @@ export function assertDesktopControlAuthorized(headers: IncomingHttpHeaders, exp
   }
 }
 
+/** Local health checks stay nonce-free. Browser GETs need an equivalent origin proof. */
+export function assertDesktopStateAuthorized(headers: IncomingHttpHeaders, remoteAddress: string | undefined, expectedOrigins: readonly string[], expectedNonce: string): void {
+  if (isLocalDesktopAddress(remoteAddress)) return;
+  let readOrigin = headers.origin;
+  // Same-origin browser GETs omit Origin, which scripts cannot set themselves.
+  // Referer must prove the allowed page origin and this exact Host. HTTP LAN
+  // pages also omit Fetch Metadata; reject contradictory metadata when present.
+  // Never override an explicit bad Origin, and always require the nonce header.
+  if (headers.origin === undefined && typeof headers.referer === "string"
+    && (headers["sec-fetch-site"] === undefined || headers["sec-fetch-site"] === "same-origin")
+    && (headers["sec-fetch-mode"] === undefined || ["cors", "same-origin"].includes(String(headers["sec-fetch-mode"])))) {
+    try {
+      const page = new URL(headers.referer);
+      if (!page.username && !page.password && page.host === headers.host?.toLowerCase()) {
+        readOrigin = page.origin;
+      }
+    } catch {
+      // Malformed or missing origin proof is rejected by the shared check below.
+    }
+  }
+  assertDesktopControlAuthorized({ ...headers, origin: readOrigin }, expectedOrigins, expectedNonce);
+}
+
 function constantTimeEqual(candidate: string, expected: string): boolean {
   const left = Buffer.from(candidate, "utf8");
   const right = Buffer.from(expected, "utf8");

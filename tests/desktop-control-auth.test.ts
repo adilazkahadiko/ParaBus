@@ -11,6 +11,7 @@ import {
   DesktopControlAuthError,
   DesktopAuthFailureLog,
   assertDesktopControlAuthorized,
+  assertDesktopStateAuthorized,
   createDesktopSessionNonce,
   injectDesktopSessionNonce,
   resolveOperatorOrigin,
@@ -62,6 +63,32 @@ test("desktop control auth requires one exact Origin and process nonce", () => {
   assert.equal(resolveOperatorOrigin("0.0.0.0", 4173, "https://operator.example"), "https://operator.example");
   assert.throws(() => resolveOperatorOrigin("127.0.0.1", 4173, "https://operator.example/path"));
   assert.match(injectDesktopSessionNonce("<html><head></head></html>", nonce), new RegExp(`content="${nonce}"`));
+});
+
+test("state reads retain loopback health checks but require nonce and origin proof on LAN", () => {
+  const origin = "http://192.0.2.10:4173", nonce = createDesktopSessionNonce();
+  const headers = { host: "192.0.2.10:4173", origin, "x-dbr-session-nonce": nonce };
+  for (const address of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) {
+    assert.doesNotThrow(() => assertDesktopStateAuthorized({}, address, [origin], nonce));
+  }
+  assert.doesNotThrow(() => assertDesktopStateAuthorized(headers, "192.0.2.11", [origin], nonce));
+  for (const address of ["192.0.2.11", "::ffff:192.0.2.11", undefined]) {
+    assert.throws(() => assertDesktopStateAuthorized({}, address, [origin], nonce), DesktopControlAuthError);
+  }
+  const browserHeaders = { ...headers, origin: undefined, referer: origin + "/?view=status", "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" };
+  assert.doesNotThrow(() => assertDesktopStateAuthorized(browserHeaders, "192.0.2.11", [origin], nonce));
+  assert.doesNotThrow(() => assertDesktopStateAuthorized({ ...browserHeaders, "sec-fetch-site": undefined, "sec-fetch-mode": undefined },
+    "192.0.2.11", [origin], nonce), "HTTP LAN browsers omit Fetch Metadata as well as Origin");
+  for (const change of [
+    { origin: "https://attacker.invalid" }, { "x-dbr-session-nonce": undefined }, { "x-dbr-session-nonce": "old" },
+    { "sec-fetch-site": "cross-site" }, { "sec-fetch-site": "same-site" },
+    { "sec-fetch-mode": "navigate" }, { referer: undefined },
+    { referer: "not a URL" }, { referer: "http://attacker.invalid/" }, { host: "other.example:4173" },
+  ]) {
+    assert.throws(() => assertDesktopStateAuthorized({ ...browserHeaders, ...change }, "192.0.2.11", [origin], nonce), DesktopControlAuthError);
+  }
+  assert.throws(() => assertDesktopControlAuthorized(browserHeaders, [origin], nonce), DesktopControlAuthError,
+    "GET origin proof must not relax command POST / WS authentication");
 });
 
 test("desktop LAN opt-in uses only startup IPv4 origins and preserves the nonce requirement", () => {
@@ -126,6 +153,21 @@ test("LAN desktop commands work over HTTP/WS while every local-only API still re
   assert.match(remoteHtml, /"localSettingsAvailable":false/); assert.match(localHtml, /"localSettingsAvailable":true/);
   assert.match(remoteHtml, /"lanEnabled":true/); assert.ok(output.includes(`LAN公開中: ${lanOrigin}`));
   const nonce = remoteHtml.match(/name="dbr-session-nonce" content="([A-Za-z0-9_-]{43})"/)![1];
+  assert.equal((await fetch(origin + "/api/state")).status, 200, "local health checks need neither nonce nor Origin");
+  assert.equal((await fetch(lanOrigin + "/api/state")).status, 403);
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { origin: lanOrigin } })).status, 403);
+  const stateHeaders = { origin: lanOrigin, "x-dbr-session-nonce": nonce };
+  const remoteState = await fetch(lanOrigin + "/api/state", { headers: stateHeaders });
+  assert.equal(remoteState.status, 200); assert.ok(Array.isArray((await remoteState.json() as any).channels));
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...stateHeaders, origin: "http://evil.example" } })).status, 403);
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...stateHeaders, "x-dbr-session-nonce": "old" } })).status, 403);
+  const browserGet = { "x-dbr-session-nonce": nonce, referer: lanOrigin + "/", "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" };
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: browserGet })).status, 200, "same-origin browser GET can omit Origin");
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { "x-dbr-session-nonce": nonce, referer: lanOrigin + "/" } })).status, 200,
+    "HTTP LAN browser reads work without Fetch Metadata");
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { referer: lanOrigin + "/" } })).status, 403);
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { "x-dbr-session-nonce": nonce } })).status, 403);
+  assert.equal((await fetch(lanOrigin + "/api/state", { headers: { ...browserGet, "sec-fetch-site": "cross-site" } })).status, 403);
   assert.match(await websocketHandshake(port, lanOrigin, nonce, lanIp), /^HTTP\/1\.1 101 /);
   assert.equal((await requestWithHost(port, `${lanIp}:${port}`, "/api/state")).status, 200);
   assert.equal((await postCommand(lanOrigin, nonce, lanOrigin, { type: "EMERGENCY_MUTE", active: true })).status, 200);
@@ -136,7 +178,10 @@ test("LAN desktop commands work over HTTP/WS while every local-only API still re
   assert.equal((await postCommand(lanOrigin, undefined, lanOrigin, { type: "EMERGENCY_MUTE", active: true })).status, 403);
   assert.match(await websocketHandshake(port, "http://evil.example", nonce, lanIp), /^HTTP\/1\.1 403 /);
   const headers = { origin: lanOrigin, "content-type": "application/json", "x-dbr-session-nonce": nonce };
-  for (const path of ["/api/settings", "/api/tablet/admin", "/api/rust/wasapi"]) assert.equal((await fetch(lanOrigin + path)).status, 400, path);
+  for (const path of ["/api/settings", "/api/tablet/admin", "/api/rust/wasapi"]) {
+    assert.equal((await fetch(lanOrigin + path)).status, 400, path);
+    assert.equal((await fetch(lanOrigin + path, { headers: stateHeaders })).status, 400, `${path} remains local-only even with auth`);
+  }
   for (const path of ["/api/settings", "/api/restart", "/api/shutdown", "/api/support-bundle", "/api/support-bundle/open-directory", "/api/rust/wasapi/select", "/api/rust/wasapi/preflight", "/api/rust/wasapi/start", "/api/rust/wasapi/stop", "/api/rust/wasapi/clear"]) {
     assert.equal((await fetch(lanOrigin + path, { method: "POST", headers, body: '{"confirmed":true}' })).status, 400, path);
   }
