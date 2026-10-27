@@ -226,9 +226,9 @@ beta.2から依存ライブラリ・音声native・同梱Node.jsの変更はあ�
 package-lock.json、Cargo.lock、release/native-input-lock.json、.nvmrcはbeta.2から変更していません。
 Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自の案内は上記を参照してください。
 
-## Windowsベータ版（v0.1.0-beta.4、準備中・未公開）
+## Windows公開ベータ版（v0.1.0-beta.4、2026-10-28）
 
-公開日とリリースURLは公開時に確定します。
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.4
 beta.3から依存ライブラリ・音声native・Node.jsの変更はありません。
 package-lock.json、Cargo.lock、release/native-input-lock.json、.nvmrcはbeta.3から変更していません。
 Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自の案内は上記を参照してください。
