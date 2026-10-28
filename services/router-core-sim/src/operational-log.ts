@@ -123,11 +123,22 @@ export class OperationalHealthTracker {
   #rxRejectedOpus: Record<string, number> = {};
   #rxIpcDrops = 0;
   #rxIpcBackpressureWrites = 0;
+  #rxSpeechPrevious = 0;
+  #rxSpeechPending = 0;
+  #rxSpeechLoggedAt: number | null = null;
 
-  observe(snapshot: RouterSnapshot): HealthEvent[] {
+  observe(snapshot: RouterSnapshot, now = performance.now()): HealthEvent[] {
     const events: HealthEvent[] = [];
     const discord = snapshot.discord;
     if (!discord) return events;
+    this.#rxSpeechLoggedAt ??= now;
+    const count = discord.rxDiagnostics?.inSpeechUnderruns ?? 0;
+    this.#rxSpeechPending += count >= this.#rxSpeechPrevious ? count - this.#rxSpeechPrevious : count;
+    this.#rxSpeechPrevious = count;
+    if (now - this.#rxSpeechLoggedAt >= 60_000) {
+      if (this.#rxSpeechPending) events.push({ level: "INFO", message: `RX in-speech underruns: count=${this.#rxSpeechPending}` });
+      this.#rxSpeechPending = 0; this.#rxSpeechLoggedAt = now;
+    }
 
     if (this.#initialized && discord.adapterState !== this.#adapterState) {
       events.push({ level: discord.adapterState === "READY" ? "INFO" : "WARNING", message: `Discord Adapter: ${this.#adapterState} → ${discord.adapterState}` });

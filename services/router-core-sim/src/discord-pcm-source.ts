@@ -61,6 +61,7 @@ export class DiscordPcmSource extends PcmRingSource {
   override fill(target: Float32Array): boolean {
     if (target.length !== this.blockSize) throw new Error("Discord playout block size changed");
     const now = this.#clock();
+    this.timing?.observeFill(now, this.blockSize / this.sampleRate * 1000);
     if (this.queuedSamples > 0 && now - this.#lastPacketAt > 200) {
       this.staleDiscardedSamples += this.queuedSamples;
       this.clear();

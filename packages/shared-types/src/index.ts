@@ -416,6 +416,8 @@ export interface DiscordIngestSnapshot {
   decodeErrors: number;
   decoderState: "READY" | "UNAVAILABLE";
   rxDiagnostics?: {
+    /** Lifetime total includes retired sources so short sessions are not lost before logging. */
+    inSpeechUnderruns?: number;
     /** Local rejection reasons; these are not Discord network packet-loss counters. */
     rejectedOpus: Record<string, number>;
     ipcBatches: { count: number; maxOpusFrames: number; maxBytes: number; maxProcessingMs: number };
@@ -450,6 +452,16 @@ export interface DiscordIngestSnapshot {
       maxQueuedMilliseconds: number;
       overflowEvents: number;
       underruns?: number;
+      /** Classified after a future packet: both sides of the shortage are <=200ms. */
+      inSpeechUnderruns?: number;
+      endOfSpeechUnderruns?: number;
+      pendingUnderruns?: number;
+      unclassifiedUnderruns?: number;
+      recentInSpeechUnderruns?: Array<{ at: string; previousPacketAgeMs: number; nextPacketDelayMs: number; queuedBeforeMs: number; queuedAfterPacketMs: number }>;
+      jitterResolutionMs?: number;
+      packetJitterExcludedGaps?: number;
+      packetJitterWindows?: Array<{ startedAt: string; durationMs: number; samples: number; p50Ms: number; p95Ms: number; p99Ms: number; maxMs: number }>;
+      fillJitterWindows?: Array<{ startedAt: string; durationMs: number; samples: number; p50Ms: number; p95Ms: number; p99Ms: number; maxMs: number }>;
       overflowsAfterUnderrun?: number;
       silenceBlocksDropped?: number;
       compressedSamples?: number;

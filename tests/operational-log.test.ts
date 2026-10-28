@@ -90,6 +90,30 @@ function discordSnapshot(): DiscordIngestSnapshot {
   };
 }
 
+test("in-speech RX logs aggregate at most once a minute and retain departures without personal text", () => {
+  const tracker = new OperationalHealthTracker();
+  const state = { ...new ControlPlane(AudioEngine.createDemo(0)).snapshot(), discord: discordSnapshot() } as RouterSnapshot;
+  const source = state.discord!.sources[0];
+  state.discord!.rxDiagnostics = { inSpeechUnderruns: 0, rejectedOpus: {}, ipcBatches: { count: 0, maxOpusFrames: 0, maxBytes: 0, maxProcessingMs: 0 }, adapterIpc: [] };
+  source.rxTiming = { maxPacketGapMs: 20, maxQueuedMilliseconds: 40, overflowEvents: 0, lastOverflow: null, inSpeechUnderruns: 0 };
+  assert.deepEqual(tracker.observe(state, 0), []);
+  source.rxTiming.inSpeechUnderruns = 3;
+  state.discord!.rxDiagnostics.inSpeechUnderruns = 3;
+  assert.deepEqual(tracker.observe(state, 1000), []);
+  source.rxTiming.inSpeechUnderruns = 5;
+  state.discord!.rxDiagnostics.inSpeechUnderruns = 5;
+  assert.deepEqual(tracker.observe(state, 59_999), []);
+  state.discord!.sources = [];
+  state.discord!.rxDiagnostics.inSpeechUnderruns = 6; // Another source joined and left between observations.
+  assert.deepEqual(tracker.observe(state, 60_000), [{ level: "INFO", message: "RX in-speech underruns: count=6" }]);
+  assert.deepEqual(tracker.observe(state, 60_001), []);
+  assert.deepEqual(tracker.observe(state, 120_000), [], "quiet minutes and speech tails produce no new summary");
+  state.discord!.sources = [source]; source.rxTiming.inSpeechUnderruns = 1;
+  state.discord!.rxDiagnostics.inSpeechUnderruns = 7;
+  tracker.observe(state, 121_000);
+  assert.deepEqual(tracker.observe(state, 180_000), [{ level: "INFO", message: "RX in-speech underruns: count=1" }]);
+});
+
 test("operational health tracker records transitions and counter increases only", () => {
   const tracker = new OperationalHealthTracker();
   const control = new ControlPlane(AudioEngine.createDemo(0));

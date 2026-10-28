@@ -60,10 +60,15 @@ export function supportDiagnostics(snapshot: RouterSnapshot) {
         rxTiming: {
           ...pick(source.rxTiming, ["maxPacketGapMs", "maxQueuedMilliseconds", "overflowEvents", "underruns", "overflowsAfterUnderrun", "silenceBlocksDropped", "compressedSamples", "queueResolutionMs"]),
           queueWindows: (source.rxTiming?.queueWindows ?? []).map(window => pick(window, ["startedAt", "durationMs", "samples", "p50Ms", "p95Ms", "maxMs"])),
+          ...pick(source.rxTiming, ["inSpeechUnderruns", "endOfSpeechUnderruns", "pendingUnderruns", "unclassifiedUnderruns", "jitterResolutionMs", "packetJitterExcludedGaps"]),
+          recentInSpeechUnderruns: (source.rxTiming?.recentInSpeechUnderruns ?? []).slice(-50).map(event => pick(event, ["at", "previousPacketAgeMs", "nextPacketDelayMs", "queuedBeforeMs", "queuedAfterPacketMs"])),
+          packetJitterWindows: (source.rxTiming?.packetJitterWindows ?? []).slice(-30).map(window => pick(window, ["startedAt", "durationMs", "samples", "p50Ms", "p95Ms", "p99Ms", "maxMs"])),
+          fillJitterWindows: (source.rxTiming?.fillJitterWindows ?? []).slice(-30).map(window => pick(window, ["startedAt", "durationMs", "samples", "p50Ms", "p95Ms", "p99Ms", "maxMs"])),
           lastOverflow: pick(source.rxTiming?.lastOverflow, ["at", "queuedBeforeMilliseconds", "incomingSamples", "droppedSamples", "packetGapMs", "batchOpusFrames", "batchBytes", "batchElapsedMs"]),
         },
       })),
       rxDiagnostics: {
+        ...pick(discord?.rxDiagnostics, ["inSpeechUnderruns"]),
         rejectedOpus: pick(discord?.rxDiagnostics?.rejectedOpus, ["socketAuthority", "receiverRole", "receiverOwner", "receiverAuthority", "txBot", "membershipMissing", "sourceGeneration", "receiverGeneration", "sequenceReordered", ...["READY", "CONNECTING", "RECONNECTING", "DISCONNECTED", "STALE", "FAULT"].map((health) => `health:${health}`)]),
         ipcBatches: pick(discord?.rxDiagnostics?.ipcBatches, ["count", "maxOpusFrames", "maxBytes", "maxProcessingMs"]),
         adapterIpc: (discord?.rxDiagnostics?.adapterIpc ?? []).map((ipc) => pick(ipc, ["opusDroppedFrames", "backpressureWrites", "writableBytes", "maxWritableBytes"])),

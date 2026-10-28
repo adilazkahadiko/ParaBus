@@ -149,15 +149,76 @@ export class RxQueueTiming {
   #histogram: WindowHistogram;
   #lastPacketAt = -Infinity;
   #lastUnderrunAt = -Infinity;
+  #packetJitter: WindowHistogram;
+  #fillJitter: WindowHistogram;
+  #lastArrivalAt = -Infinity;
+  #lastFillAt = -Infinity;
+  // Fixed storage on the audio path. Overflow is explicit, never silently misclassified.
+  #pendingAt = new Float64Array(256);
+  #pendingAge = new Float64Array(256);
+  #pendingQueue = new Float64Array(256);
+  #pendingHead = 0;
+  #pendingCount = 0;
+  #recent = Array.from({ length: 50 }, () => ({ at: 0, previousPacketAgeMs: 0, nextPacketDelayMs: 0, queuedBeforeMs: 0, queuedAfterPacketMs: 0 }));
+  #recentCount = 0;
+  #resumedFrom = 0;
   #windows: Array<{ source: HistogramWindow; window: Omit<HistogramWindow, "slot" | "p99Ms"> } | undefined> = new Array(30);
   underruns = 0;
   overflowsAfterUnderrun = 0;
   silenceBlocksDropped = 0;
   compressedSamples = 0;
+  inSpeechUnderruns = 0;
+  endOfSpeechUnderruns = 0;
+  unclassifiedUnderruns = 0;
+  packetJitterExcludedGaps = 0;
 
   constructor(sampleRate: number, maximumQueueMs: number, clock = () => performance.now()) {
     this.sampleRate = sampleRate; this.#clock = clock;
     this.#histogram = new WindowHistogram(60_000, 30, 1, maximumQueueMs, clock());
+    this.#packetJitter = new WindowHistogram(60_000, 30, 1, 1_000, this.#histogram.origin);
+    this.#fillJitter = new WindowHistogram(60_000, 30, 1, 1_000, this.#histogram.origin);
+  }
+
+  /** Exactly once per accepted Opus packet, before decoding (not the PCM enqueue callback). */
+  observePacket(now: number, queuedSamples: number): void {
+    this.expirePending(now);
+    const gap = now - this.#lastArrivalAt;
+    if (Number.isFinite(gap) && gap >= 0) {
+      if (gap <= 200) this.#packetJitter.record(Math.abs(gap - 20), now);
+      else this.packetJitterExcludedGaps++;
+    }
+    this.#lastArrivalAt = now;
+    this.#resumedFrom = this.#recentCount;
+    while (this.#pendingCount) {
+      const slot = this.#pendingHead;
+      const event = this.#recent[this.#recentCount++ % 50];
+      event.at = this.#pendingAt[slot]; event.previousPacketAgeMs = this.#pendingAge[slot];
+      event.nextPacketDelayMs = now - event.at; event.queuedBeforeMs = this.#pendingQueue[slot];
+      event.queuedAfterPacketMs = queuedSamples / this.sampleRate * 1000;
+      this.inSpeechUnderruns++;
+      this.#pendingHead = (slot + 1) % 256; this.#pendingCount--;
+    }
+  }
+
+  /** Complete the resuming packet's queue measurement after PCM enqueue; no PCM is touched. */
+  observeQueued(queuedSamples: number): void {
+    for (let i = Math.max(this.#resumedFrom, this.#recentCount - 50); i < this.#recentCount; i++) {
+      this.#recent[i % 50].queuedAfterPacketMs = queuedSamples / this.sampleRate * 1000;
+    }
+  }
+
+  /** Once at entry to DiscordPcmSource.fill, including prefill and silence. */
+  observeFill(now: number, nominalIntervalMs: number): void {
+    if (Number.isFinite(this.#lastFillAt)) this.#fillJitter.record(Math.abs(now - this.#lastFillAt - nominalIntervalMs), now);
+    this.#lastFillAt = now;
+    this.expirePending(now);
+  }
+
+  private expirePending(now: number): void {
+    while (this.#pendingCount && now - this.#pendingAt[this.#pendingHead] > 200) {
+      this.endOfSpeechUnderruns++;
+      this.#pendingHead = (this.#pendingHead + 1) % 256; this.#pendingCount--;
+    }
   }
 
   packet(receivedAt = this.#clock()): void { this.#lastPacketAt = receivedAt; }
@@ -165,7 +226,16 @@ export class RxQueueTiming {
     const now = this.#clock();
     this.#histogram.record(queuedSamples / this.sampleRate * 1000, now);
     const age = now - this.#lastPacketAt;
-    if (playing && age >= 0 && age <= 200 && queuedSamples < blockSamples) { this.underruns += 1; this.#lastUnderrunAt = now; }
+    if (playing && age >= 0 && age <= 200 && queuedSamples < blockSamples) {
+      this.underruns += 1; this.#lastUnderrunAt = now;
+      this.expirePending(now);
+      if (this.#pendingCount === 256) this.unclassifiedUnderruns++;
+      else {
+        const slot = (this.#pendingHead + this.#pendingCount++) % 256;
+        this.#pendingAt[slot] = now; this.#pendingAge[slot] = age;
+        this.#pendingQueue[slot] = queuedSamples / this.sampleRate * 1000;
+      }
+    }
   }
   overflow(): void {
     const gap = this.#clock() - this.#lastUnderrunAt;
@@ -173,7 +243,19 @@ export class RxQueueTiming {
   }
   snapshot() {
     const histogram = this.#histogram;
+    const now = this.#clock();
+    this.expirePending(now);
+    const jitterWindows = (value: WindowHistogram) => value.windows(now).map(({ slot, ...window }) => window);
+    const recentInSpeechUnderruns = [];
+    for (let i = Math.max(0, this.#recentCount - 50); i < this.#recentCount; i++) {
+      const event = this.#recent[i % 50];
+      recentInSpeechUnderruns.push({ ...event, at: new Date(histogram.epoch + event.at - histogram.origin).toISOString() });
+    }
     return { underruns: this.underruns, overflowsAfterUnderrun: this.overflowsAfterUnderrun,
+      inSpeechUnderruns: this.inSpeechUnderruns, endOfSpeechUnderruns: this.endOfSpeechUnderruns,
+      pendingUnderruns: this.#pendingCount, unclassifiedUnderruns: this.unclassifiedUnderruns,
+      recentInSpeechUnderruns, jitterResolutionMs: 1, packetJitterExcludedGaps: this.packetJitterExcludedGaps,
+      packetJitterWindows: jitterWindows(this.#packetJitter), fillJitterWindows: jitterWindows(this.#fillJitter),
       silenceBlocksDropped: this.silenceBlocksDropped, compressedSamples: this.compressedSamples, queueResolutionMs: histogram.resolutionMs,
       queueWindows: histogram.windows(this.#clock()).map(source => {
         let cached = this.#windows[source.slot];

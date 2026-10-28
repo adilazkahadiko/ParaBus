@@ -59,6 +59,32 @@ function snapshot() {
   return state;
 }
 
+test("support RX observations keep bounded numeric histories and anonymous source aliases", async t => {
+  const { root, request } = await fixture(t);
+  const state = snapshot();
+  const window = { startedAt: now, durationMs: 60_000, samples: 100, p50Ms: 0, p95Ms: 40, p99Ms: 60, maxMs: 100, participant, userId, token };
+  const event = { at: now, previousPacketAgeMs: 60, nextPacketDelayMs: 20, queuedBeforeMs: 0, queuedAfterPacketMs: 20, participant, userId, token };
+  state.discord!.sources[0].rxTiming = { maxPacketGapMs: 80, maxQueuedMilliseconds: 60, overflowEvents: 0, lastOverflow: null,
+    inSpeechUnderruns: 51, endOfSpeechUnderruns: 4, pendingUnderruns: 1, unclassifiedUnderruns: 0, jitterResolutionMs: 1, packetJitterExcludedGaps: 2,
+    packetJitterWindows: Array.from({ length: 35 }, () => window), fillJitterWindows: [window], recentInSpeechUnderruns: Array.from({ length: 60 }, () => event) };
+  state.discord!.rxDiagnostics!.inSpeechUnderruns = 51;
+  request.diagnostics = supportDiagnostics(state);
+  const summary = "RX in-speech underruns: count=51";
+  await writeFile(join(root, "logs", "operational-2026-10-06.jsonl"), [summary, `${summary} ${participant}`].map(message => JSON.stringify({ at: now, level: "INFO", message }) + "\n").join(""));
+  const bundle = await createSupportBundle(request), raw = await readFile(bundle.path), entries = unzip(raw);
+  for (const sensitive of [participant, userId, token]) assert.equal(raw.includes(Buffer.from(sensitive)), false);
+  const diagnostics = JSON.parse(entries.get("diagnostics.json")!);
+  const source = diagnostics.discord.sources[0], timing = source.rxTiming;
+  assert.equal(diagnostics.discord.rxDiagnostics.inSpeechUnderruns, 51);
+  assert.match(source.userId, /^user-/);
+  assert.equal(timing.recentInSpeechUnderruns.length, 50); assert.equal(timing.packetJitterWindows.length, 30);
+  assert.equal(timing.inSpeechUnderruns, 51); assert.equal(timing.endOfSpeechUnderruns, 4);
+  assert.equal(timing.packetJitterWindows[0].p95Ms, 40); assert.equal(timing.fillJitterWindows[0].p99Ms, 60);
+  assert.equal(timing.recentInSpeechUnderruns[0].queuedAfterPacketMs, 20);
+  const logs = entries.get("logs/operational-2026-10-06.jsonl")!.trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(logs[0].message, summary); assert.match(logs[1].message, /^event-/);
+});
+
 /** Read stored entries through the ZIP central directory and verify data descriptors/CRC. */
 function unzip(bytes: Buffer): Map<string, string> {
   const end = bytes.length - 22;
