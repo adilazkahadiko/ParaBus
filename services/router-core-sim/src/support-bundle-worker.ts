@@ -68,6 +68,7 @@ function validRuntime(value: unknown) {
 /** Free-form messages may contain unknown historic names/secrets. Keep only diagnostic grammars.
  * Unrecognized text becomes an opaque event alias, NOT a partly scrubbed raw message. */
 function diagnosticMessage(message: string): string {
+  if (/^RX in-speech underruns: count=\d{1,12}$/.test(message)) return message;
   if (/^Audio fault: target=(?:MAIN_OUTPUT|INPUT) classification=(?:STREAM_ENDED|STREAM_ERROR|DEVICE_UNAVAILABLE|PRESENCE_PROVIDER_UNAVAILABLE|ASIO_FAULT|UNKNOWN) hostApi=(?:Windows WASAPI|ASIO|MME|Windows DirectSound|Windows WDM-KS|Core Audio|CoreAudio|ALSA|JACK|Simulator|UNKNOWN)$/.test(message)) return message;
   if (/^Physical input timing totals: channels=\d{1,3}\/\d{1,3} packets=\d{1,12} gapMax=\d{1,12}\.\dms underruns=\d{1,12} missing=\d{1,12} dropped=\d{1,12}$/.test(message)) return message;
   if (/^Audio timing summary: main inflight=(?:n\/a|\d{1,2}-\d{1,2}) cue inflight=(?:n\/a|\d{1,2}-\d{1,2}) sched maxLate=\d{1,12}\.\dms catchup=\d{1,12} rx underruns=\d{1,12} overflows=\d{1,12}(?: loop p99=\d{1,12}\.\dms max=\d{1,12}\.\dms process max=\d{1,12}\.\dms)?$/.test(message)) return message;

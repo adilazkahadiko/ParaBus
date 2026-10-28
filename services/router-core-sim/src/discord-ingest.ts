@@ -162,6 +162,7 @@ export class DiscordIngestServer {
   #bytes = 0;
   #decodeErrors = 0;
   #retiredRxUnderruns = 0;
+  #retiredRxInSpeechUnderruns = 0;
   #retiredRxOverflows = 0;
   #rejectedOpus: Record<string, number> = {};
   #ipcBatches = { count: 0, maxOpusFrames: 0, maxBytes: 0, maxProcessingMs: 0 };
@@ -395,12 +396,14 @@ export class DiscordIngestServer {
     runtime.rxTiming.maxPacketGapMs = Math.max(runtime.rxTiming.maxPacketGapMs, packetGapMs);
     runtime.lastPacketAt = now;
     const packetReceivedAt = performance.now();
+    runtime.source.timing?.observePacket(packetReceivedAt, runtime.source.queuedSamples);
     runtime.source.timing?.packet(packetReceivedAt);
     try {
       const pcm = runtime.decoder.decode(payload);
       const queuedBefore = runtime.source.queuedSamples;
       const droppedBefore = runtime.source.droppedSamples;
       const incomingSamples = runtime.source.pushInt16Le(pcm, packetReceivedAt);
+      runtime.source.timing?.observeQueued(runtime.source.queuedSamples);
       runtime.decodedSamples += incomingSamples;
       runtime.rxTiming.maxQueuedMilliseconds = Math.max(runtime.rxTiming.maxQueuedMilliseconds, runtime.source.queuedSamples / this.engine.sampleRate * 1000);
       const droppedSamples = runtime.source.droppedSamples - droppedBefore;
@@ -435,7 +438,7 @@ export class DiscordIngestServer {
     };
   }
 
-  snapshot(now = Date.now(), includeHistory = true): DiscordIngestSnapshot {
+  snapshot(now = Date.now(), includeHistory = true, includeRxDetails = includeHistory): DiscordIngestSnapshot {
     const bots = [...this.bots.values()].map((bot) => {
       const health = this.botHealth(bot, now);
       const heartbeatBasis = bot.lastHeartbeatAt || bot.lastStateAt;
@@ -479,6 +482,7 @@ export class DiscordIngestServer {
       decodeErrors: this.#decodeErrors,
       decoderState: this.#decoderState,
       rxDiagnostics: {
+        inSpeechUnderruns: this.#retiredRxInSpeechUnderruns + [...this.runtimes.values()].reduce((sum, runtime) => sum + (runtime.source.timing?.inSpeechUnderruns ?? 0), 0),
         rejectedOpus: { ...this.#rejectedOpus },
         ipcBatches: { ...this.#ipcBatches },
         adapterIpc: [...this.#sockets].flatMap((socket) => {
@@ -508,8 +512,9 @@ export class DiscordIngestServer {
         droppedSamples: runtime.source.droppedSamples,
         lastPacketAgoMs: runtime.lastPacketAt === 0 ? null : Math.max(0, now - runtime.lastPacketAt),
         playout: runtime.source.playoutSnapshot(),
-        rxTiming: { ...runtime.rxTiming, ...(includeHistory ? runtime.source.timing?.snapshot() : { underruns: runtime.source.timing?.underruns, overflowsAfterUnderrun: runtime.source.timing?.overflowsAfterUnderrun,
-          silenceBlocksDropped: runtime.source.timing?.silenceBlocksDropped, compressedSamples: runtime.source.timing?.compressedSamples }), lastOverflow: runtime.rxTiming.lastOverflow ? { ...runtime.rxTiming.lastOverflow } : null },
+        rxTiming: { ...runtime.rxTiming, ...(includeHistory ? runtime.source.timing?.snapshot(includeRxDetails) : { underruns: runtime.source.timing?.underruns, overflowsAfterUnderrun: runtime.source.timing?.overflowsAfterUnderrun,
+          silenceBlocksDropped: runtime.source.timing?.silenceBlocksDropped, compressedSamples: runtime.source.timing?.compressedSamples,
+          inSpeechUnderruns: runtime.source.timing?.inSpeechUnderruns }), lastOverflow: runtime.rxTiming.lastOverflow ? { ...runtime.rxTiming.lastOverflow } : null },
       })),
     };
   }
@@ -1449,6 +1454,7 @@ export class DiscordIngestServer {
       } finally {
         if (channel) this.userSessions?.leave(channel);
         this.#retiredRxUnderruns += runtime.source.timing?.underruns ?? 0;
+        this.#retiredRxInSpeechUnderruns += runtime.source.timing?.inSpeechUnderruns ?? 0;
         this.#retiredRxOverflows += runtime.rxTiming.overflowEvents;
         this.runtimes.delete(id);
         this.#sourceSockets.delete(id);
