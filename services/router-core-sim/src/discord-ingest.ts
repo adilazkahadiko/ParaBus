@@ -438,7 +438,7 @@ export class DiscordIngestServer {
     };
   }
 
-  snapshot(now = Date.now(), includeHistory = true): DiscordIngestSnapshot {
+  snapshot(now = Date.now(), includeHistory = true, includeRxDetails = includeHistory): DiscordIngestSnapshot {
     const bots = [...this.bots.values()].map((bot) => {
       const health = this.botHealth(bot, now);
       const heartbeatBasis = bot.lastHeartbeatAt || bot.lastStateAt;
@@ -512,7 +512,7 @@ export class DiscordIngestServer {
         droppedSamples: runtime.source.droppedSamples,
         lastPacketAgoMs: runtime.lastPacketAt === 0 ? null : Math.max(0, now - runtime.lastPacketAt),
         playout: runtime.source.playoutSnapshot(),
-        rxTiming: { ...runtime.rxTiming, ...(includeHistory ? runtime.source.timing?.snapshot() : { underruns: runtime.source.timing?.underruns, overflowsAfterUnderrun: runtime.source.timing?.overflowsAfterUnderrun,
+        rxTiming: { ...runtime.rxTiming, ...(includeHistory ? runtime.source.timing?.snapshot(includeRxDetails) : { underruns: runtime.source.timing?.underruns, overflowsAfterUnderrun: runtime.source.timing?.overflowsAfterUnderrun,
           silenceBlocksDropped: runtime.source.timing?.silenceBlocksDropped, compressedSamples: runtime.source.timing?.compressedSamples,
           inSpeechUnderruns: runtime.source.timing?.inSpeechUnderruns }), lastOverflow: runtime.rxTiming.lastOverflow ? { ...runtime.rxTiming.lastOverflow } : null },
       })),

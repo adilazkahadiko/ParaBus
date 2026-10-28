@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RxQueueTiming } from "../services/router-core-sim/src/audio-timing.ts";
+import { RxQueueTiming, WindowHistogram } from "../services/router-core-sim/src/audio-timing.ts";
 import { DiscordPcmSource } from "../services/router-core-sim/src/discord-pcm-source.ts";
 import { rxPcmTrace } from "./helpers/rx-pcm-trace.ts";
 import { deliveryMs, patterns } from "./rx-load/run.ts";
@@ -58,8 +58,8 @@ test("RX shortages wait for the next packet, include both 200ms boundaries, and 
   now = 400; rx.observePacket(now, 0); rx.packet(now); rx.observeQueued(960);
   let state = rx.snapshot();
   assert.equal(state.inSpeechUnderruns, 1); assert.equal(state.endOfSpeechUnderruns, 0);
-  assert.deepEqual(state.recentInSpeechUnderruns.map(({ at, ...event }) => event), [{ previousPacketAgeMs: 200, nextPacketDelayMs: 200, queuedBeforeMs: 5, queuedAfterPacketMs: 20 }]);
-  assert.ok(Number.isFinite(Date.parse(state.recentInSpeechUnderruns[0].at)));
+  assert.deepEqual(state.recentInSpeechUnderruns!.map(({ at, ...event }) => event), [{ previousPacketAgeMs: 200, nextPacketDelayMs: 200, queuedBeforeMs: 5, queuedAfterPacketMs: 20 }]);
+  assert.ok(Number.isFinite(Date.parse(state.recentInSpeechUnderruns![0].at)));
   now = 600; rx.fill(0, 480);
   now = 800; assert.equal(rx.snapshot().pendingUnderruns, 1);
   now = 801; rx.observePacket(now, 0); rx.packet(now);
@@ -77,9 +77,9 @@ test("RX recent events and pending storage are bounded; excess measurements are 
     now += 10; rx.observePacket(now, 0); rx.observeQueued(960);
   }
   const state = rx.snapshot();
-  assert.equal(state.inSpeechUnderruns, 100); assert.equal(state.recentInSpeechUnderruns.length, 50);
-  state.recentInSpeechUnderruns[0].queuedBeforeMs = 999;
-  assert.equal(rx.snapshot().recentInSpeechUnderruns[0].queuedBeforeMs, 0);
+  assert.equal(state.inSpeechUnderruns, 100); assert.equal(state.recentInSpeechUnderruns!.length, 50);
+  state.recentInSpeechUnderruns![0].queuedBeforeMs = 999;
+  assert.equal(rx.snapshot().recentInSpeechUnderruns![0].queuedBeforeMs, 0);
   rx.packet(now);
   for (let i = 0; i < 300; i++) rx.fill(0, 480);
   assert.equal(rx.snapshot().pendingUnderruns, 256); assert.equal(rx.unclassifiedUnderruns, 44);
@@ -93,20 +93,35 @@ test("RX jitter has per-minute p50/p95/p99/max, excludes talkspurt gaps and coun
   const rx = new RxQueueTiming(48_000, 120, () => now);
   rx.observePacket(now, 0);
   for (let i = 1; i <= 100; i++) { now += 20 + i; rx.observePacket(now, 0); }
-  const window = rx.snapshot().packetJitterWindows[0];
+  const window = rx.snapshot().packetJitterWindows![0];
   assert.deepEqual([window.samples, window.p50Ms, window.p95Ms, window.p99Ms, window.maxMs], [100, 50, 95, 99, 100]);
   now += 201; rx.observePacket(now, 0);
   assert.equal(rx.packetJitterExcludedGaps, 1);
   rx.observePacket(now, 0); // A distinct packet in the same IPC burst is a zero interval.
-  assert.equal(rx.snapshot().packetJitterWindows[0].samples, 101);
+  assert.equal(rx.snapshot().packetJitterWindows![0].samples, 101);
   now = 60_000; rx.observeFill(now, 10);
   now += 10; rx.observeFill(now, 10);
   now += 60; rx.observeFill(now, 10);
   now += 0; rx.observeFill(now, 10); // Timer catch-up is observable too.
-  const fill = rx.snapshot().fillJitterWindows[0];
+  const fill = rx.snapshot().fillJitterWindows![0];
   assert.deepEqual([fill.samples, fill.p50Ms, fill.p95Ms, fill.p99Ms, fill.maxMs], [3, 10, 50, 50, 50]);
   for (let i = 2; i < 34; i++) { now = i * 60_000; rx.observePacket(now, 0); now += 20; rx.observePacket(now, 0); rx.observeFill(now, 10); }
-  assert.equal(rx.snapshot().packetJitterWindows.length, 30);
-  assert.equal(rx.snapshot().fillJitterWindows.length, 30);
-  assert.equal(rx.snapshot().packetJitterWindows.at(-1)!.maxMs, 0, "reused windows cannot retain old bins");
+  assert.equal(rx.snapshot().packetJitterWindows!.length, 30);
+  assert.equal(rx.snapshot().fillJitterWindows!.length, 30);
+  assert.equal(rx.snapshot().packetJitterWindows!.at(-1)!.maxMs, 0, "reused windows cannot retain old bins");
+});
+
+test("250ms histogram cap preserves overflow max and fill jitter without capping real delays", () => {
+  const histogram = new WindowHistogram(60_000, 30, 1, 250, 0);
+  histogram.record(12, 1); histogram.record(1700.5, 2);
+  assert.equal(histogram.bins, 252);
+  assert.equal(histogram.windows(3)[0].maxMs, 1700.5);
+  assert.equal(histogram.windows(3)[0].p99Ms, 1700.5);
+  let now = 0; const rx = new RxQueueTiming(48000, 120, () => now);
+  rx.observeFill(now, 10); now = 1710.5; rx.observeFill(now, 10);
+  assert.equal(rx.snapshot().fillJitterWindows![0].maxMs, 1700.5);
+  assert.equal(rx.snapshot().fillJitterWindows![0].p99Ms, 1700.5);
+  const light = rx.snapshot(false);
+  for (const key of ["packetJitterWindows", "fillJitterWindows", "recentInSpeechUnderruns"]) assert.equal(Object.hasOwn(light, key), false);
+  assert.equal(light.inSpeechUnderruns, 0);
 });

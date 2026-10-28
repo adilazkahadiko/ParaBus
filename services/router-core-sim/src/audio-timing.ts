@@ -3,7 +3,7 @@ import type { AudioOutputTimingSnapshot, AudioSchedulerTimingSnapshot, AudioRunt
 type HistogramWindow = { slot: number; startedAt: string; durationMs: number; samples: number; maxMs: number; p50Ms: number; p95Ms: number; p99Ms: number };
 
 /** Fixed rings only on the hot path. Dates, arrays and percentile scans are snapshot-only. */
-class WindowHistogram {
+export class WindowHistogram {
   readonly origin: number;
   readonly epoch = Date.now();
   readonly widthMs: number;
@@ -175,8 +175,8 @@ export class RxQueueTiming {
   constructor(sampleRate: number, maximumQueueMs: number, clock = () => performance.now()) {
     this.sampleRate = sampleRate; this.#clock = clock;
     this.#histogram = new WindowHistogram(60_000, 30, 1, maximumQueueMs, clock());
-    this.#packetJitter = new WindowHistogram(60_000, 30, 1, 1_000, this.#histogram.origin);
-    this.#fillJitter = new WindowHistogram(60_000, 30, 1, 1_000, this.#histogram.origin);
+    this.#packetJitter = new WindowHistogram(60_000, 30, 1, 250, this.#histogram.origin);
+    this.#fillJitter = new WindowHistogram(60_000, 30, 1, 250, this.#histogram.origin);
   }
 
   /** Exactly once per accepted Opus packet, before decoding (not the PCM enqueue callback). */
@@ -241,21 +241,21 @@ export class RxQueueTiming {
     const gap = this.#clock() - this.#lastUnderrunAt;
     if (gap >= 0 && gap <= 2_000) this.overflowsAfterUnderrun += 1;
   }
-  snapshot() {
+  snapshot(includeDetails = true) {
     const histogram = this.#histogram;
     const now = this.#clock();
     this.expirePending(now);
     const jitterWindows = (value: WindowHistogram) => value.windows(now).map(({ slot, ...window }) => window);
     const recentInSpeechUnderruns = [];
-    for (let i = Math.max(0, this.#recentCount - 50); i < this.#recentCount; i++) {
+    for (let i = includeDetails ? Math.max(0, this.#recentCount - 50) : this.#recentCount; i < this.#recentCount; i++) {
       const event = this.#recent[i % 50];
       recentInSpeechUnderruns.push({ ...event, at: new Date(histogram.epoch + event.at - histogram.origin).toISOString() });
     }
     return { underruns: this.underruns, overflowsAfterUnderrun: this.overflowsAfterUnderrun,
       inSpeechUnderruns: this.inSpeechUnderruns, endOfSpeechUnderruns: this.endOfSpeechUnderruns,
       pendingUnderruns: this.#pendingCount, unclassifiedUnderruns: this.unclassifiedUnderruns,
-      recentInSpeechUnderruns, jitterResolutionMs: 1, packetJitterExcludedGaps: this.packetJitterExcludedGaps,
-      packetJitterWindows: jitterWindows(this.#packetJitter), fillJitterWindows: jitterWindows(this.#fillJitter),
+      jitterResolutionMs: 1, packetJitterExcludedGaps: this.packetJitterExcludedGaps,
+      ...(includeDetails ? { recentInSpeechUnderruns, packetJitterWindows: jitterWindows(this.#packetJitter), fillJitterWindows: jitterWindows(this.#fillJitter) } : {}),
       silenceBlocksDropped: this.silenceBlocksDropped, compressedSamples: this.compressedSamples, queueResolutionMs: histogram.resolutionMs,
       queueWindows: histogram.windows(this.#clock()).map(source => {
         let cached = this.#windows[source.slot];

@@ -24,8 +24,8 @@ import { ReceiverOwnershipStore } from "./receiver-ownership-store.ts";
 import { RecorderManager } from "./recorder.ts";
 import { SystemMonitor } from "./system-monitor.ts";
 import { resolveCoreOwnership } from "./core-ownership.ts";
-import { deriveOperatorHealth } from "./operator-health.ts";
-import { operatorFacingSnapshot, safeOperatorSummary, sanitizeOperatorMessage } from "./operator-sanitize.ts";
+import { desktopState } from "./desktop-state.ts";
+import { safeOperatorSummary, sanitizeOperatorMessage } from "./operator-sanitize.ts";
 import { OperationalHealthTracker, OperationalLog } from "./operational-log.ts";
 import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 import { SceneStore } from "./scene-store.ts";
@@ -159,12 +159,10 @@ function executeControlCommand(command: ControlCommand): CommandResult {
   }
   return result;
 }
-const desktopSnapshot = (includeHistory = true) => {
-  const snapshot = operatorFacingSnapshot({
-    ...control.snapshot(includeHistory),
+const desktopSnapshot = (includeHistory = true, includeRxDetails = true) => desktopState({
+  control, ingest: discordIngest, extras: () => ({
     userProfiles: userProfileStore.snapshot(),
     userSessions: userSessions.snapshot(),
-    discord: discordIngest.snapshot(Date.now(), includeHistory),
     system: systemMonitor.snapshot(),
     runtimeInfo: startupInfo,
     audioTiming: audioSchedulerTiming.snapshot(),
@@ -172,9 +170,8 @@ const desktopSnapshot = (includeHistory = true) => {
     coreOwnership: coreOwnership.snapshot,
     programAudioShadow: programAudioShadow.snapshot(),
     rustManagement: rustManagement.snapshot(),
-  });
-  return { ...snapshot, operatorHealth: deriveOperatorHealth(snapshot) };
-};
+  }),
+}, includeHistory, includeRxDetails);
 outputManager.onFault = (deviceId, message, diagnostic) => {
   executeControlCommand({ type: "DEVICE_LOST", deviceId, fault: { ...diagnostic, reason: localAudioFaultDetail(message) } });
 };
@@ -554,7 +551,7 @@ server.on("upgrade", (request, socket) => {
   socket.on("close", () => websocketClients.delete(socket));
   socket.on("error", () => websocketClients.delete(socket));
   socket.on("data", (data) => handleWebSocketData(socket, data));
-  broadcastWebSocket([socket], () => ({ type: "state", payload: desktopSnapshot() }));
+  broadcastWebSocket([socket], () => ({ type: "state", payload: desktopSnapshot(true, false) }));
 });
 
 function rejectHttpSocket(socket: Duplex, status: 400 | 403): void {
@@ -621,7 +618,7 @@ function handleWebSocketFrame(socket: Duplex, frame: Buffer, offset: number, len
 }
 
 function broadcastState(includeHistory = false): void {
-  broadcastWebSocket(websocketClients, () => ({ type: "state", payload: desktopSnapshot(includeHistory) }));
+  broadcastWebSocket(websocketClients, () => ({ type: "state", payload: desktopSnapshot(includeHistory, false) }));
 }
 
 const blockIntervalMs = (engine.blockSize / engine.sampleRate) * 1000;
@@ -678,8 +675,8 @@ function scheduleAudioBlock(): void {
 scheduleAudioBlock();
 
 setInterval(() => broadcastWebSocket(websocketClients, () => ({ type: "meters", payload: control.meterSnapshot() })), 50).unref();
-// Full diagnostic histories and configuration are delivered at most once/sec
-// periodically, and remain available on demand via GET /api/state and Support.
+// Existing histories and configuration are delivered at most once/sec.
+// Detailed RX jitter/events remain on demand via GET /api/state and Support.
 setInterval(() => broadcastState(true), 1_000).unref();
 setInterval(() => void rustManagement.refreshSnapshot(), 1_000).unref();
 setInterval(() => {
