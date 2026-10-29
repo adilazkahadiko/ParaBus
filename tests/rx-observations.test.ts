@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RxQueueTiming, WindowHistogram } from "../services/router-core-sim/src/audio-timing.ts";
-import { DiscordPcmSource } from "../services/router-core-sim/src/discord-pcm-source.ts";
+import { DiscordPcmSource } from "./helpers/beta4-discord-pcm-source.ts";
 import { rxPcmTrace } from "./helpers/rx-pcm-trace.ts";
 import { deliveryMs, patterns } from "./rx-load/run.ts";
 import { DiscordIngestServer } from "../services/router-core-sim/src/discord-ingest.ts";
@@ -9,7 +9,7 @@ import { AudioEngine } from "../services/router-core-sim/src/audio-engine.ts";
 import { DiscordFrameType } from "../packages/discord-ipc/src/index.ts";
 import { OPUS_SELF_CHECK_PACKET } from "../services/router-core-sim/src/opus-decoder.ts";
 
-test("instrumented Discord playout keeps the beta.4 whole-mix PCM bit-identical", () => {
+test("frozen beta.4 playout reference retains its whole-mix PCM golden for stage-2 A/B", () => {
   // Golden generated from untouched discord-pcm-source.ts at ee56dfee4544b853f99b0520ca66d310817164ab.
   const trace = rxPcmTrace(DiscordPcmSource);
   assert.equal(trace.sha256, "3a3fc5bb5b339dcd3c45060daabb6ca8570c532e37a1fe686ff310e9177738f4");
@@ -58,7 +58,7 @@ test("RX shortages wait for the next packet, include both 200ms boundaries, and 
   now = 400; rx.observePacket(now, 0); rx.packet(now); rx.observeQueued(960);
   let state = rx.snapshot();
   assert.equal(state.inSpeechUnderruns, 1); assert.equal(state.endOfSpeechUnderruns, 0);
-  assert.deepEqual(state.recentInSpeechUnderruns!.map(({ at, ...event }) => event), [{ previousPacketAgeMs: 200, nextPacketDelayMs: 200, queuedBeforeMs: 5, queuedAfterPacketMs: 20 }]);
+  assert.deepEqual(state.recentInSpeechUnderruns!.map(({ at, ...event }) => event), [{ previousPacketAgeMs: 200, nextPacketDelayMs: 200, queuedBeforeMs: 5, queuedAfterPacketMs: 20, classification: "unknown" }]);
   assert.ok(Number.isFinite(Date.parse(state.recentInSpeechUnderruns![0].at)));
   now = 600; rx.fill(0, 480);
   now = 800; assert.equal(rx.snapshot().pendingUnderruns, 1);

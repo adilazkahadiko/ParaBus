@@ -75,16 +75,16 @@ test("RX diagnostics retain burst context and validate one IPC report per socket
     { type: DiscordFrameType.BOT_META, ...ids, payload: Buffer.from(JSON.stringify(status)) },
     { type: DiscordFrameType.ADAPTER_STATE, ...ids, payload: Buffer.from(JSON.stringify({ ...status, rxIpc })) },
     { type: DiscordFrameType.USER_META, ...membership, payload: Buffer.from("Guest") },
-    ...Array.from({ length: 8 }, (_, index) => ({ type: DiscordFrameType.OPUS, ...membership, sequence: index + 1, payload: Buffer.from([1]) })),
+    ...Array.from({ length: 9 }, (_, index) => ({ type: DiscordFrameType.OPUS, ...membership, sequence: index + 1, payload: Buffer.from([1]) })),
   ];
   const chunk = Buffer.concat(frames.map(encodeDiscordFrame));
   socket.emit("data", chunk);
   const snapshot = ingest.snapshot();
   assert.equal(snapshot.sources[0].droppedSamples, 1920);
   assert.equal(snapshot.sources[0].rxTiming?.overflowEvents, 2);
-  assert.equal(snapshot.sources[0].rxTiming?.maxQueuedMilliseconds, 120);
-  assert.equal(snapshot.sources[0].rxTiming?.lastOverflow?.queuedBeforeMilliseconds, 120);
-  assert.equal(snapshot.sources[0].rxTiming?.lastOverflow?.batchOpusFrames, 8);
+  assert.equal(snapshot.sources[0].rxTiming?.maxQueuedMilliseconds, 140);
+  assert.equal(snapshot.sources[0].rxTiming?.lastOverflow?.queuedBeforeMilliseconds, 140);
+  assert.equal(snapshot.sources[0].rxTiming?.lastOverflow?.batchOpusFrames, 9);
   assert.equal(snapshot.sources[0].rxTiming?.lastOverflow?.batchBytes, chunk.length);
   assert.equal(snapshot.sources[0].rxTiming?.underruns, 0);
   assert.equal(snapshot.sources[0].rxTiming?.overflowsAfterUnderrun, 0);
@@ -97,12 +97,12 @@ test("RX diagnostics retain burst context and validate one IPC report per socket
     assert.equal(timing.compressedSamples, 25);
   }
   // Filling is independent of approval/mute and exposes the actual RX ring waterline.
-  for (let block = 0; block < 13; block++) engine.processBlock();
+  for (let block = 0; block < 15; block++) engine.processBlock();
   assert.equal(ingest.snapshot().sources[0].rxTiming?.underruns, 1);
-  assert.equal(ingest.snapshot().sources[0].rxTiming?.queueWindows?.[0].maxMs, 120);
+  assert.equal(ingest.snapshot().sources[0].rxTiming?.queueWindows?.[0].maxMs, 140);
   const totals = ingest.rxTimingTotals();
   assert.deepEqual(totals, { underruns: 1, overflows: 2 });
-  assert.equal(snapshot.rxDiagnostics?.ipcBatches.maxOpusFrames, 8);
+  assert.equal(snapshot.rxDiagnostics?.ipcBatches.maxOpusFrames, 9);
   assert.equal(snapshot.rxDiagnostics?.ipcBatches.maxBytes, chunk.length);
   assert.equal(snapshot.rxDiagnostics?.ipcBatches.count, 1);
   assert.deepEqual(snapshot.rxDiagnostics?.adapterIpc, [rxIpc]);
@@ -174,7 +174,7 @@ test("Router Core decodes Opus and creates a safe DiscordUser channel", (t) => {
   const packet = encoder.encode(pcm, 960);
   ingest.ingest({ type: DiscordFrameType.USER_META, ...ids, payload: Buffer.from("Interview Guest") });
   ingest.ingest({ type: DiscordFrameType.OPUS, ...ids, sequence: 1, rtpTimestamp: 960, payload: packet });
-  now = 40; // A single-packet talkspurt is released by bounded RX prebuffering.
+  now = 60; // A single-packet talkspurt is released by bounded RX prebuffering.
   engine.processBlock();
   engine.processBlock();
 
@@ -219,7 +219,7 @@ test("generation-aware USER_LEFT disposes only its matching source and reclaims 
   const channelId = `discord-user:${ids.guildId}:${ids.voiceChannelId}:${ids.userId}`;
   const source = ingest.runtimes.get(channelId)?.source;
   assert.ok(source);
-  assert.equal(source.capacity, engine.blockSize * 12, "Discord RX jitter cannot grow beyond twelve graph blocks");
+  assert.equal(source.capacity, engine.blockSize * 14, "Discord RX transport reserve is bounded to fourteen graph blocks");
   source.pushInt16Le(Buffer.alloc(960));
   engine.monitorSourceId = channelId;
   engine.addMatrixRoute({ id: "guest-monitor", sourceId: channelId, output: 0, gainDb: 0, mute: false, tap: "POST" });

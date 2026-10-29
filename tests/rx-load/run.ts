@@ -126,6 +126,7 @@ async function runCase(people: number, pattern: Pattern, seconds: number, seed: 
 }
 async function main() {
   assert.equal(process.versions.node, "22.23.4");
+  if (process.argv.includes("--ab")) { await (await import("./compare.ts")).mainAb(); return; }
   const { seconds, seed, mode, output } = options(), selected = argument("case"), childMode = process.argv.includes("--child");
   const results: Array<Awaited<ReturnType<typeof runCase>>> = [];
   const save = () => { if (output) { mkdirSync(dirname(resolve(output)), { recursive: true }); writeFileSync(output, JSON.stringify({ node: process.versions.node, platform: process.platform, seed, results }, null, 2) + "\n"); } };

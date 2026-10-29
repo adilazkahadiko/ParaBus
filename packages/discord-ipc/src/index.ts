@@ -24,6 +24,9 @@ export interface DiscordBotControlPayload {
   profileId: string;
 }
 
+// OPUS-only metadata flags; absent means synthetic/unknown RTP provenance.
+export const DiscordRxFlags = { REAL_RTP: 1, RTP_RESET: 2 } as const;
+
 export const DiscordTxFlags = {
   START: 1,
   STEREO: 2,

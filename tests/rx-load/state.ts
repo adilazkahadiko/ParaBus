@@ -18,12 +18,12 @@ import { UserProfileStore } from "../../services/router-core-sim/src/user-profil
 import { UserSessionRegistry } from "../../services/router-core-sim/src/user-session-registry.ts";
 
 /** Full production state producers with idle/nonphysical backends, and fresh synthetic settings. */
-export function offlineState(factory: OpusDecoderFactory) {
+export function offlineState(factory: OpusDecoderFactory, sourceFactory?: ConstructorParameters<typeof DiscordIngestServer>[6]) {
   mkdirSync(resolve("target"), { recursive: true });
   const root = mkdtempSync(join(resolve("target"), "rx-load-state-"));
   const engine = new AudioEngine(); // Same 64-channel graph configuration as production default.
   const profiles = new UserProfileStore(root), sessions = new UserSessionRegistry(profiles);
-  const ingest = new DiscordIngestServer(engine, "offline-never-listen", null, factory, sessions);
+  const ingest = new DiscordIngestServer(engine, "offline-never-listen", null, factory, sessions, null, sourceFactory);
   const output = new AudioOutputManager(48000, 480, 64, null), cue = new AudioOutputManager(48000, 480, 2, null);
   const input = new AudioInputManager(engine, null), recorder = new RecorderManager(engine, join(root, "recordings"));
   const control = new ControlPlane(engine, output, ingest, input, recorder, sessions, undefined, cue);

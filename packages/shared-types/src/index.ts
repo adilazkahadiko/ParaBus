@@ -442,10 +442,11 @@ export interface DiscordIngestSnapshot {
     decodedSamples: number;
     decodeErrors: number;
     sequenceGaps: number;
+    sequenceGapsKnown?: boolean;
     queuedMilliseconds: number;
     droppedSamples: number;
     lastPacketAgoMs: number | null;
-    playout?: { targetMs: number; backlogEwmaMs: number; prebufferBlocks: number; expandedFrames: number; compressedFrames: number; staleDiscardedSamples: number };
+    playout?: { hardCapMs?: number; microShortages?: number; silenceMs?: number; fadeMs?: number; targetBlocks?: number[]; targetMs: number; backlogEwmaMs: number; prebufferBlocks: number; expandedFrames: number; compressedFrames: number; staleDiscardedSamples: number };
     rxTiming?: {
       /** Arrival spacing includes silence and reconnects; not a network latency measurement. */
       maxPacketGapMs: number;
@@ -454,10 +455,13 @@ export interface DiscordIngestSnapshot {
       underruns?: number;
       /** Classified after a future packet: both sides of the shortage are <=200ms. */
       inSpeechUnderruns?: number;
+      inSpeechByKind?: Record<string, number>;
+      microInSpeechUnderruns?: number;
       endOfSpeechUnderruns?: number;
       pendingUnderruns?: number;
       unclassifiedUnderruns?: number;
-      recentInSpeechUnderruns?: Array<{ at: string; previousPacketAgeMs: number; nextPacketDelayMs: number; queuedBeforeMs: number; queuedAfterPacketMs: number }>;
+      recentInSpeechUnderruns?: Array<{ at: string; previousPacketAgeMs: number; nextPacketDelayMs: number; queuedBeforeMs: number; queuedAfterPacketMs: number; classification?: "loss" | "senderPause" | "delayed" | "fillBurst" | "unknown" }>;
+      rtp?: { realPackets: number; syntheticPackets: number; missingPackets: number; counts: Record<string, number>; gapWindows?: Record<string, Array<{ startedAt: string; durationMs: number; samples: number; p50Ms: number; p95Ms: number; p99Ms: number; maxMs: number }>> };
       jitterResolutionMs?: number;
       packetJitterExcludedGaps?: number;
       packetJitterWindows?: Array<{ startedAt: string; durationMs: number; samples: number; p50Ms: number; p95Ms: number; p99Ms: number; maxMs: number }>;

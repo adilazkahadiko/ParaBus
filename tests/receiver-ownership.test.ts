@@ -388,7 +388,7 @@ test("Emergency Mute and FAULT stay authoritative after receiver selection", (t)
   setApproval(target, channel, true);
   target.control.execute({ type: "SET_DIRECT_OUTPUT", channelId: channel.id, output: 0, tap: "PRE", gainDb: 0, mute: false });
   target.ingest.ingest({ type: DiscordFrameType.OPUS, ...identity(botId), sourceGeneration: 1, sequence: 1, payload: Buffer.from([1]) });
-  now = 40;
+  now = 60;
   target.engine.processBlock();
   assert.equal(target.engine.outputs[0].some((sample) => sample !== 0), true);
   target.control.execute({ type: "EMERGENCY_MUTE", active: true });

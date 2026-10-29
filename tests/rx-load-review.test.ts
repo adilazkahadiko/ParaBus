@@ -46,6 +46,7 @@ test("periodic full Desktop state omits only RX details while diagnostics/Bundle
   const detailed = state.state(true), periodic = state.state(false);
   const reduced = structuredClone(detailed);
   for (const source of reduced.payload.discord!.sources) for (const key of ["packetJitterWindows", "fillJitterWindows", "recentInSpeechUnderruns"] as const) delete source.rxTiming![key];
+  for (const source of reduced.payload.discord!.sources) if (source.rxTiming?.rtp) delete source.rxTiming.rtp.gapWindows;
   assert.deepEqual(periodic, reduced);
   const light = periodic.payload.discord!.sources[0].rxTiming!;
   assert.equal(light.inSpeechUnderruns, 30); assert.equal(light.queueWindows!.length, 30);
