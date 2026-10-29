@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { RtpObserver, rtpHeader } from "../services/discord-adapter/src/rtp-observer.ts";
 import { RxAdaptation } from "../services/router-core-sim/src/rx-adaptation.ts";
 import { RtpTiming } from "../services/router-core-sim/src/rtp-timing.ts";
@@ -15,6 +15,9 @@ import { VoiceReceiver, EndBehaviorType } from "@discordjs/voice";
 import { createCipheriv } from "node:crypto";
 import { DiscordFrameType, DiscordRxFlags, encodeDiscordFrame, decodeDiscordFrame } from "../packages/discord-ipc/src/index.ts";
 import { DiscordIngestServer } from "../services/router-core-sim/src/discord-ingest.ts";
+import { DiscordBotConnection } from "../services/discord-adapter/src/bot-connection.ts";
+import type { DiscordIpcClient } from "../services/discord-adapter/src/ipc-client.ts";
+import type { DiscordIpcFrame } from "../packages/discord-ipc/src/index.ts";
 
 const packet = Buffer.alloc(1920); for (let i = 0; i < 960; i++) packet.writeInt16LE(8192, i * 2);
 
@@ -68,6 +71,73 @@ test("pinned VoiceReceiver decrypts a real UDP-format packet while passive obser
   udp.emit("message", make(100)); udp.emit("message", make(101));
   assert.deepEqual(received, [100, 101]);
   observer.detach(); stream.destroy();
+});
+
+function firstPacketFixture(t: test.TestContext) {
+  const udp = new EventEmitter();
+  const receiver = new VoiceReceiver({ state: { status: "connecting" } } as any);
+  receiver.ssrcMap.update({ userId: "user", audioSSRC: 42 });
+  const key = Buffer.alloc(32, 7);
+  receiver.connectionData = { encryptionMode: "aead_aes256_gcm_rtpsize", secretKey: key, nonceBuffer: Buffer.alloc(12) } as any;
+  udp.on("message", receiver.onUdpMessage);
+  t.after(() => { for (const stream of receiver.subscriptions.values()) stream.destroy(); });
+  const make = (sequence: number) => {
+    const header = Buffer.alloc(12); header[0] = 0x80; header[1] = 120;
+    header.writeUInt16BE(sequence, 2); header.writeUInt32BE(sequence * 960, 4); header.writeUInt32BE(42, 8);
+    const cipher = createCipheriv("aes-256-gcm", key, Buffer.alloc(12)); cipher.setAAD(header);
+    return Buffer.concat([header, cipher.update(Buffer.from([1, 2, 3])), cipher.final(), cipher.getAuthTag(), Buffer.alloc(4)]);
+  };
+  return { udp, receiver, make };
+}
+
+test("speaking start subscribes through DiscordBotConnection and delivers the first same-tick packet as REAL_RTP", async t => {
+  const { udp, receiver, make } = firstPacketFixture(t);
+  const frames: DiscordIpcFrame[] = [];
+  const bot = new DiscordBotConnection({ profileId: "RX", label: "Offline fixture", role: "RX", txSubtype: null,
+    txAudioMode: null, tokenEnv: "UNUSED_OFFLINE", token: "", guildId: "1", voiceChannelId: "2" },
+    { send: (frame: DiscordIpcFrame) => { frames.push(frame); } } as unknown as DiscordIpcClient, new Set());
+  // No login, socket, player subscription, or physical I/O: only the real subscribeUser data path.
+  bot.connection = { receiver, state: { networking: { state: { udp } } }, destroy() {} } as any;
+  bot.sourceGenerations.set("user", 1);
+  bot["bindRtpObserver"]();
+  receiver.speaking.on("start", bot["subscribeUser"]);
+  t.after(() => bot.close());
+
+  // No await between listener registration and UDP delivery: subscribe happens inside this emit.
+  udp.emit("message", make(100));
+  assert.equal(frames.length, 1, "the first push must emit data before the UDP observer scope ends");
+  assert.equal(frames[0].flags, DiscordRxFlags.REAL_RTP | DiscordRxFlags.RTP_RESET);
+  assert.equal(frames[0].sequence, 100); assert.equal(frames[0].rtpTimestamp, 96000);
+  assert.deepEqual(frames[0].payload, Buffer.from([1, 2, 3]));
+
+  // AfterSilence recreates subscriptions at speech boundaries; their first packet must also be real.
+  await once(bot.streams.get("user")!, "end");
+  await new Promise<void>(done => setImmediate(done));
+  assert.equal(bot.streams.has("user"), false);
+  assert.equal(receiver.subscriptions.has("user"), false);
+  udp.emit("message", make(101));
+  assert.equal(frames.length, 2);
+  assert.equal(frames[1].flags, DiscordRxFlags.REAL_RTP);
+  assert.equal(frames[1].sequence, 101); assert.equal(frames[1].rtpTimestamp, 96960);
+});
+
+test("pinned VoiceReceiver buffered first data falls back without borrowing a later UDP header", async t => {
+  const { udp, receiver, make } = firstPacketFixture(t);
+  const observer = new RtpObserver();
+  observer.bind({ state: { networking: { state: { udp } } }, receiver });
+  t.after(() => observer.detach());
+  const received: number[] = [];
+  receiver.speaking.on("start", userId => {
+    const stream = receiver.subscribe(userId, { end: { behavior: EndBehaviorType.Manual } });
+    // Deliberately leave Node Readable unprimed to exercise deferred/buffered delivery.
+    stream.on("data", () => received.push(observer.take(userId)?.sequence ?? -1));
+  });
+  udp.emit("message", make(200));
+  assert.deepEqual(received, []);
+  await new Promise<void>(done => setImmediate(done));
+  assert.deepEqual(received, [-1], "deferred data must retain the synthetic fallback");
+  udp.emit("message", make(201));
+  assert.deepEqual(received, [-1, 201], "only synchronous data may consume the current header");
 });
 
 test("RTP wraps, loss, sender pause and delayed batch evidence are distinct; synthetic is unknown", () => {

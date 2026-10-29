@@ -23,6 +23,8 @@ RTP v2 / PT 120 / 12 bytes以上を確認し、offset 2 の16 bit sequence、4 �
 `receiver.ssrcMap` / `onUdpMessage`、およびその handler → parse/decrypt → `stream.push` の同期的な順序。
 UDP リスナーの順序も各利用時に検査する。接続・UDP の入れ替え時に observer を付け直し、終了時に外す。
 ライブラリのファイル・メソッドを patch / 置換しない。
+`speaking` の `start` 内で subscription と `data` リスナーを作った直後に `stream.read(0)` を呼び、
+Node Readable の最初の `push` から同じ UDP イベント内で `data` が出るようにする（無音終了後の再作成時も同様）。
 固定版の本物の VoiceReceiver と AES-GCM の模擬 UDP packet を使ったオフラインテストで関連付けを検査する。
 
 内部が変わった、SSRC が不明、ストリームが後から buffered data を流した、などの場合は従来の合成番号へ戻る。

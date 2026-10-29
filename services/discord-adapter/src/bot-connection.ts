@@ -433,6 +433,8 @@ export class DiscordBotConnection {
         payload: packet,
       });
     });
+    // Prime Readable so the first push from speaking.start emits data in the same UDP event, preserving RTP metadata.
+    stream.read(0);
     stream.once("end", () => {
       if (this.streams.get(userId) === stream && this.sourceGenerations.get(userId) === sourceGeneration) {
         this.streams.delete(userId);
