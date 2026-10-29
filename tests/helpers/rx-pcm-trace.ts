@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { AudioChannel, AudioEngine, VcBus } from "../../services/router-core-sim/src/audio-engine.ts";
-import type { DiscordPcmSource } from "../../services/router-core-sim/src/discord-pcm-source.ts";
+import type { DiscordPcmSource } from "./beta4-discord-pcm-source.ts";
 
 /** Deterministic whole-mix trace, also run against the untouched beta.4 source for the golden. */
 export function rxPcmTrace(Source: typeof DiscordPcmSource) {

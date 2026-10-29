@@ -60,6 +60,8 @@ export class PcmRingSource implements SourceProvider {
   #writeIndex = 0;
   #queuedSamples = 0;
   droppedSamples = 0;
+  /** Optional offline sample-provenance probe; absent in production. Never changes PCM. */
+  sampleTrace?: { push(samples: number, at?: number): void; read(samples: number): void; drop(samples: number): void; clear(): void };
   readonly timing?: RxQueueTiming;
 
   constructor(capacity = SAMPLE_RATE * 2, timing?: RxQueueTiming) {
@@ -68,13 +70,16 @@ export class PcmRingSource implements SourceProvider {
     this.timing = timing;
   }
 
+  protected get queueLimit(): number { return this.capacity; }
+
   pushInt16Le(pcm: Uint8Array, packetReceivedAt?: number): number {
     const buffer = Buffer.isBuffer(pcm) ? pcm : Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
     const sampleCount = Math.floor(buffer.length / 2);
+    const queueLimit = this.queueLimit;
     const droppedBefore = this.droppedSamples;
     if (sampleCount > 0) this.timing?.packet(packetReceivedAt);
     for (let index = 0; index < sampleCount; index += 1) {
-      if (this.#queuedSamples === this.capacity) {
+      while (this.#queuedSamples >= queueLimit) {
         this.#readIndex = (this.#readIndex + 1) % this.capacity;
         this.#queuedSamples -= 1;
         this.droppedSamples += 1;
@@ -83,17 +88,19 @@ export class PcmRingSource implements SourceProvider {
       this.#writeIndex = (this.#writeIndex + 1) % this.capacity;
       this.#queuedSamples += 1;
     }
-    if (this.droppedSamples > droppedBefore) this.timing?.overflow();
+    if (sampleCount) this.sampleTrace?.push(sampleCount, packetReceivedAt);
+    if (this.droppedSamples > droppedBefore) { this.sampleTrace?.drop(this.droppedSamples - droppedBefore); this.timing?.overflow(); }
     return sampleCount;
   }
 
   pushFloat32Le(pcm: Uint8Array, channelIndex = 0, channelCount = 1): number {
     const buffer = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
     const frameCount = Math.floor(buffer.length / (4 * channelCount));
+    const queueLimit = this.queueLimit;
     const droppedBefore = this.droppedSamples;
     if (frameCount > 0) this.timing?.packet();
     for (let frame = 0; frame < frameCount; frame += 1) {
-      if (this.#queuedSamples === this.capacity) {
+      while (this.#queuedSamples >= queueLimit) {
         this.#readIndex = (this.#readIndex + 1) % this.capacity;
         this.#queuedSamples -= 1;
         this.droppedSamples += 1;
@@ -114,6 +121,7 @@ export class PcmRingSource implements SourceProvider {
   /** RX quiet cuts record the original waterline once, before consuming PCM. */
   protected readInto(target: Float32Array): boolean {
     const available = Math.min(target.length, this.#queuedSamples);
+    if (available) this.sampleTrace?.read(available);
     for (let index = 0; index < available; index += 1) {
       target[index] = this.samples[this.#readIndex];
       this.#readIndex = (this.#readIndex + 1) % this.capacity;
@@ -135,12 +143,14 @@ export class PcmRingSource implements SourceProvider {
     // Do not splice quiet PCM directly into a voiced attack with a new step.
     const seam = this.samples[(this.#readIndex + frames) % this.capacity] - this.samples[this.#readIndex];
     if (seam * seam >= maximumMeanSquare) return false;
+    this.sampleTrace?.drop(frames);
     this.#readIndex = (this.#readIndex + frames) % this.capacity;
     this.#queuedSamples -= frames;
     return true;
   }
 
   clear(): void {
+    this.sampleTrace?.clear();
     this.#readIndex = 0;
     this.#writeIndex = 0;
     this.#queuedSamples = 0;

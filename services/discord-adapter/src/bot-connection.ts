@@ -15,9 +15,11 @@ import {
 } from "@discordjs/voice";
 import { PassThrough } from "node:stream";
 import { ChannelType, Client, Events, GatewayIntentBits, type VoiceBasedChannel } from "discord.js";
-import { DiscordFrameType, DiscordTxFlags, type DiscordFrameTypeValue, type DiscordIpcFrame } from "../../../packages/discord-ipc/src/index.ts";
+import { DiscordFrameType, DiscordRxFlags, DiscordTxFlags, type DiscordFrameTypeValue, type DiscordIpcFrame } from "../../../packages/discord-ipc/src/index.ts";
 import { isRxCapableRole, isTxCapableRole, type DiscordBotProfile } from "./bot-config.ts";
 import type { DiscordIpcClient } from "./ipc-client.ts";
+
+import { RtpObserver } from "./rtp-observer.ts";
 
 const HEARTBEAT_MS = 5_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -72,6 +74,9 @@ export class DiscordBotConnection {
   txDroppedFrames = 0;
   lastTxFrameAt: number | null = null;
   message: string | null = null;
+  #rtp = new RtpObserver();
+  #rtpSsrc = new Map<string, number>();
+  #rtpNetworks = new WeakSet<object>();
   #heartbeat: NodeJS.Timeout | null = null;
   #reconnectTimer: NodeJS.Timeout | null = null;
   #closed = false;
@@ -136,6 +141,7 @@ export class DiscordBotConnection {
     this.#reconnectTimer = null;
     this.releaseAllUsers(true);
     this.stopTx();
+    this.#rtp.detach();
     this.connection?.destroy();
     this.connection = null;
     this.gatewayState = "disconnected";
@@ -413,16 +419,22 @@ export class DiscordBotConnection {
       const rtpTimestamp = ((this.timestamps.get(userId) ?? 0) + 960) >>> 0;
       this.sequences.set(userId, sequence);
       this.timestamps.set(userId, rtpTimestamp);
+      const header = this.#rtp.take(userId);
+      const reset = header && this.#rtpSsrc.get(userId) !== header.ssrc;
+      if (header) this.#rtpSsrc.set(userId, header.ssrc);
       this.lastAudioAt = Date.now();
       this.ipc.send({
         type: DiscordFrameType.OPUS,
         ...this.identity(userId),
         sourceGeneration,
-        sequence,
-        rtpTimestamp,
+        flags: header ? DiscordRxFlags.REAL_RTP | (reset ? DiscordRxFlags.RTP_RESET : 0) : 0,
+        sequence: header?.sequence ?? sequence,
+        rtpTimestamp: header?.timestamp ?? rtpTimestamp,
         payload: packet,
       });
     });
+    // Prime Readable so the first push from speaking.start emits data in the same UDP event, preserving RTP metadata.
+    stream.read(0);
     stream.once("end", () => {
       if (this.streams.get(userId) === stream && this.sourceGenerations.get(userId) === sourceGeneration) {
         this.streams.delete(userId);
@@ -463,6 +475,7 @@ export class DiscordBotConnection {
     this.streams.delete(userId);
     this.sequences.delete(userId);
     this.timestamps.delete(userId);
+    this.#rtpSsrc.delete(userId);
     this.receiveRetryCounts.delete(userId);
     const retryTimer = this.receiveRetryTimers.get(userId);
     if (retryTimer) clearTimeout(retryTimer);
@@ -506,6 +519,9 @@ export class DiscordBotConnection {
       daveEncryption: true,
       group: this.profile.profileId,
     });
+    // Rebind passive observers after the library has rebound its receive handler.
+    this.connection.on("stateChange", () => this.bindRtpObserver());
+    this.bindRtpObserver(); // Also handle an already-ready cached VoiceConnection.
     if (isTxCapableRole(this.profile.role)) this.connection.subscribe(this.player);
     if (isRxCapableRole(this.profile.role)) this.connection.receiver.speaking.on("start", this.subscribeUser);
     this.connection.on("error", (error) => this.fail("voice-error", error));
@@ -539,6 +555,19 @@ export class DiscordBotConnection {
     this.voiceState = "disconnected";
     this.sendStatus();
     this.scheduleReconnect();
+  }
+
+  private bindRtpObserver(): void {
+    try {
+      this.#rtp.bind(this.connection);
+      const networking = (this.connection?.state as any)?.networking;
+      if (networking && typeof networking === "object" && typeof networking.on === "function" && !this.#rtpNetworks.has(networking)) {
+        this.#rtpNetworks.add(networking);
+        networking.on("stateChange", () => this.#rtp.bind(this.connection));
+      }
+    } catch {
+      this.#rtp.detach(); // Changed library internals must only disable diagnostics.
+    }
   }
 
   private scheduleReconnect(): void {

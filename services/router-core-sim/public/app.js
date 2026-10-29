@@ -2701,7 +2701,7 @@ function renderStatusBreakdown(currentSnapshot) {
     return statusStatsRow(bot.label, `${bot.role} · ${bot.voiceChannelName ?? "VC未接続"}`, [
       ["STATE", bot.health],
       ["RX", `${botSources.length}U · ${quality.packets.toLocaleString()} pkt`],
-      ["QUALITY", `E ${quality.errors} · G ${quality.gaps} · D ${quality.drops}`],
+      ["QUALITY", `E ${quality.errors} · G ${botSources.some(source => source.sequenceGapsKnown === false) ? "不明" : quality.gaps} · D ${quality.drops}`],
       ["PING", `WS ${bot.wsPingMs ?? "—"} · UDP ${bot.udpPingMs ?? "—"}`],
       ["TX / RECONNECT", `${counterDelta(bot.txFrames, baseline?.txFrames).toLocaleString()} / ${counterDelta(bot.txDroppedFrames, baseline?.txDrops)} · R ${counterDelta(bot.reconnectCount, baseline?.reconnects)}`],
     ]);
@@ -2717,7 +2717,7 @@ function renderStatusBreakdown(currentSnapshot) {
     return statusStatsRow(participantDisplayName(currentSnapshot, channel), voiceChannels.get(source.voiceChannelId) ?? "VC", [
       ["PACKETS", counterDelta(source.packets, baseline?.packets).toLocaleString()],
       ["SAMPLES", counterDelta(source.decodedSamples, baseline?.samples).toLocaleString()],
-      ["QUALITY", `E ${counterDelta(source.decodeErrors, baseline?.errors)} · G ${counterDelta(source.sequenceGaps, baseline?.gaps)} · D ${counterDelta(source.droppedSamples, baseline?.drops)}`],
+      ["QUALITY", `E ${counterDelta(source.decodeErrors, baseline?.errors)} · G ${source.sequenceGapsKnown === false ? "不明" : counterDelta(source.sequenceGaps, baseline?.gaps)} · D ${counterDelta(source.droppedSamples, baseline?.drops)}`],
       ["QUEUE", `${source.queuedMilliseconds} ms`],
       ["LAST", ageLabel(source.lastPacketAgoMs)],
     ]);
@@ -2829,7 +2829,7 @@ function renderStatus(currentSnapshot) {
   elements.statusStatRx.textContent = `${counterDelta(discord.packets, statusStatsBaseline?.discordPackets).toLocaleString()} packets`;
   elements.statusStatRxDetail.textContent = `DECODE ERROR ${counterDelta(discord.decodeErrors, statusStatsBaseline?.discordDecodeErrors).toLocaleString()}`;
   elements.statusStatSources.textContent = `${sources.length} sources`;
-  elements.statusStatSourcesDetail.textContent = `GAP ${sequenceGaps} · DROP ${droppedSamples}`;
+  elements.statusStatSourcesDetail.textContent = `GAP ${sources.some(source => source.sequenceGapsKnown === false) ? "不明" : sequenceGaps} · DROP ${droppedSamples}`;
   elements.statusStatTx.textContent = tx?.active ? "ACTIVE" : "STOPPED";
   elements.statusStatTxDetail.textContent = `FRAME ${counterDelta(tx?.framesSent, statusStatsBaseline?.txFrames).toLocaleString()} · DROP ${counterDelta(tx?.droppedFrames, statusStatsBaseline?.txDrops).toLocaleString()}`;
   elements.statusStatIo.textContent = `OUT ${counterDelta(output?.framesWritten, statusStatsBaseline?.outputFrames).toLocaleString()}`;

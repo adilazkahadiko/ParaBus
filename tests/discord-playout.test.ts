@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+// Frozen beta.4 behavioral reference. Production adaptive RX is tested in rx-adaptive.test.ts.
 import test from "node:test";
-import { DiscordPcmSource } from "../services/router-core-sim/src/discord-pcm-source.ts";
+import { DiscordPcmSource } from "./helpers/beta4-discord-pcm-source.ts";
 import { PcmRingSource } from "../services/router-core-sim/src/audio-engine.ts";
 
 const pcm = Buffer.alloc(960 * 2);

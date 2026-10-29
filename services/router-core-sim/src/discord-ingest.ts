@@ -4,6 +4,7 @@ import {
   DiscordFrameDecoder,
   DiscordFrameType,
   DiscordTxFlags,
+  DiscordRxFlags,
   defaultDiscordIpcEndpoint,
   encodeDiscordFrame,
   type DiscordBotControlAction,
@@ -22,7 +23,7 @@ import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
 
 const BOT_STALE_MS = 15_000;
 const MAX_TRACKED_BOTS = 32;
-const DISCORD_RX_BUFFER_BLOCKS = 12;
+const DISCORD_RX_BUFFER_BLOCKS = 14;
 const TX_IPC_FLUSH_THRESHOLD_BYTES = 256 * 1024;
 
 interface DiscordSourceRuntime {
@@ -40,6 +41,7 @@ interface DiscordSourceRuntime {
   lastPacketAt: number;
   lastSequence: number | null;
   sequenceGaps: number;
+  realRtp: boolean;
   rxTiming: NonNullable<DiscordIngestSnapshot["sources"][number]["rxTiming"]>;
 }
 
@@ -186,6 +188,8 @@ export class DiscordIngestServer {
   #unavailableOwnerWarnings = new Set<string>();
   #receiverEventHandler: (level: LogLevel, message: string) => void = () => {};
 
+  #sourceFactory: (capacity: number, sampleRate: number, blockSize: number) => DiscordPcmSource;
+
   constructor(
     engine: AudioEngine,
     endpoint = process.env.DISCORD_IPC_ENDPOINT ?? defaultDiscordIpcEndpoint(),
@@ -193,7 +197,9 @@ export class DiscordIngestServer {
     decoderFactory?: OpusDecoderFactory | null,
     userSessions: UserSessionRegistry | null = null,
     receiverStore: ReceiverOwnershipStore | null = null,
+    privateSourceFactory?: (capacity: number, sampleRate: number, blockSize: number) => DiscordPcmSource,
   ) {
+    this.#sourceFactory = privateSourceFactory ?? ((capacity, sampleRate, blockSize) => new DiscordPcmSource(capacity, sampleRate, blockSize));
     this.engine = engine;
     this.endpoint = endpoint;
     this.shadow = shadow;
@@ -380,14 +386,17 @@ export class DiscordIngestServer {
     const bot = senderBot;
     bot.lastAudioAt = now;
     const sequence = frame.sequence ?? 0;
+    const realRtp = Boolean((frame.flags ?? 0) & DiscordRxFlags.REAL_RTP);
+    if (realRtp !== runtime.realRtp || (frame.flags ?? 0) & DiscordRxFlags.RTP_RESET) runtime.lastSequence = null;
+    runtime.realRtp = realRtp;
     if (runtime.lastSequence !== null) {
-      const expected = (runtime.lastSequence + 1) >>> 0;
+      const expected = realRtp ? (runtime.lastSequence + 1) & 65535 : (runtime.lastSequence + 1) >>> 0;
       if (sequence !== expected) {
-        if (!isForwardU32(sequence, runtime.lastSequence)) {
+        if (realRtp ? ((sequence - runtime.lastSequence + 65536) % 65536) >= 32768 || sequence === runtime.lastSequence : !isForwardU32(sequence, runtime.lastSequence)) {
           this.rejectOpus("sequenceReordered");
           return;
         }
-        runtime.sequenceGaps += (sequence - expected) >>> 0;
+        runtime.sequenceGaps += realRtp ? (sequence - expected + 65536) % 65536 : (sequence - expected) >>> 0;
       }
     }
     runtime.lastSequence = sequence;
@@ -396,7 +405,7 @@ export class DiscordIngestServer {
     runtime.rxTiming.maxPacketGapMs = Math.max(runtime.rxTiming.maxPacketGapMs, packetGapMs);
     runtime.lastPacketAt = now;
     const packetReceivedAt = performance.now();
-    runtime.source.timing?.observePacket(packetReceivedAt, runtime.source.queuedSamples);
+    runtime.source.timing?.observePacket(packetReceivedAt, runtime.source.queuedSamples, { real: realRtp, sequence, timestamp: frame.rtpTimestamp ?? 0, reset: Boolean((frame.flags ?? 0) & DiscordRxFlags.RTP_RESET) });
     runtime.source.timing?.packet(packetReceivedAt);
     try {
       const pcm = runtime.decoder.decode(payload);
@@ -508,6 +517,7 @@ export class DiscordIngestServer {
         decodedSamples: runtime.decodedSamples,
         decodeErrors: runtime.decodeErrors,
         sequenceGaps: runtime.sequenceGaps,
+        sequenceGapsKnown: runtime.realRtp && runtime.source.timing!.rtp.syntheticPackets === 0,
         queuedMilliseconds: (runtime.source.queuedSamples / this.engine.sampleRate) * 1000,
         droppedSamples: runtime.source.droppedSamples,
         lastPacketAgoMs: runtime.lastPacketAt === 0 ? null : Math.max(0, now - runtime.lastPacketAt),
@@ -1368,7 +1378,7 @@ export class DiscordIngestServer {
       // Bounded jitter playout and sender-clock correction are RX-only. The
       // physical output clock and local-input rings are deliberately unchanged.
       const capacity = this.engine.blockSize * DISCORD_RX_BUFFER_BLOCKS;
-      const source = new DiscordPcmSource(capacity, this.engine.sampleRate, this.engine.blockSize);
+      const source = this.#sourceFactory(capacity, this.engine.sampleRate, this.engine.blockSize);
       runtime = {
         decoder,
         source,
@@ -1384,6 +1394,7 @@ export class DiscordIngestServer {
         lastPacketAt: 0,
         lastSequence: null,
         sequenceGaps: 0,
+        realRtp: false,
         rxTiming: { maxPacketGapMs: 0, maxQueuedMilliseconds: 0, overflowEvents: 0, lastOverflow: null },
       };
       this.runtimes.set(id, runtime);

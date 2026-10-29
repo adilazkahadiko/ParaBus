@@ -471,8 +471,8 @@ test("old receive stream end/error cannot remove a replacement stream", async ()
   bot.voiceState = "ready";
   const first = new EventEmitter();
   const second = new EventEmitter();
-  Object.assign(first, { destroy: () => undefined });
-  Object.assign(second, { destroy: () => undefined });
+  Object.assign(first, { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } });
+  Object.assign(second, { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } });
   const streams = [first, second];
   bot.connection = { receiver: { subscribe: () => streams.shift()! }, destroy: () => undefined } as never;
   const userId = "700000000000000010";
@@ -498,8 +498,8 @@ test("RX adapter resubscribes after a DAVE receive stream error", async (context
   bot.voiceState = "ready";
   const first = new EventEmitter();
   const second = new EventEmitter();
-  Object.assign(first, { destroy: () => undefined });
-  Object.assign(second, { destroy: () => undefined });
+  Object.assign(first, { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } });
+  Object.assign(second, { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } });
   const streams = [first, second];
   bot.connection = { receiver: { subscribe: () => streams.shift()! }, destroy: () => undefined } as never;
   const userId = "700000000000000019";
@@ -527,7 +527,7 @@ test("RX silence frames do not hide consecutive DAVE receive failures", async ()
   bot.botId = txIds.botId;
   bot.voiceState = "ready";
   const stream = new EventEmitter();
-  Object.assign(stream, { destroy: () => undefined });
+  Object.assign(stream, { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } });
   bot.connection = { receiver: { subscribe: () => stream }, destroy: () => undefined } as never;
   const userId = "700000000000000021";
   (bot as unknown as { subscribeUser(user: string): void }).subscribeUser(userId);
@@ -549,7 +549,7 @@ test("RX pending retry cannot survive close or a replaced connection", async (co
   const bot = new DiscordBotConnection(profile, ipc, new Set());
   bot.botId = txIds.botId;
   bot.voiceState = "ready";
-  const first = Object.assign(new EventEmitter(), { destroy: () => undefined });
+  const first = Object.assign(new EventEmitter(), { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } });
   let replacementSubscriptions = 0;
   bot.connection = { receiver: { subscribe: () => first }, destroy: () => undefined } as never;
   const userId = "700000000000000022";
@@ -579,7 +579,7 @@ test("RX retry backoff is bounded and participant release cancels the pending ti
   const bot = new DiscordBotConnection(profile, ipc, new Set());
   bot.botId = txIds.botId;
   bot.voiceState = "ready";
-  const streams = Array.from({ length: 21 }, () => Object.assign(new EventEmitter(), { destroy: () => undefined }));
+  const streams = Array.from({ length: 21 }, () => Object.assign(new EventEmitter(), { destroy: () => undefined, read: (size: number) => { assert.equal(size, 0); return null; } }));
   let subscriptions = 0;
   bot.connection = { receiver: { subscribe: () => streams[subscriptions++] }, destroy: () => undefined } as never;
   const userId = "700000000000000020";
