@@ -11,6 +11,63 @@ import { safeOperatorError, sanitizeOperatorMessage } from "./operator-sanitize.
 const IMPORTANT_EVENT = /started|stopped|state changed|ready|on air|fault|emergency|scene|joined|left|moved|pending|approved|revoked|trusted|receiver|owner|device|record|output|routing|setup/i;
 const PRIORITY: Record<OperatorSeverity, number> = { OK: 0, WARNING: 1, CRITICAL: 2 };
 
+// Keep repeated recent faults visible for 30s, rather than latching lifetime totals; state is delivered about once/sec.
+const RX_QUALITY_WINDOW_MS = 30_000;
+const RX_QUALITY_BUCKET_MS = 1_000;
+type RxCounters = { packets: number; gaps: number; drops: number; speechUnderruns: number };
+type RxQualityBucket = RxCounters & { at: number };
+type RxQualityState = { identity: string; observedAt: number; previous: RxCounters; buckets: RxQualityBucket[] };
+
+/** Operator-only memory: never adds histories or counters to the 1 Hz state payload. */
+export class OperatorHealthTracker {
+  #sources = new Map<string, RxQualityState>();
+
+  derive(snapshot: RouterSnapshot, now = performance.now()): OperatorHealthSnapshot {
+    const warnings = new Set<string>();
+    const next = new Map<string, RxQualityState>();
+    const sessions = new Map(snapshot.userSessions?.map(session => [session.discordUserId, session.sessionGeneration]));
+    for (const source of snapshot.discord?.sources ?? []) {
+      const counters: RxCounters = { packets: source.packets, gaps: source.sequenceGaps, drops: source.droppedSamples,
+        speechUnderruns: source.rxTiming?.inSpeechUnderruns ?? 0 };
+      const identity = JSON.stringify([source.botId, source.guildId, source.voiceChannelId, source.userId, sessions.get(source.userId)]);
+      const previous = this.#sources.get(source.channelId);
+      // An initial/retired/reset source, or an unobserved 30s interval, cannot date its lifetime totals.
+      // Establish a baseline instead of treating old totals as newly audible problems.
+      if (!previous || previous.identity !== identity || now < previous.observedAt || now - previous.observedAt >= RX_QUALITY_WINDOW_MS
+        || (Object.keys(counters) as (keyof RxCounters)[]).some(key => counters[key] < previous.previous[key])) {
+        next.set(source.channelId, { identity, observedAt: now, previous: counters, buckets: [] });
+        continue;
+      }
+      const delta: RxCounters = { packets: counters.packets - previous.previous.packets, gaps: counters.gaps - previous.previous.gaps,
+        drops: counters.drops - previous.previous.drops, speechUnderruns: counters.speechUnderruns - previous.previous.speechUnderruns };
+      const buckets = previous.buckets.filter(bucket => now - bucket.at < RX_QUALITY_WINDOW_MS);
+      if (delta.packets || delta.gaps || delta.drops || delta.speechUnderruns) {
+        let bucket = buckets.at(-1);
+        if (!bucket || now - bucket.at >= RX_QUALITY_BUCKET_MS) {
+          bucket = { at: now, packets: 0, gaps: 0, drops: 0, speechUnderruns: 0 };
+          buckets.push(bucket);
+        }
+        bucket.packets += delta.packets; bucket.gaps += delta.gaps;
+        bucket.drops += delta.drops; bucket.speechUnderruns += delta.speechUnderruns;
+      }
+      // At most 30 one-second buckets per active source; frequent GET/command snapshots share a bucket.
+      // Expiry uses its start, so coalescing never keeps an old problem alive beyond 30 seconds.
+      const totals = buckets.reduce((sum, bucket) => ({ packets: sum.packets + bucket.packets, gaps: sum.gaps + bucket.gaps,
+        drops: sum.drops + bucket.drops, speechUnderruns: sum.speechUnderruns + bucket.speechUnderruns }),
+      { packets: 0, gaps: 0, drops: 0, speechUnderruns: 0 });
+      // Drops can lose PCM immediately; >=2 in-speech shortages distinguish repeated interruptions from an isolated fill.
+      // GAP alone is weaker evidence: require increases in >=2 separate one-second buckets AND >5% missing
+      // of received+missing packets. A single RTP numbering jump (even 52) must not latch the live warning.
+      const gapWarning = source.sequenceGapsKnown !== false && buckets.filter(bucket => bucket.gaps > 0).length >= 2
+        && totals.gaps / (totals.packets + totals.gaps) > .05;
+      if (totals.drops > 0 || totals.speechUnderruns >= 2 || gapWarning) warnings.add(source.channelId);
+      next.set(source.channelId, { identity, observedAt: now, previous: counters, buckets });
+    }
+    this.#sources = next;
+    return deriveOperatorHealth(snapshot, warnings);
+  }
+}
+
 function highest(values: readonly OperatorSeverity[]): OperatorSeverity {
   return values.reduce<OperatorSeverity>((result, value) => PRIORITY[value] > PRIORITY[result] ? value : result, "OK");
 }
@@ -41,7 +98,7 @@ function systemHealth(snapshot: RouterSnapshot): OperatorSystemHealthSnapshot[] 
   ];
 }
 
-function userHealth(snapshot: RouterSnapshot): OperatorUserHealthSnapshot[] {
+function userHealth(snapshot: RouterSnapshot, rxWarnings: ReadonlySet<string>): OperatorUserHealthSnapshot[] {
   const sessions = new Map((snapshot.userSessions ?? []).map((session) => [session.discordUserId, session]));
   const sources = new Map((snapshot.discord?.sources ?? []).map((source) => [source.channelId, source]));
   return snapshot.channels.map((channel) => {
@@ -59,7 +116,7 @@ function userHealth(snapshot: RouterSnapshot): OperatorUserHealthSnapshot[] {
     } else if (owner && owner.status !== "ACTIVE") {
       severity = "CRITICAL";
       reason = owner.status === "CONFLICT" ? "Receiver authority conflict · audio blocked" : owner.status === "DISCONNECTED" ? "Receiver owner disconnected" : "Receiver owner unselected";
-    } else if (channel.meter.stale || (source?.sequenceGaps ?? 0) > 0 || (source?.droppedSamples ?? 0) > 0) {
+    } else if (channel.meter.stale || rxWarnings.has(channel.id)) {
       severity = "WARNING";
       reason = channel.meter.stale ? "RX audio stale" : "RX quality warning";
     }
@@ -126,9 +183,10 @@ function rootCauses(snapshot: RouterSnapshot, system: OperatorSystemHealthSnapsh
   return causes.sort((left, right) => PRIORITY[right.severity] - PRIORITY[left.severity]);
 }
 
-export function deriveOperatorHealth(snapshot: RouterSnapshot): OperatorHealthSnapshot {
+/** Pure projection; use OperatorHealthTracker for RX warnings based on observed counter deltas. */
+export function deriveOperatorHealth(snapshot: RouterSnapshot, rxWarnings: ReadonlySet<string> = new Set()): OperatorHealthSnapshot {
   const system = systemHealth(snapshot);
-  const users = userHealth(snapshot);
+  const users = userHealth(snapshot, rxWarnings);
   const receivers = (snapshot.discord?.receiverOwnership ?? []).map((entry) => {
     const owner = entry.receivers.find((receiver) => receiver.state === "ACTIVE") ?? entry.receivers.find((receiver) => receiver.profileId === entry.ownerProfileId);
     return {
