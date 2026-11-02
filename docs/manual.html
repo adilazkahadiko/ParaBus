@@ -280,9 +280,13 @@
           <tr><td>STALE</td><td>15秒以上heartbeatを受信していない</td></tr>
           <tr><td>WS / UDP</td><td>Discord VoiceのWebSocket / UDP往復時間（ms）</td></tr>
           <tr><td>LAST AUDIO</td><td>そのBotで最後に音声packetを受けてからの時間</td></tr>
-          <tr><td>RX QUALITY</td><td>User別のpacket、sequence gap推定、drop、queue、最終packet時刻</td></tr>
+          <tr><td>RX QUALITY</td><td>User別のpacket、実際に確認できたデータの欠け（GAP）、drop、queue、最終packet時刻</td></tr>
         </tbody></table>
         <div class="callout"><strong>RX QUALITYは相手の回線品質そのものではありません</strong>このアプリが観測できたDiscord音声の受信状態です。</div>
+        <p>GAPは受信データの連番から確認できた欠けの数です。確認できないときは「不明」と表示します。途切れの原因を見分けるための詳しい診断情報はSupport Bundleに含まれ、追加した診断情報には個人を特定できる値は含みません。</p>
+        <h3>Discord受信音の待ち量と途切れ</h3>
+        <p>beta.5では、受信の揺れやParaBus内部の処理のまとまりに合わせて、受信側の待ち量を自動で調整し、途切れにくくしています。そのかわり、聞こえるまでの遅れはbeta.4より約0.03～0.06秒増えるのが目安です。環境や受信状態によって変わります。受信音が途切れる・戻る瞬間の「プツッ」という音も和らげました。</p>
+        <p>通信の途中で失われた音は補われません。そのため、話している人の機器や回線の状態によっては、Discordアプリで聞くより途切れが目立つことがあります。</p>
       </section>
 
       <section id="io" data-search-section>

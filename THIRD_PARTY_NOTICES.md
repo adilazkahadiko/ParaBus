@@ -232,3 +232,10 @@ Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自
 beta.3から依存ライブラリ・音声native・Node.jsの変更はありません。
 package-lock.json、Cargo.lock、release/native-input-lock.json、.nvmrcはbeta.3から変更していません。
 Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自の案内は上記を参照してください。
+
+## Windowsベータ版（v0.1.0-beta.5、準備中・未公開）
+
+公開日とリリースURLは公開時に確定します。
+beta.4から依存ライブラリ・音声native・Node.jsの変更はありません。
+package-lock.json、Cargo.lock、release/native-input-lock.json、.nvmrcはbeta.4から変更していません。
+Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自の案内は上記を参照してください。
