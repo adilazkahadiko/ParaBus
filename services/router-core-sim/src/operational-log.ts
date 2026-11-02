@@ -12,6 +12,7 @@ const NETWORK_WARN_MS = 250;
 const NETWORK_RECOVER_MS = 200;
 const QUEUE_WARN_MS = 60;
 const QUEUE_RECOVER_MS = 40;
+const QUEUE_WARNING_INTERVAL_MS = 60_000;
 const MAX_PENDING_LOG_BYTES = 1024 * 1024;
 
 function dateKey(date: Date): string {
@@ -107,7 +108,10 @@ export class OperationalLog {
 
 type HealthEvent = { level: LogLevel; message: string };
 type BotBaseline = { health: string; reconnectCount: number; txDroppedFrames: number; wsHigh: boolean; udpHigh: boolean };
-type SourceBaseline = { decodeErrors: number; sequenceGaps: number; droppedSamples: number; queueHigh: boolean };
+type SourceBaseline = {
+  decodeErrors: number; sequenceGaps: number; droppedSamples: number; queueHigh: boolean;
+  queueWarningAt: number | null; queueWarningsSuppressed: number;
+};
 
 export class OperationalHealthTracker {
   #initialized = false;
@@ -167,11 +171,23 @@ export class OperationalHealthTracker {
     const nextSources = new Map<string, SourceBaseline>();
     for (const source of discord.sources) {
       const previous = this.#sources.get(source.channelId);
+      const playout = source.playout;
+      const hardCapMs = playout?.hardCapMs;
+      const adaptive = playout && Number.isFinite(playout.targetMs) && playout.targetMs > 0
+        && typeof hardCapMs === "number" && Number.isFinite(hardCapMs) && hardCapMs > playout.targetMs;
+      // RX high water is target+20ms (capped at 100ms); measured normal minute maxima reach target+40ms.
+      // Warn only beyond that envelope AND within 10ms of the selected hard cap, not at the normal target.
+      const queueHigh = adaptive
+        ? source.queuedMilliseconds > playout.targetMs + 40 && source.queuedMilliseconds >= hardCapMs - 10
+        : source.queuedMilliseconds > QUEUE_WARN_MS;
+      const queueRecovered = source.queuedMilliseconds <= (adaptive ? playout.targetMs + 10 : QUEUE_RECOVER_MS);
       const current = {
         decodeErrors: source.decodeErrors,
         sequenceGaps: source.sequenceGaps,
         droppedSamples: source.droppedSamples,
-        queueHigh: source.queuedMilliseconds > QUEUE_WARN_MS,
+        queueHigh: queueHigh || (!!previous?.queueHigh && !queueRecovered),
+        queueWarningAt: previous?.queueWarningAt ?? null,
+        queueWarningsSuppressed: previous?.queueWarningsSuppressed ?? 0,
       };
       nextSources.set(source.channelId, current);
       if (!this.#initialized || !previous) continue;
@@ -183,8 +199,19 @@ export class OperationalHealthTracker {
       if (current.droppedSamples > previous.droppedSamples && overflow) {
         events.push({ level: "INFO", message: `${label.slice(0, 40)}: RX overflow ${overflow.at}; q=${overflow.queuedBeforeMilliseconds.toFixed(1)}ms in=${overflow.incomingSamples} drop=${overflow.droppedSamples} gap=${overflow.packetGapMs}ms batch=${overflow.batchOpusFrames} bytes=${overflow.batchBytes} elapsed=${overflow.batchElapsedMs.toFixed(1)}ms maxWork=${(discord.rxDiagnostics?.ipcBatches.maxProcessingMs ?? 0).toFixed(1)}ms` });
       }
-      if (!previous.queueHigh && current.queueHigh) events.push({ level: "WARNING", message: `${label}: receive queue high (${source.queuedMilliseconds.toFixed(0)} ms)` });
-      else if (previous.queueHigh && source.queuedMilliseconds <= QUEUE_RECOVER_MS) events.push({ level: "INFO", message: `${label}: receive queue recovered (${source.queuedMilliseconds.toFixed(0)} ms)` });
+      if (queueHigh) {
+        if (current.queueWarningAt === null || now - current.queueWarningAt >= QUEUE_WARNING_INTERVAL_MS) {
+          const suppressed = current.queueWarningsSuppressed ? `; suppressed=${current.queueWarningsSuppressed}` : "";
+          events.push({ level: "WARNING", message: `${label}: receive queue high (${source.queuedMilliseconds.toFixed(0)} ms)${suppressed}` });
+          current.queueWarningAt = now;
+          current.queueWarningsSuppressed = 0;
+        } else {
+          // Count high observations; keep the per-source budget/count across recovery and renewed highs.
+          current.queueWarningsSuppressed = Math.min(Number.MAX_SAFE_INTEGER, current.queueWarningsSuppressed + 1);
+        }
+      } else if (previous.queueHigh && queueRecovered) {
+        events.push({ level: "INFO", message: `${label}: receive queue recovered (${source.queuedMilliseconds.toFixed(0)} ms)` });
+      }
     }
 
     const rxDiagnostics = discord.rxDiagnostics;

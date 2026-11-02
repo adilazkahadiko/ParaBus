@@ -90,6 +90,96 @@ function discordSnapshot(): DiscordIngestSnapshot {
   };
 }
 
+function queueHealthFixture() {
+  const tracker = new OperationalHealthTracker();
+  const state = { ...new ControlPlane(AudioEngine.createDemo(0)).snapshot(), discord: discordSnapshot() } as RouterSnapshot;
+  const source = state.discord!.sources[0];
+  source.playout = { targetMs: 80, hardCapMs: 140, backlogEwmaMs: 80, prebufferBlocks: 8,
+    expandedFrames: 0, compressedFrames: 0, staleDiscardedSamples: 0 };
+  assert.deepEqual(tracker.observe(state, 0), []);
+  const queue = (milliseconds: number, now: number) => {
+    source.queuedMilliseconds = milliseconds;
+    return tracker.observe(state, now);
+  };
+  return { tracker, state, source, queue };
+}
+
+test("adaptive RX queues at 65-118ms remain normal for 22 minutes with an 80ms target", () => {
+  const { queue } = queueHealthFixture();
+  const normal = [65, 80, 100, 118, 90, 70, 110];
+  for (let second = 1; second <= 22 * 60; second++) {
+    assert.deepEqual(queue(normal[second % normal.length], second * 1000), []);
+  }
+});
+
+test("RX queue warnings require both the current target envelope and selected hard-cap proximity", () => {
+  for (const [targetMs, hardCapMs, normal, high] of [
+    [40, 140, 90, 130], [60, 140, 129.9, 130], [80, 140, 120, 130],
+    [80, 130, 120, 120.1], [100, 140, 140, 140.1],
+  ]) {
+    const { source, queue } = queueHealthFixture();
+    Object.assign(source.playout!, { targetMs, hardCapMs });
+    assert.deepEqual(queue(normal, 1000), [], `normal: target=${targetMs}, cap=${hardCapMs}`);
+    assert.equal(queue(high, 2000)[0]?.level, "WARNING", `high: target=${targetMs}, cap=${hardCapMs}`);
+  }
+});
+
+test("RX queue warnings aggregate sustained highs every 60 seconds and retain suppression across recovery", () => {
+  const { queue } = queueHealthFixture();
+  assert.deepEqual(queue(130, 1000), [{ level: "WARNING", message: "Discord participant: receive queue high (130 ms)" }]);
+  for (let second = 2; second <= 60; second++) assert.deepEqual(queue(135, second * 1000), []);
+  assert.deepEqual(queue(135, 60_999), []);
+  assert.deepEqual(queue(135, 61_000), [{ level: "WARNING", message: "Discord participant: receive queue high (135 ms); suppressed=60" }]);
+  assert.deepEqual(queue(90, 62_000), [{ level: "INFO", message: "Discord participant: receive queue recovered (90 ms)" }]);
+  assert.deepEqual(queue(135, 63_000), []);
+  assert.deepEqual(queue(80, 64_000), [{ level: "INFO", message: "Discord participant: receive queue recovered (80 ms)" }]);
+  assert.deepEqual(queue(80, 120_000), [], "quiet periods do not emit a warning summary");
+  assert.deepEqual(queue(135, 121_000), [{ level: "WARNING", message: "Discord participant: receive queue high (135 ms); suppressed=1" }]);
+});
+
+test("RX queue recovery holds hysteresis until current target+10ms, including target changes", () => {
+  const { source, queue } = queueHealthFixture();
+  assert.equal(queue(130, 1000)[0]?.level, "WARNING");
+  assert.deepEqual(queue(100, 2000), []);
+  assert.deepEqual(queue(91, 3000), []);
+  assert.deepEqual(queue(90, 4000), [{ level: "INFO", message: "Discord participant: receive queue recovered (90 ms)" }]);
+  assert.deepEqual(queue(89, 5000), []);
+  assert.equal(queue(130, 61_000)[0]?.level, "WARNING");
+  source.playout!.targetMs = 100;
+  assert.deepEqual(queue(110, 62_000), [{ level: "INFO", message: "Discord participant: receive queue recovered (110 ms)" }]);
+});
+
+test("legacy RX queues retain fixed 60ms warning and 40ms recovery thresholds", () => {
+  const { source, queue } = queueHealthFixture();
+  delete source.playout;
+  assert.deepEqual(queue(60, 1000), []);
+  assert.equal(queue(60.1, 2000)[0]?.level, "WARNING");
+  assert.deepEqual(queue(50, 3000), []);
+  assert.deepEqual(queue(40.1, 4000), []);
+  assert.deepEqual(queue(40, 5000), [{ level: "INFO", message: "Discord participant: receive queue recovered (40 ms)" }]);
+  assert.deepEqual(queue(39, 6000), []);
+});
+
+test("RX queue warning budgets are per source and discarded when a source leaves", () => {
+  const { state, source, queue, tracker } = queueHealthFixture();
+  const second = { ...structuredClone(source), channelId: "ch-2" };
+  state.discord!.sources.push(second);
+  tracker.observe(state, 500);
+  assert.equal(queue(130, 1000)[0]?.level, "WARNING");
+  second.queuedMilliseconds = 135;
+  const events = queue(135, 2000);
+  assert.equal(events.length, 1, "one source's warning does not consume the other's budget");
+  assert.equal(events[0].level, "WARNING");
+  assert.deepEqual(queue(135, 3000), []);
+  state.discord!.sources = [];
+  tracker.observe(state, 4000);
+  state.discord!.sources = [source];
+  assert.deepEqual(tracker.observe(state, 5000), [], "a newly observed source establishes its baseline");
+  const next = queue(135, 6000);
+  assert.equal(next.length, 1);
+  assert.doesNotMatch(next[0].message, /suppressed=/, "departed source counters are not retained");
+});
+
 test("in-speech RX logs aggregate at most once a minute and retain departures without personal text", () => {
   const tracker = new OperationalHealthTracker();
   const state = { ...new ControlPlane(AudioEngine.createDemo(0)).snapshot(), discord: discordSnapshot() } as RouterSnapshot;
@@ -150,6 +240,9 @@ test("RX diagnostic logs distinguish rejected, queued and overflow audio without
   changed.discord!.rxDiagnostics!.adapterIpc[0].opusDroppedFrames = 3;
   changed.discord!.rxDiagnostics!.adapterIpc[0].backpressureWrites = 2;
   changed.discord!.sources[0].droppedSamples = 5760;
+  changed.discord!.sources[0].queuedMilliseconds = 135;
+  changed.discord!.sources[0].playout = { targetMs: 80, hardCapMs: 140, backlogEwmaMs: 80, prebufferBlocks: 8,
+    expandedFrames: 0, compressedFrames: 0, staleDiscardedSamples: 0 };
   changed.discord!.sources[0].rxTiming = {
     maxPacketGapMs: 200, maxQueuedMilliseconds: 80, overflowEvents: 6,
     lastOverflow: { at: "2026-10-02T18:03:09.591Z", queuedBeforeMilliseconds: 80, incomingSamples: 960, droppedSamples: 960, packetGapMs: 0, batchOpusFrames: 10, batchBytes: 570, batchElapsedMs: 1 },
@@ -162,4 +255,9 @@ test("RX diagnostic logs distinguish rejected, queued and overflow audio without
   assert.match(context!, /q=80.0ms.*batch=10.*bytes=570/);
   assert(context!.length <= 240, "overflow context fits the existing sanitized log limit");
   assert.deepEqual(tracker.observe(changed), []);
+  changed.discord!.sources[0].droppedSamples += 960;
+  const repeated = tracker.observe(changed).map(event => event.message);
+  assert(repeated.includes("Discord participant: audio samples dropped +960"));
+  assert(repeated.some(message => message.includes("RX overflow")), "overflow remains visible while queue warnings are suppressed");
+  assert(!repeated.some(message => message.includes("receive queue high")));
 });

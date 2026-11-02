@@ -302,6 +302,8 @@ test("support operational timeline preserves event wording while anonymizing nam
     `Scene ${guild} saved`, `Scene ${guild} recalled`, `Scene ${guild} deleted`,
     `出力デバイス: ${vc}`, `Cueデバイス: ${vc}`, `入力デバイス: ${vc} / 2ch`,
     "Fault acknowledged; select and validate the output device manually", "Router core simulator started",
+    `${participant}: receive queue high (130 ms)`, `${participant}: receive queue high (135 ms); suppressed=59`,
+    `${participant}: receive queue recovered (90 ms)`,
     `Error: failed for ${participant} ${userId} ${token}`,
   ];
   const timestamps = messages.map((_, i) => new Date(Date.parse(now) + i).toISOString());
