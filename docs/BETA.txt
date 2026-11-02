@@ -1,12 +1,9 @@
-ParaBus v0.1.0-beta.5（準備中・未公開）
-公開日: 公開時に確定
-リリースURL: 公開時に確定
+ParaBus v0.1.0-beta.5（2026-11-03）
 
 位置づけ
 試用・フィードバックのためのベータ版です。正式な安定版ではありません。
 Windows実機で検証していますが、多人数・別機種・SoundGrid/LV1での本番実機確認は未完了です。
-現在公開中のWindows x64版はv0.1.0-beta.4です。
-https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.4 から取得できます。
+Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.5 から取得できます。
 Windows ZIPに対応ソース・第三者表記を同梱しています。作成方法・配布構成は
 SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照してください。
 第三者依存にはそれぞれのライセンスが適用されます。ルートのTHIRD_PARTY_NOTICES.mdを参照。

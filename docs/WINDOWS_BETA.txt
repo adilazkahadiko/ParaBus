@@ -1,9 +1,6 @@
-ParaBus Windows x64 v0.1.0-beta.5（準備中・未公開）
-公開日: 公開時に確定
-リリースURL: 公開時に確定
+ParaBus Windows x64 v0.1.0-beta.5（2026-11-03）
 
-現在公開中の版: v0.1.0-beta.4
-公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.4
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.5
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
