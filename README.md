@@ -15,7 +15,7 @@ The control UI is in Japanese, with some headings in English.
 > - Long-running hardware tests after the diagnostic hook removal, UI cleanup, suspension of tablet support and dependency updates have not been performed.
 > - The maintainer confirmed live Discord connection and audio send/receive with the beta.2 Windows ZIP, but only in a short test.
 > - On Windows 11 PCs with Smart App Control on, the bundled unsigned audio DLLs may be blocked from loading, preventing startup. The maintainer confirmed this with beta.2 on 2026-10-27.
-> - Check the status in **Windows Security → App & browser control → Smart App Control settings** ([Microsoft instructions](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)). ParaBus currently has no workaround; code signing is being considered. Keep OS protection settings unchanged.
+> - Check the status in **Windows Security → App & browser control → Smart App Control settings** ([Microsoft instructions](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)). ParaBus currently has no workaround. Keep OS protection settings unchanged.
 > - In beta.2, the tray says “初回導入が必要です” (initial installation required), but reinstalling does not resolve this block. In beta.3 and later, a detected app-control block has a separate notification.
 
 ![ParaBus VC MIX screen with per-participant channel strips and level meters](assets/readme/mix.png)

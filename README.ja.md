@@ -12,7 +12,7 @@ Discordの音声を参加者・VCごとに受信し、ミックス・録音・�
 > - 診断hook除去・画面整理・タブレット提供停止・依存更新後の長時間実機試験は未実施です。
 > - メンテナーがbeta.2のWindows ZIP版で実Discordへの接続と音声の送受信を確認しましたが、短時間の試験のみです。
 > - Windows 11でスマート アプリ コントロールがオンの場合、同梱の署名のない音声DLLの読み込みが拒否され、起動しないことがあります。2026-10-27にメンテナーのPCでbeta.2を使って確認しました。
-> - 状態は **Windows セキュリティ → アプリ & ブラウザー コントロール → スマート アプリ コントロールの設定** で確認できます（[Microsoftの案内](https://support.microsoft.com/ja-jp/windows/security/windows-security/app-browser-control-in-the-windows-security-app)）。現時点でParaBus側の回避策はありません。コード署名を検討しています。OSの保護設定は変更しないでください。
+> - 状態は **Windows セキュリティ → アプリ & ブラウザー コントロール → スマート アプリ コントロールの設定** で確認できます（[Microsoftの案内](https://support.microsoft.com/ja-jp/windows/security/windows-security/app-browser-control-in-the-windows-security-app)）。現時点でParaBus側の回避策はありません。OSの保護設定は変更しないでください。
 > - beta.2ではトレイに「初回導入が必要です」と表示されますが、再導入では解決しません。beta.3以降では、拒否を判定できた場合にアプリ制御によるブロックとして通知します。
 
 ![参加者ごとのチャンネルストリップとレベルメーターが並ぶ ParaBus の VC MIX 画面](assets/readme/mix.png)
