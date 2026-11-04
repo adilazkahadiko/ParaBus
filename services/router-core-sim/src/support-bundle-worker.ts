@@ -150,6 +150,8 @@ async function* sanitizedLog(path: string, consoleInfo?: ConsoleLogInfo) {
   let tail: Buffer[] = [], first = 0;
   for await (const line of logLines(path, consoleInfo)) {
     if (!line.trim()) continue;
+    // External action history is not part of a shared bundle, including console captures.
+    if (line.includes("External control ")) continue;
     if (consoleInfo) {
       const bytes = Buffer.from(`${text(diagnosticMessage(line))}\n`);
       tail.push(bytes); consoleInfo.exportedBytes += bytes.length;

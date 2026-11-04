@@ -34,7 +34,7 @@ const OPTIONAL_PUBLIC_FILES = new Set(["LICENSE", "LICENSE.md", "LICENSE.txt"]);
 const FORBIDDEN_DIRECTORIES = new Set([".git", "logs", "recordings", "node_modules", "target"]);
 const FORBIDDEN_SECRET_FILES = new Set([
   ".env", "discord-bots.json", "tokens.json", "secrets.json", "credentials.json", "id_rsa", "id_ed25519",
-  "user-profiles.json", "receiver-owners.json", "scenes.json",
+  "user-profiles.json", "receiver-owners.json", "scenes.json", "external-control.json",
 ]);
 const FORBIDDEN_SECRET_EXTENSIONS = new Set([".key", ".pem", ".pfx", ".p12", ".crt", ".cer", ".log"]);
 const SOURCE_EXTENSIONS = new Set([".ts", ".js", ".css", ".html", ".json", ".md", ".toml", ".lock", ".rs", ".cmd", ".command", ".ps1", ".sh", ".txt", ".yml"]);

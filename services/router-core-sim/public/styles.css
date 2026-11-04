@@ -1448,3 +1448,9 @@ input[type="range"] {
 .tx-mix-strip { border-top-color: var(--amber); grid-template-rows: 42px 8px 112px 34px 44px; }
 .tx-mix-strip > button { min-height: 44px; }
 .tx-mix-help { margin: 0; padding: 0 14px 12px; color: var(--muted); font-size: 11px; }
+/* External management stays available in the local desktop independently of audio controls. */
+#external-control-status { max-width: 32rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#external-control-setup > div { width: 100%; }
+#external-control-setup form, #external-control-devices li { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-block: .75rem; }
+#external-control-token-dialog { max-width: calc(100vw - 3rem); }
+#external-control-token { display: block; overflow-wrap: anywhere; user-select: all; margin-block: 1rem; }

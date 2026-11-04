@@ -531,7 +531,7 @@ async function websocketCommand(port: number, origin: string, nonce: string, com
         "Upgrade: websocket\r\n" +
         "Connection: Upgrade\r\n" +
         "Sec-WebSocket-Version: 13\r\n" +
-        "Sec-WebSocket-Key: ZGJyLWNvbW1hbmQta2V5\r\n\r\n",
+        "Sec-WebSocket-Key: ZGJyLWNvbW1hbmQta2V5MQ==\r\n\r\n",
       );
     });
     client.on("data", (chunk: Buffer) => {
