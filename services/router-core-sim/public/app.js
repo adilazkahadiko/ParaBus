@@ -1,9 +1,11 @@
 import { createTxMixControls } from "./tx-mix.js";
 import { mountSupportBundle } from "./support-bundle.js";
 import { mergeMeterSnapshot } from "./meter-snapshot.js";
+import { mountExternalControl } from "./external-control.js";
 
 const desktopAccess = JSON.parse(document.querySelector("#desktop-access")?.textContent || "{}");
 const localSettingsAvailable = desktopAccess.localSettingsAvailable !== false;
+mountExternalControl(localSettingsAvailable);
 mountSupportBundle(document.querySelector("#support-bundle"), fetch, localSettingsAvailable);
 
 const renderTxMix = createTxMixControls(document.querySelector("#tx-mix-panel"), sendCommand, {

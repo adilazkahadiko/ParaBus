@@ -168,7 +168,7 @@ test("source stage keeps build inputs, omits private material, never needs a bin
     for (const name of ["driver.dll", "module.node", "program.exe", "sdk.zip", "audio.wav"]) {
       assert.throws(() => stageRelease(root, { ...options, trackedFiles: [...trackedFiles, `app/${name}`] }), /binary or unsupported/);
     }
-    for (const name of ["user-profiles.json", "receiver-owners.json", "scenes.json"]) assert.throws(() => auditReleaseEntries([`app/${name}`], true));
+    for (const name of ["user-profiles.json", "receiver-owners.json", "scenes.json", "external-control.json"]) assert.throws(() => auditReleaseEntries([`app/${name}`], true));
     for (const bytes of [Buffer.from([0]), Buffer.from([0xff])]) {
       writeFileSync(join(root, "app", "main.ts"), bytes);
       assert.throws(() => stageRelease(root, options), /binary content|encoded data/);

@@ -26,6 +26,8 @@
         <span id="output-guard" class="status safe">出力: 確認中</span>
         <button id="application-control" class="status safety-control warning" type="button">設定ロック: 確認中</button>
         <button id="emergency-state" class="status safety-control emergency" type="button">緊急停止</button>
+        <button id="external-control-stop" class="status safety-control warning" type="button" data-local-only>外部操作を止める</button>
+        <span id="external-control-status" class="status" data-local-only>外部操作: 確認中</span>
       </div>
     </header>
 
@@ -407,6 +409,25 @@
             </div>
           </section>
 
+          <section id="external-control-setup" class="application-settings" aria-labelledby="external-control-title" data-local-only>
+            <div>
+              <h3 id="external-control-title">接続する機器</h3>
+              <p id="external-control-url"></p>
+              <p>外部操作はこのPCの機器で利用できます。段階Bの操作はまだ許可できません。</p>
+              <button id="external-control-enable" type="button">外部操作を有効にする</button>
+              <form id="external-control-port-form">
+                <label>ポート（再起動後に反映）<input id="external-control-port" type="number" min="1" max="65535" required /></label>
+                <button type="submit">ポートを保存</button>
+              </form>
+              <form id="external-control-register" autocomplete="off">
+                <label>機器名<input id="external-control-name" maxlength="80" required /></label>
+                <label><input id="external-control-names" type="checkbox" />Discord表示名の読み取りを許可</label>
+                <button type="submit">機器を登録</button>
+              </form>
+              <p id="external-control-message" role="status"></p>
+              <ul id="external-control-devices"></ul>
+            </div>
+          </section>
           <section class="application-settings" aria-label="メインUIのLAN公開">
             <div><h3>ACCESS</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
           </section>
@@ -553,6 +574,11 @@
       </article>
     </template>
 
+    <dialog id="external-control-token-dialog">
+      <p>トークンはこの一度だけ表示します。機器側の秘密用設定に保存してください。</p>
+      <code id="external-control-token"></code>
+      <button id="external-control-token-close" type="button">表示を閉じる</button>
+    </dialog>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

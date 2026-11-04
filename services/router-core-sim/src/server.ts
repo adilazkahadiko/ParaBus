@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { createReadStream, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
@@ -15,6 +14,10 @@ import { AudioOutputManager } from "./audio-output.ts";
 import { AudioSchedulerTiming, audioTimingSummary } from "./audio-timing.ts";
 import { AudioRuntimeTiming } from "./audio-runtime-timing.ts";
 import { broadcastWebSocket, MAX_WEBSOCKET_PENDING_BYTES } from "./snapshot-delivery.ts";
+import { acceptWebSocket, controlFrame, websocketReceiver } from "./websocket.ts";
+import { ExternalDeviceStore } from "./external-device-store.ts";
+import { ExternalControlServer } from "./external-control.ts";
+import { ExternalError, strictJson } from "./external-protocol.ts";
 import { AudioInputManager, inputTimingSummary } from "./audio-input.ts";
 import { AsioDuplexStream } from "./asio-duplex.ts";
 import { SettingsStore } from "./settings-store.ts";
@@ -124,6 +127,15 @@ const control = new ControlPlane(engine, outputManager, discordIngest, inputMana
 const storedScenes = sceneStore.snapshot();
 for (const scene of storedScenes.scenes) control.scenes.set(scene.id, scene);
 control.currentSceneId = storedScenes.currentSceneId;
+const externalControl = new ExternalControlServer({
+  control, ingest: () => discordIngest.snapshot(Date.now(), false, false),
+  txIdentities: () => [...discordIngest.bots.values()].filter(bot => bot.role === "TX" || bot.role === "DUPLEX"),
+  configuredTx: startupSettings.bots.filter(bot => bot.role === "TX" || bot.role === "DUPLEX").map(bot => ({ profileId: bot.id, destination: bot.txDestination ?? null })),
+  store: new ExternalDeviceStore(settingsRoot), execute: executeControlCommand,
+  version: JSON.parse(readFileSync(join(projectDirectory, "package.json"), "utf8")).version,
+  log: message => operationalLog.append({ at: new Date().toISOString(), level: "INFO", message }),
+});
+discordIngest.onControlStateChange(() => externalControl.state.observe());
 discordIngest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
 const systemMonitor = new SystemMonitor();
 let supportBundleBusy = false;
@@ -147,6 +159,7 @@ function executeControlCommand(command: ControlCommand): CommandResult {
     };
   }
   const result = control.execute(command);
+  externalControl.state.observe();
   if (result.ok) {
     void rustManagement.shadowControlCommand(command, {
       state: control.state,
@@ -182,7 +195,6 @@ inputManager.onFault = (deviceId, message, diagnostic) => {
   executeControlCommand({ type: "INPUT_DEVICE_LOST", deviceId, fault: { ...diagnostic, reason: localAudioFaultDetail(message) } });
 };
 const websocketClients = new Set<Duplex>();
-const websocketBuffers = new WeakMap<Duplex, Buffer>();
 // Tablet Control is a retained prototype, not a supported runtime feature.
 // Do not instantiate its listener, including when legacy settings enable it.
 
@@ -335,6 +347,27 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       response.writeContinue();
     }
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+    if (url.pathname === "/api/external-control") {
+      requireLocalSettingsRequest(request);
+      requireDesktopControlRequest(request);
+      if (request.method === "GET") return writeJson(response, 200, { ok: true, data: externalControl.managementSnapshot() });
+      if (request.method === "POST") {
+        if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers["content-type"] ?? "") || request.headers["content-encoding"] !== undefined) {
+          return writeJson(response, 415, { ok: false, error: "JSONが必要です" });
+        }
+        try {
+          // readJson's size bound is retained, with duplicate-key validation before management.
+          const chunks: Buffer[] = []; let size = 0;
+          for await (const chunk of request) { size += chunk.length; if (size > 16384) return writeJson(response, 413, { ok: false, error: "要求が大きすぎます" }); chunks.push(chunk); }
+          const result = externalControl.manage(strictJson(Buffer.concat(chunks).toString("utf8")));
+          return writeJson(response, 200, { ok: true, data: result });
+        } catch (error) {
+          if (error instanceof ExternalError) return writeJson(response, error.status, { ...error.body(), error: error.message });
+          return writeJson(response, 500, { ok: false, error: "外部操作の管理に失敗しました" });
+        }
+      }
+      return writeJson(response, 400, { ok: false, error: "未対応の操作です" });
+    }
     if (request.method === "GET" && url.pathname === "/index.html") {
       response.writeHead(302, { location: "/", "cache-control": "no-store" });
       response.end();
@@ -367,7 +400,7 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       try {
         const result = await createSupportBundle({
           settingsRoot, projectRoot: projectDirectory, runtimeInfo: startupInfo,
-          diagnostics: supportDiagnostics({ ...control.snapshot(), discord: discordIngest.snapshot(), system: systemMonitor.snapshot(), audioTiming: audioSchedulerTiming.snapshot(), audioRuntimeTiming: audioRuntimeTiming.snapshot() }),
+          diagnostics: supportDiagnostics({ ...control.snapshot(), discord: discordIngest.snapshot(), system: systemMonitor.snapshot(), audioTiming: audioSchedulerTiming.snapshot(), audioRuntimeTiming: audioRuntimeTiming.snapshot() }, externalControl.store.summary()),
           days: payload?.days as number | undefined,
         });
         writeJson(response, 200, { ok: true, ...result });
@@ -515,7 +548,7 @@ server.on("clientError", (_error, socket) => {
   if (socket.writable) rejectHttpSocket(socket, 400);
 });
 
-server.on("upgrade", (request, socket) => {
+server.on("upgrade", (request, socket, head) => {
   if (!isDesktopHostAllowed(request.headers, allowedHosts)) {
     rejectHttpSocket(socket, 403);
     return;
@@ -537,84 +570,36 @@ server.on("upgrade", (request, socket) => {
     rejectHttpSocket(socket, 403);
     return;
   }
-  const accept = createHash("sha1")
-    .update(`${request.headers["sec-websocket-key"]}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
-    .digest("base64");
-  socket.write(
-    "HTTP/1.1 101 Switching Protocols\r\n" +
-      "Upgrade: websocket\r\n" +
-      "Connection: Upgrade\r\n" +
-      `Sec-WebSocket-Accept: ${accept}\r\n` + frameProtectionHeaderLines + "\r\n",
-  );
+  if (!acceptWebSocket(request, socket, frameProtectionHeaderLines)) { rejectHttpSocket(socket, 400); return; }
   websocketClients.add(socket);
-  websocketBuffers.set(socket, Buffer.alloc(0));
   socket.on("close", () => websocketClients.delete(socket));
   socket.on("error", () => websocketClients.delete(socket));
-  socket.on("data", (data) => handleWebSocketData(socket, data));
+  const receive = websocketReceiver(64 * 1024, (opcode, payload) => {
+    if (opcode === 8) { socket.end(); return; }
+    if (opcode === 9) {
+      if (socket.writableLength + payload.length + 2 <= MAX_WEBSOCKET_PENDING_BYTES) socket.write(controlFrame(10, payload));
+      return;
+    }
+    if (opcode !== 1) return;
+    try {
+      const message = JSON.parse(payload.toString("utf8"));
+      if (message.type === "command") {
+        const result = executeExternalControlCommand(message.payload as ControlCommand);
+        broadcastWebSocket([socket], () => ({ type: "command-result", payload: result })); broadcastState();
+      }
+    } catch { broadcastWebSocket([socket], () => ({ type: "error", payload: safeOperatorSummary("control") })); }
+  });
+  socket.on("data", data => {
+    try { receive(data); }
+    catch { broadcastWebSocket([socket], () => ({ type: "error", payload: safeOperatorSummary("control") })); socket.destroy(); }
+  });
   broadcastWebSocket([socket], () => ({ type: "state", payload: desktopSnapshot(true, false) }));
+  if (head.length) socket.emit("data", head);
 });
 
 function rejectHttpSocket(socket: Duplex, status: 400 | 403): void {
   const reason = status === 403 ? "Forbidden" : "Bad Request";
   socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n${frameProtectionHeaderLines}\r\n`);
-}
-
-function handleWebSocketData(socket: Duplex, data: Buffer): void {
-  try {
-    let frame = Buffer.concat([websocketBuffers.get(socket) ?? Buffer.alloc(0), data]);
-    while (frame.length >= 2) {
-      let length = frame[1] & 0x7f;
-      let offset = 2;
-      if (length === 126) {
-        if (frame.length < 4) break;
-        length = frame.readUInt16BE(offset);
-        offset += 2;
-      } else if (length === 127) {
-        if (frame.length < 10) break;
-        const bigLength = frame.readBigUInt64BE(offset);
-        if (bigLength > 64n * 1024n) throw new Error("frame too large");
-        length = Number(bigLength);
-        offset += 8;
-      }
-      const masked = (frame[1] & 0x80) !== 0;
-      if (!masked) throw new Error("client frames must be masked");
-      const frameLength = offset + 4 + length;
-      if (frame.length < frameLength) break;
-      handleWebSocketFrame(socket, frame.subarray(0, frameLength), offset, length);
-      frame = frame.subarray(frameLength);
-    }
-    websocketBuffers.set(socket, Buffer.from(frame));
-  } catch {
-    websocketBuffers.set(socket, Buffer.alloc(0));
-    broadcastWebSocket([socket], () => ({ type: "error", payload: safeOperatorSummary("control") }));
-  }
-}
-
-function handleWebSocketFrame(socket: Duplex, frame: Buffer, offset: number, length: number): void {
-  try {
-    const opcode = frame[0] & 0x0f;
-    if (opcode === 0x8) {
-      socket.end();
-      return;
-    }
-    if (opcode === 0x9) {
-      if (socket.writableLength + 2 <= MAX_WEBSOCKET_PENDING_BYTES) socket.write(Buffer.from([0x8a, 0x00]));
-      return;
-    }
-    if (opcode !== 0x1) return;
-    const mask = frame.subarray(offset, offset + 4);
-    offset += 4;
-    const payload = Buffer.allocUnsafe(length);
-    for (let index = 0; index < length; index += 1) payload[index] = frame[offset + index] ^ mask[index % 4];
-    const message = JSON.parse(payload.toString("utf8"));
-    if (message.type === "command") {
-      const result = executeExternalControlCommand(message.payload as ControlCommand);
-      broadcastWebSocket([socket], () => ({ type: "command-result", payload: result }));
-      broadcastState();
-    }
-  } catch {
-    broadcastWebSocket([socket], () => ({ type: "error", payload: safeOperatorSummary("control") }));
-  }
 }
 
 function broadcastState(includeHistory = false): void {
@@ -696,7 +681,7 @@ setInterval(() => {
 }, 60_000).unref();
 
 programAudioShadow.start();
-await Promise.all([discordIngest.start(), rustManagement.start()]);
+await Promise.all([discordIngest.start(), rustManagement.start(), externalControl.start()]);
 if (rustManagement.isAvailable()) {
   try {
     await rustManagement.refreshEndpoints();
@@ -731,6 +716,7 @@ function shutdown(exitCode = 0): void {
   inputManager.stop();
   programAudioShadow.close();
   const cleanup = Promise.all([
+    externalControl.close(),
     rustManagement.close(),
     discordIngest.close(),
     recorder.close(),

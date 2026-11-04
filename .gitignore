@@ -25,6 +25,8 @@ discord-bots.json
 user-profiles.json
 receiver-owners.json
 scenes.json
+external-control.json
+external-control.json.*.tmp
 tokens.json
 secrets.json
 credentials.json

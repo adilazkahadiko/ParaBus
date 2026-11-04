@@ -1,4 +1,5 @@
 import { createServer, type Server, type Socket } from "node:net";
+import { ControlCommandError } from "./control-error.ts";
 import { MAX_DISCORD_RX_CHANNELS, MAX_RX_CHANNELS, type BotRole, type DiscordBotHealth, type DiscordIngestSnapshot, type DiscordRxIpcSnapshot, type DiscordTxSnapshot, type LogLevel, type ReceiverOwnershipSnapshot, type TxAudioMode, type TxSubtype } from "../../../packages/shared-types/src/index.ts";
 import {
   DiscordFrameDecoder,
@@ -187,6 +188,7 @@ export class DiscordIngestServer {
   #profileConflicts = new Set<string>();
   #unavailableOwnerWarnings = new Set<string>();
   #receiverEventHandler: (level: LogLevel, message: string) => void = () => {};
+  #controlStateListeners = new Set<() => void>();
 
   #sourceFactory: (capacity: number, sampleRate: number, blockSize: number) => DiscordPcmSource;
 
@@ -256,6 +258,19 @@ export class DiscordIngestServer {
   }
 
   ingest(frame: DiscordIpcFrame, socket?: Socket): void {
+    try { this.ingestFrame(frame, socket); }
+    finally {
+      // Observe each metadata transition, including ABA within one IPC batch. Never run projections per Opus packet.
+      if (frame.type !== DiscordFrameType.OPUS) for (const listener of this.#controlStateListeners) listener();
+    }
+  }
+
+  onControlStateChange(listener: () => void): () => void {
+    this.#controlStateListeners.add(listener);
+    return () => this.#controlStateListeners.delete(listener);
+  }
+
+  private ingestFrame(frame: DiscordIpcFrame, socket?: Socket): void {
     const now = Date.now();
     if (socket && frame.botId && frame.botId !== "0") {
       if (frame.type === DiscordFrameType.BOT_META) {
@@ -754,10 +769,10 @@ export class DiscordIngestServer {
     const bot = this.requireTxBot(profileId);
     const input = this.txStem(bot).sourceInputChannelId;
     if (input === null || (input !== undefined && this.engine.channels.get(input)?.kind !== "LocalMonoInput")) {
-      throw new Error("TX input is not assigned or unavailable");
+      throw new ControlCommandError("LOCKED", "TX input is not assigned or unavailable");
     }
     if (input !== undefined && bot.txAudioMode === "STEREO" && this.engine.channels.get(this.txStem(bot).sourceInputRightChannelId ?? "")?.kind !== "LocalMonoInput") {
-      throw new Error("Stereo TX right input is unavailable; assign the input pair again");
+      throw new ControlCommandError("LOCKED", "Stereo TX right input is unavailable; assign the input pair again");
     }
     const socket = this.requireTxReady(bot);
     socket.write(encodeDiscordFrame({
@@ -827,10 +842,10 @@ export class DiscordIngestServer {
   }
 
   private requireTxReady(bot: DiscordBotRuntime): Socket {
-    if (this.engine.emergencyMuted) throw new Error("Discord TX cannot start while Emergency Mute is active");
-    if (this.botHealth(bot, Date.now()) !== "READY") throw new Error(`${bot.profileId}がDiscord Voiceへ接続できていません`);
+    if (this.engine.emergencyMuted) throw new ControlCommandError("LOCKED", "Discord TX cannot start while Emergency Mute is active");
+    if (this.botHealth(bot, Date.now()) !== "READY") throw new ControlCommandError("LOCKED", `${bot.profileId}がDiscord Voiceへ接続できていません`);
     const socket = this.#botSockets.get(bot.key);
-    if (!socket?.writable || socket.destroyed) throw new Error(`${bot.profileId}のAdapter IPCが接続されていません`);
+    if (!socket?.writable || socket.destroyed) throw new ControlCommandError("UNAVAILABLE", `${bot.profileId}のAdapter IPCが接続されていません`);
     return socket;
   }
 
@@ -1020,14 +1035,14 @@ export class DiscordIngestServer {
 
   private commandTxBot(profileId?: string): DiscordBotRuntime | undefined {
     const bots = this.txBots();
-    if (!profileId && bots.length > 1) throw new Error("複数のTX BotがあるためprofileIdを指定してください");
-    if (profileId && bots.filter((bot) => bot.profileId === profileId).length > 1) throw new Error("TX profile identity conflict");
+    if (!profileId && bots.length > 1) throw new ControlCommandError("INVALID", "複数のTX BotがあるためprofileIdを指定してください");
+    if (profileId && bots.filter((bot) => bot.profileId === profileId).length > 1) throw new ControlCommandError("LOCKED", "TX profile identity conflict");
     return profileId ? bots.find((bot) => bot.profileId === profileId) : bots[0];
   }
 
   private requireTxBot(profileId?: string): DiscordBotRuntime {
     const bot = this.commandTxBot(profileId);
-    if (!bot) throw new Error(profileId ? `TX Bot ${profileId}が設定されていません` : "TX Botが設定されていません");
+    if (!bot) throw new ControlCommandError("NOT_FOUND", profileId ? `TX Bot ${profileId}が設定されていません` : "TX Botが設定されていません");
     return bot;
   }
 
@@ -1099,6 +1114,7 @@ export class DiscordIngestServer {
         }
       }
       this.releaseSocketAuthorities(socket);
+      for (const listener of this.#controlStateListeners) listener();
     };
     socket.on("close", closed);
     socket.on("error", closed);

@@ -736,7 +736,7 @@ export interface CommandResult {
   ok: boolean;
   revision: number;
   error?: string;
-  code?: "STALE_STATE";
+  code?: "STALE_STATE" | "INVALID" | "LOCKED" | "NOT_FOUND" | "UNAVAILABLE" | "INTERNAL";
   conflict?: { resource: string; expected: Record<string, string | number | null>; current: Record<string, string | number | null> };
   confirmationRequired?: boolean;
   data?: unknown;

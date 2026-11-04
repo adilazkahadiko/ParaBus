@@ -2,7 +2,9 @@
 
 本書は Stream Deck プラグイン、Bitfocus Companion モジュール、curl などに共通する、ParaBus 外部操作 API の実装契約である。本文の「必須」「拒否する」は実装時の要件を表す。プラグインとモジュールは別リポジトリで開発し、本書だけで相互運用できることを目標とする。
 
-**状態: 設計仕様、未実装。** 調査対象は `main` の `d6de003f350a9e22733c1dbc4928811704b4a6b5`。本変更は仕様書と配布 manifest の登録だけであり、以下の `/external/v1/*`、トークン管理、外部操作停止ボタン、外部用 revision はまだ存在しない。現行の事実は末尾の「現状調査」に分離する。それ以外は v1 で実装する契約であり、現行で利用できる機能を意味しない。
+**状態: 段階1を実装。** 別 listener、ローカル機器管理、停止、状態 HTTP / WS と段階 A の操作を提供する。段階 B の権限は保存形式だけを用意し常に空とし、`/arm`・`/execute`、メーター、シーン・録音操作は段階2へ回す。段階1の `scene.*` は `scene.preview` を含め `TIER_FORBIDDEN` とする。以下の B・メーター・プレビューの説明は段階2の契約であり、段階1の info には広告しない。末尾の「現状調査」は仕様策定時の `d6de003f350a9e22733c1dbc4928811704b4a6b5` の記録である。
+
+段階1の実装判断: メンテナーの決定により `tx.take` は集合の大きさ・選択方式によらず段階 A。機器名・deviceId はローカル管理応答だけに含め、operational log にも含めない。機器登録は settings root の `external-control.json`（最大128件、取り消し済みを含む）へ原子的に保存する。POSIX は mode 0600、Windows は公開前に継承 ACL を外して実行ユーザーのみに Full Control を付与する。破損した登録ファイルは自動上書きせず外部操作を利用不可とする。
 
 ## 目次
 
@@ -114,7 +116,7 @@ Stream Deck の Property Inspector はブラウザとして扱い、ParaBus API 
 | `DISCONNECT_DISCORD_BOT` | C | Bot 切断 |
 | `START_TX` | A | 明示した Bot 1 つの開始。`profileId` 省略は禁止 |
 | `SET_TX_TARGETS` | A | 設定済み Bot の集合を選ぶアーム。入力・VC・送り先区分の設定変更は不可 |
-| `START_ARMED` | A / B | 対象 1 つかつ ALL TEAMS に該当しなければ A。2 つ以上または ALL TEAMS は B。空集合のテイクは拒否 |
+| `START_ARMED` | A | 複数対象・allTeams 選択・`isAllTeamsArmed()` の結果によらず A。空集合は INVALID。A の全判定後にのみ API が内部の `confirmed:true` を付与する |
 | `CLEAR_ALL` | A | 全 TX の停止とアーム解除 |
 | `STOP_TX` | A | 明示した Bot 1 つの停止。`profileId` 省略は禁止 |
 | `START_RECORDING` | B | 明示した録音対象で開始 |
@@ -201,7 +203,7 @@ Discord User ID は 17〜20 桁の **文字列** のまま扱い、JSON number �
 | `bus.limiter.set` / `bus.compressor.set` | 対象 Bus の世代と変更するパラメーターの世代、既存ロック | 対象・該当パラメーター変更は `STALE_REVISION`。同じ Bus の masterDb など対象外の値には依存しない |
 | `scene.preview` → `scene.recall` | シーン内容の版、実際の差分（from / to）、適用・除外対象の世代、Recall Safe、パラメーターロック | プレビューから arm、arm から execute の各段階で差分を再評価し、関連する変更だけを `STALE_REVISION` にする |
 | `recording.start` / `recording.stop` | 録音セッション・状態の世代。開始は選択した出力・Bus・参加者の世代も固定 | 関連する録音状態や選択対象の変更だけを `STALE_REVISION` にする。未選択参加者の入退室には依存しない |
-| `tx.targets.set` / `tx.take` | 必須の `expectedTargetsRevision` と対応する内部 targets revision。B の take は関連する profile 集合・送り先・入力・Bot 世代と状態も固定 | 関連する TX 対応・状態変更は `STALE_REVISION`、開始の安全禁止は `LOCKED` |
+| `tx.targets.set` / `tx.take` | 必須の `expectedTargetsRevision` と対応する内部 targets revision。take は現在のアーム集合を即時実行する | 関連する TX 対応・状態変更は `STALE_REVISION`、開始の安全禁止は `LOCKED` |
 | slot 指定を含む全操作 | 必須の `expectedParticipantsRevision`、scope と index で解決した本人 | 参加者対応の変更は `STALE_REVISION`。この検査は全体 revision と分離して維持 |
 | その他の A 操作 | 明示した対象と実行時の既存安全条件 | 全体 revision や無関係な対象の変更を理由に拒否しない |
 
@@ -233,7 +235,7 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 | `tx.start` / `tx.stop` | A | `profileId` | `START_TX` / `STOP_TX` |
 | `tx.clear` | A | `{}` | `CLEAR_ALL` |
 | `tx.targets.set` | A | 第 8 節 | `SET_TX_TARGETS` |
-| `tx.take` | A / B | `expectedTargetsRevision` | `START_ARMED` |
+| `tx.take` | A | `expectedTargetsRevision` | `START_ARMED` |
 | `recording.start` | B | `selection:{outputs:number[],busIds:string[],participants:target[]}` | `START_RECORDING` |
 | `recording.stop` | B | `{}` | `STOP_RECORDING` |
 
@@ -260,7 +262,7 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 | `*.set`、`increaseDb <= 6`（下げる操作を含む） | A | adjust と同じ dB 枠を共有 |
 | `*.set`、`increaseDb > 6` | B。同じ操作名の権限と arm / execute を必須にする | 確認済みの単発絶対値変更として dB 枠の対象外。通常の POST 流量制限は適用 |
 
-`*.set` の段階は、`tx.take` と同様に args の目標値と対象の現在値から ParaBus が判定する。大幅 set を `/actions` に送ったら、該当操作名の B 権限があれば `CONFIRMATION_REQUIRED`、なければ `TIER_FORBIDDEN` とし、上昇量の理由だけで `INVALID` にしない。例えば「0 dB に戻す」の長押しは `channel.fader.set` の `db:0` を arm して execute できる。B が例外となるのは A の 1 回 +6 dB と連続操作用 dB 枠だけで、-90〜+12 dB の範囲、対象世代・該当フェーダー値の依存関係、既存安全検査、確認の最短時間と期限は保持する。
+`*.set` の段階は args の目標値と対象の現在値から ParaBus が判定する。大幅 set を `/actions` に送ったら、該当操作名の B 権限があれば `CONFIRMATION_REQUIRED`、なければ `TIER_FORBIDDEN` とし、上昇量の理由だけで `INVALID` にしない。例えば「0 dB に戻す」の長押しは `channel.fader.set` の `db:0` を arm して execute できる。B が例外となるのは A の 1 回 +6 dB と連続操作用 dB 枠だけで、-90〜+12 dB の範囲、対象世代・該当フェーダー値の依存関係、既存安全検査、確認の最短時間と期限は保持する。
 
 B の arm 応答の summary は対象、現在値、目標値、床適用後の上昇量を含める。arm 後にそのフェーダーが変わったら `STALE_REVISION` とし、A へ自動降格して実行しない。別フェーダーの変更では失効させない。フェーダー以外のシーンリコールやコンプ変更にはこの量制限を適用せず、B の差分確認で扱う。
 
@@ -288,11 +290,11 @@ Send が未作成の場合は暗黙のルート作成をせず `NOT_FOUND` と�
 
 外部 `expectedTargetsRevision` は state の `tx.targetsRevision` と一致させ、内部の `SET_TX_TARGETS.expectedRevision` / `START_ARMED.expectedRevision` へ対応付ける。外部の選択方式の変更も追跡するため、外部 targetsRevision は内部値の単なる転送にはしない。両方を同時に検査し、操作画面からの変更でも古い要求を拒否する。
 
-`tx.take` は args に `expectedTargetsRevision` を必須とし、実行時の**アーム集合そのもの**をテイクする。live でアームにない Bot を停止してから、選択された Bot を開始する。空集合なら `INVALID` とする。2 つ以上の profile、allTeams 選択、または現行の `isAllTeamsArmed()` が真なら B。その他の 1 つだけなら A。TEAM Bot が 1 つしかない構成でも、その全 TEAM を選択したテイクは B とする。`/actions` で B のテイクを送ると、権限があれば `CONFIRMATION_REQUIRED`、なければ `TIER_FORBIDDEN`。
+`tx.take` は args に `expectedTargetsRevision` を必須とし、実行時の**アーム集合そのもの**をテイクする。live でアームにない Bot を停止してから、選択された Bot を開始する。空集合なら `INVALID` とする。対象が 2 つ以上、allTeams 選択、または `isAllTeamsArmed()` が真でも段階 A とし、`/actions` で即時実行する。内部 START_ARMED の確認要件は維持し、認証・有効化・流量・引数・targets revision・緊急ミュート・FAULT の A 判定をすべて通過した場合だけ API が `confirmed:true` を付与する。外部入力の `confirmed` は引き続き拒否する。
 
-Bot 1 つの明示的な `tx.start` は A である。複数宛先をまとめて実行するバッチや、確認不要の複数開始操作は提供しない。1 つずつの開始でも機器ごとの流量制限と既存の安全検査を受ける。
+Bot 1 つの明示的な `tx.start` は A である。複数宛先の即時開始には、アーム集合を revision で照合する段階 A の `tx.take` を使う。任意の命令をまとめるバッチは提供しない。1 つずつの開始でも機器ごとの流量制限と既存の安全検査を受ける。
 
-テイクの B arm は profile 集合、送り先対応、入力、Bot 世代、選択方式、targetsRevision に結び付ける。どれかが変わったら実行を拒否する。グループ開始失敗時は現行の停止・緊急 flush 処理を維持する。`tx.clear` は確認不要で全 Bot の TX を停止し、アームも解除する。プラグイン切断自体は CLEAR_ALL も START も送らない。
+テイクは外部 targetsRevision と対応する内部 revision を同じ直列制御処理で照合する。関連する profile 集合、送り先対応、入力、Bot 状態や選択方式の変更を観測したら外部 targetsRevision を進め、古い要求を拒否する。グループ開始失敗時は現行の停止・緊急 flush 処理を維持する。`tx.clear` は確認不要で全 Bot の TX を停止し、アームも解除する。プラグイン切断自体は CLEAR_ALL も START も送らない。
 
 ## 9. 段階 B の二段階確認
 
@@ -328,13 +330,13 @@ state の JSON 形は次のとおり。`?` は任意フィールドを表す説�
 | `participantOrders` | `{scope,users:string[]}` の配列。all と VC Bus ごとの順序。各 users は Discord User ID |
 | `buses` | `{busId,kind:"vc"\|"group"\|"other",masterDb,mute,limiterEnabled,compressor:{enabled,thresholdDb,ratio,attackMs,releaseMs,makeupDb}}` の配列 |
 | `pfl` | 第 6 節 `pfl.set` と同じ `source` の値 |
-| `tx` | `{targetsRevision,armedProfileIds:string[],liveProfileIds:string[],selectionKind:"profiles"\|"destinations"\|"allTeams",allTeams:boolean,takeTier:"A"\|"B"\|null,bots:[...]}` |
+| `tx` | `{targetsRevision,armedProfileIds:string[],liveProfileIds:string[],selectionKind:"profiles"\|"destinations"\|"allTeams",allTeams:boolean,takeTier:"A"\|null,bots:[...]}` |
 | `tx.bots[]` | `{profileId,destination:string\|null,state:"NO_BOT"\|"NOT_READY"\|"READY"\|"SENDING"\|"FAULT",active,masterDb,sourceInputChannelIds:string[],sourceMode:"localInput"\|"legacyMatrix"\|"unassigned"}`。入力 ID は読み取り専用で保持・編集不要 |
 | `recorder` | `{state:"IDLE"\|"RECORDING"\|"STOPPING"\|"FAULT"}` |
 | `scenes`, `currentSceneId` | `{sceneId}` の配列、不透明なシーン ID 文字列または null |
 | `permissions` | この機器の `{allowedTierBOperations:string[],readDisplayNames:boolean}` |
 
-`takeTier:null` はアーム集合が空の場合。`selectionKind` は起動時 profiles とし、操作画面からアーム集合が変更されたら profiles に戻す。`allTeams` は現在の集合での判定を表す。Bus / シーン / Bot の自由なラベルは v1 state に含めず、ID と送り先区分で識別する。
+`takeTier:null` はアーム集合が空の場合。それ以外の takeTier は常に `"A"`。`selectionKind` は起動時 profiles とし、操作画面からアーム集合が変更されたら profiles に戻す。`allTeams` は現在の集合での判定を表す。Bus / シーン / Bot の自由なラベルは v1 state に含めず、ID と送り先区分で識別する。
 
 toggle の `expectedMute` は対象の `participants[].mute`、`buses[].mute`、または `participants[].sends[].mute` から取得する。公開 state の revision が増えただけで未実行操作や arm を失効させない。B の依存関係の世代はサーバーが保持し、操作ごとの検査に使う。クライアントが全体 revision からそれを推測する必要はない。
 
@@ -383,9 +385,9 @@ WS は機器あたり最大 2 接続、全体最大 16 接続。購読は切断�
 
 429 は `Retry-After` に切り上げた待ち秒数を返す。クライアントは待った後に新しい状態と意図を確認し、滞留した長押しステップをまとめて送らない。通常枠が残れば安全方向の操作はまず通常枠を使う。予約枠でも過剰要求を無制限には通さない。受理処理は直列化し、並列要求を使って上限や B の時間検査を迂回できないようにする。
 
-外部操作は operational log に、時刻、機器の名前と `deviceId`、外部操作名、段階 A / B / C、処理段階（`action` / `arm` / `execute`）、結果（`SUCCESS` またはエラーコード）、`requestId` を残す。未知操作の拒否は段階 C として記録する。通常操作の成功・失敗を追跡できるようにし、生の request、Authorization、トークン、hash、`armId`、`previewId`、参加者表示名を記録しない。再送は元の結果と重複排除した旨を記録し、実行回数に重ねて数えない。既存 logger が追加フィールドを保持しない場合も、安全な固定形式の message にして必要情報を失わない。
+外部操作は operational log に、時刻、外部操作名、段階 A / B / C、処理段階（`action` / `arm` / `execute`）、結果（`SUCCESS` またはエラーコード）、`requestId` を残す。メンテナーの段階1要件により機器の名前・deviceId は記録しない。未知操作の拒否は段階 C として記録する。通常操作の成功・失敗を追跡できるようにし、生の request、Authorization、トークン、hash、`armId`、`previewId`、参加者表示名を記録しない。再送は元の結果と重複排除した旨を記録し、実行回数に重ねて数えない。既存 logger が追加フィールドを保持しない場合も、安全な固定形式の message にして必要情報を失わない。
 
-認証失敗は IP や送信されたトークンをキーに無制限に記録せず、listener 全体で最初の 1 件と以後 60 秒ごとの抑制件数だけを残す。流量制限拒否も機器ごと 60 秒の集計にまとめる。古いクライアントの再接続でログが増え続けないようにする。機器名は登録時に正規化し、ログ改行や UI 注入を防ぐ。
+認証失敗は IP や送信されたトークンをキーに無制限に記録せず、listener 全体で最初の 1 件と以後 60 秒ごとの抑制件数だけを残す。流量制限拒否も機器ごと 60 秒の集計にまとめる。古いクライアントの再接続でログが増え続けないようにする。機器名は登録時に正規化し、UI 注入を防ぐ。未知の操作名はログでは固定の UNKNOWN とし、生入力を転記しない。
 
 Support Bundle の外部操作情報は **`{deviceCount:number,enabled:boolean}` だけ**。deviceCount は取り消していない登録機器数であり、接続数や名前の配列は含めない。機器名、deviceId、権限、トークンの平文とハッシュ、arm / preview、直近操作履歴、接続元を追加しない。operational log / console log の Bundle 出力からも外部操作の機器情報と個別履歴を除外する。単にトークンの文字列をマスクする方式に頼らず、設定ファイルは Bundle の入力 allowlist に加えず、公開 projection を固定する。
 
@@ -414,9 +416,9 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
 | 503 | `UNAVAILABLE` | 必要な backend がない・利用不可 |
 | 500 | `INTERNAL` | 未分類の内部失敗。安全な固定文だけを返す |
 
-判定順は、接続元 / Host / ブラウザ拒否、認証（失敗時は未認証枠）、外部操作の有効化、機器流量制限、入力の形と操作名の検証、重複排除、引数・現在状態による権限分類、確認・操作別の依存関係・対象・既存安全検査、実行とする。認証しない相手には無効化状態や対象の存在を返さない。キャッシュ済みの B 結果も現在の該当権限を再確認してから返す。`tx.take` とフェーダー set は認証済み state と引数から必要な段階を判定し、A の場合に B 権限を要求しない。B と判定したら対象の詳細エラーより先に該当権限を検査する。execute では認証・有効化の後に arm の所有者と権限を再確認する。C の既知の内部命令名を送った場合も実行せず `TIER_FORBIDDEN` とする。
+判定順は、接続元 / Host / ブラウザ拒否、認証（失敗時は未認証枠）、外部操作の有効化、機器流量制限、入力の形と操作名の検証、重複排除、引数・現在状態による権限分類、確認・操作別の依存関係・対象・既存安全検査、実行とする。認証しない相手には無効化状態や対象の存在を返さない。キャッシュ済みの B 結果も現在の該当権限を再確認してから返す。`tx.take` は常に A とし、フェーダー set は認証済み state と引数から必要な段階を判定する。A の場合に B 権限を要求しない。B と判定したら対象の詳細エラーより先に該当権限を検査する。execute では認証・有効化の後に arm の所有者と権限を再確認する。C の既知の内部命令名を送った場合も実行せず `TIER_FORBIDDEN` とする。
 
-既存 `CommandResult.code:"STALE_STATE"` は `STALE_REVISION` に変換する。既存の `confirmationRequired` は確認が欠けた場合だけ `CONFIRMATION_REQUIRED` に対応させる。ロック、対象欠落、backend 不在などは実装で型付きの判定に分け、内部日本語エラー文の部分一致だけで外部コードを決めない。今回その実装は変更しない。
+既存 `CommandResult.code:"STALE_STATE"` は `STALE_REVISION` に変換する。既存の `confirmationRequired` は確認が欠けた場合だけ `CONFIRMATION_REQUIRED` に対応させる。ロック、対象欠落、backend 不在などは実装で型付きの判定に分け、内部日本語エラー文の部分一致だけで外部コードを決めない。段階1では外部層の型付き検査で入力・対象欠落・backend 不在を区別する。TX backend の安全拒否は ControlCommandError の型付きコードを ControlPlane の CommandResult に保持し、予期しない例外は INTERNAL とする。コードを持たない既存の明示的な安全拒否は LOCKED に対応させる。内部のエラー文は解析・転送しない。
 
 ## 14. 版と機能の発見
 
@@ -426,14 +428,14 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
 {
   "apiVersion": "1.0",
   "paraBusVersion": "0.1.0",
-  "features": ["state.ws", "meters.subscribe", "confirmation.armExecute", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets"],
+  "features": ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets"],
   "operations": [
     { "name": "channel.fader.adjust", "tiers": ["A"] },
-    { "name": "channel.fader.set", "tiers": ["A", "B"] },
-    { "name": "bus.fader.set", "tiers": ["A", "B"] },
-    { "name": "send.fader.set", "tiers": ["A", "B"] },
-    { "name": "tx.fader.set", "tiers": ["A", "B"] },
-    { "name": "tx.take", "tiers": ["A", "B"] }
+    { "name": "channel.fader.set", "tiers": ["A"] },
+    { "name": "bus.fader.set", "tiers": ["A"] },
+    { "name": "send.fader.set", "tiers": ["A"] },
+    { "name": "tx.fader.set", "tiers": ["A"] },
+    { "name": "tx.take", "tiers": ["A"] }
   ],
   "limits": {
     "maxBodyBytes": 16384,
@@ -443,10 +445,6 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
     "faderIncreaseFloorDb": -40,
     "faderIncreaseDbPerSecond": 20,
     "faderIncreaseBurstDb": 10,
-    "minimumHoldMs": 1000,
-    "armExpiresMs": 5000,
-    "maxMeterHz": 10,
-    "maxMeterSources": 32,
     "maxWsPerDevice": 2,
     "deduplicationMs": 60000
   },
@@ -454,7 +452,7 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
 }
 ```
 
-これは形の例であり、`operations` は第 6 節の全対応操作を 1 操作 1 要素で返す。`.adjust` / `.set` なども個別に列挙する。`tiers` は取り得る段階で、全 4 系統のフェーダー set は A / B、adjust は A とする。`faderMaxIncreaseDb` は床適用後の A の 1 回上限、`faderIncreaseDbPerSecond` と `faderIncreaseBurstDb` は A の連続操作用 dB 枠。B の大幅 set は第 7 節の例外を使う。permissions はこのトークンの許可である。`paraBusVersion` は実行中のパッケージ版を使い、例の値を固定しない。共通 envelope の `instanceId` も接続時に読む。未提供機能は feature と operations の両方から除き、要求には `INVALID` を返す。
+これは段階1の形の例であり、`operations` は第 6 節の実装済み対応操作を 1 操作 1 要素で返す。段階1では bus.limiter.set・bus.compressor.set・scene.*・recording.* と arm / execute、メーター機能を含めず、要求時は前者の既知操作を TIER_FORBIDDEN、未提供経路・WS type を INVALID とする。`.adjust` / `.set` なども個別に列挙する。`tiers` はその実装段階で提供する段階で、段階1では全対応操作を ["A"] とする。段階2の全 4 系統のフェーダー set は A / B、adjust は A。`tx.take` は常に ["A"] とする。`faderMaxIncreaseDb` は床適用後の A の 1 回上限、`faderIncreaseDbPerSecond` と `faderIncreaseBurstDb` は A の連続操作用 dB 枠。B の大幅 set は第 7 節の例外を使う。permissions はこのトークンの許可である。`paraBusVersion` は実行中のパッケージ版を使い、例の値を固定しない。共通 envelope の `instanceId` も接続時に読む。未提供機能は feature と operations の両方から除き、段階1の既知 B 操作を除く未提供要求には `INVALID` を返す。
 
 v1 内の互換性変更は操作・任意レスポンスフィールド・機能の追加だけ。既存の意味、段階、安全上限、必須フィールド、エラーコードの意味を変える場合は v2 とする。クライアントは未知の応答フィールドや feature を無視し、未対応の操作を送らない。サーバーが未知要求フィールドを拒否することとは両立する。
 
@@ -483,7 +481,7 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 
 ## 17. 未決事項
 
-未実装であるため次の製品・実装判断は未確認であり、実装 PR のレビューで確定する。プラグインが依存する操作名、対象指定、権限、安全検査、確認の意味は本書で固定し、未決を理由に緩めない。
+以下は仕様策定時の未決事項であり、段階1で確定した配置・ACL・画面配置・制限値は冒頭と実装に従う。実クライアントと後続段階の製品判断は引き続き未確認であり、それぞれの実装 PR のレビューで確定する。プラグインが依存する操作名、対象指定、権限、安全検査、確認の意味は本書で固定し、未決を理由に緩めない。
 
 | 未決事項 | 推奨案 |
 | --- | --- |
@@ -497,7 +495,7 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 
 ## 18. 実装 PR で必要なテスト
 
-今回はテストコードを追加しない。実装 PR では実 Bot・音声機器を使わない単体・統合試験を基本に、以下を必須とする。
+各実装 PR では実 Bot・音声機器を使わない単体・統合試験を基本に、以下のうち実装段階に該当するものを必須とする。段階1は Node 22.23.4 の fetch と共通 WS フレーミングを使う Node TCP クライアントで検証し、Stream Deck / Companion 実クライアントでの試験は段階3で行う。
 
 1. `ControlCommand` 全 type の分類網羅、引数分岐、既定拒否、外部操作 allowlist。命令追加時の未分類をコンパイルまたはテストで検出する。C と管理 HTTP、`confirmed` の注入を拒否する。
 2. 外部無効が初期値、SETUP のローカル認証、機器登録、一度だけの表示、hash のみ保存、機器単位失効、権限変更、再発行。操作画面 nonce と外部トークンの相互流用を拒否する。プラグイン側では実際のプロファイル・設定書き出しにトークンが含まれないこと、Property Inspector の直接 API 接続がなく、本体経由でもトークンを返さないことを試験する。
@@ -507,14 +505,54 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 6. B の 999 / 1000 / 4999 / 5000 ms 境界を注入した単調時計で試験。使い捨て、別機器、改変、二重 execute、別 requestId、同じ requestId、再 arm、失効、停止、再起動、WS 切断を検証する。
 7. 全 4 系統のフェーダーで床 -40 dB の計算、-90 → -40 の計上 0、-90 → -34 の計上 +6、+6 境界、adjust 超過の INVALID、set 超過の B 分類・権限・確認を検証する。「0 dB に戻す」が B execute で成功し、burst 10 dB で永久拒否されないこと。A の毎秒 +20 dB・burst +10 dB、1 dB / 50〜100 ms の継続成功、adjust / set の共有枠、床以下と下降で枠を消費・回復しないこと、同時並列の超過を検証する。相対下降の量制限なし、-90〜+12 dB の飽和、絶対値の範囲、非有限数、Send 不在、mute と承認ゲート保持も確認する。
 8. 参加者・Bus・Send の toggle に必須の expectedMute、一致時だけの反転、不一致時の STALE_REVISION と current.mute、同じ値への set の冪等性を検証する。expectedRevision の省略・指定・古い参照値にかかわらず、別フェーダーの変更や無関係な参加者の入退室があっても toggle と B execute が成功すること。反対に B の該当依存関係・自身のフェーダーの変更では拒否すること。旧 instanceId、入退室・再入室・VC 移動、slot の expectedParticipantsRevision とスコープ、同順位、固定ユーザーのオフライン、対象削除・同 ID 再作成と ABA を検証する。toggle の boolean 比較と、B の依存世代比較の違いも確認する。
-9. TX の profiles / destinations / allTeams、未設定・重複、TEAM 0 / 1 / 複数、INTERVIEW / SPARE、空アーム、1 対象 A、複数または全 TEAM B、targetsRevision、Bot・入力変更、緊急ミュート・FAULT 拒否、グループ失敗時停止、CLEAR_ALL と個別停止の違い。
+9. TX の profiles / destinations / allTeams、未設定・重複、TEAM 0 / 1 / 複数、INTERVIEW / SPARE、空アーム、1 対象・複数・allTeams 選択・isAllTeamsArmed が真でも A（空集合は INVALID）、targetsRevision、Bot・入力変更、緊急ミュート・FAULT 拒否、グループ失敗時停止、CLEAR_ALL と個別停止の違い。
 10. シーン preview / recall、表示名の秘匿、previewId の期限・所有者・内容変更、Recall Safe、除外対象、既存パラメーターロック。preview → arm → execute の差分が変われば STALE、差分に関係のない変更なら成功すること（秘匿した実値も比較）。録音の選択固定・対象消失・二重開始・停止処理中・保存失敗と、未選択参加者の入退室で確認が失効しないこと。
 11. 外部 state の厳密なフィールド allowlist と名前の opt-in、GET / WS の一致、公開 revision の独立性、メーター購読上限、対象消失、再購読、backpressure、heartbeat と接続数制限。
 12. 一発停止と実行が競合しても停止確定後にコミットしないこと、HTTP 503 と WS close、arm / 待ち要求の破棄、再起動でも停止維持、明示再有効化、機器表示の重複排除と HTTP 活動判定。
 13. 機器・全体・未認証の流量と安全方向の予約枠、正常機器の 20 要求/秒を未認証枠で拒否しないこと、429 / Retry-After、重複排除 60 秒と容量、無効化・失効後のキャッシュ、切断後の自走・自動復元・キュー再生がないこと。
-14. operational log の機器名・段階・結果と注入耐性、認証失敗の 60 秒集計、平文・hash・arm の非記録。Bundle のファイル allowlist とログ経由の漏えい、外部情報が機器数と有効・無効だけであること。
+14. operational log の段階・結果と注入耐性、機器名・deviceId の非記録、認証失敗の 60 秒集計、平文・hash・arm の非記録。Bundle のファイル allowlist とログ経由の漏えい、外部情報が機器数と有効・無効だけであること。
 15. 全エラーの HTTP 対応・安全な message、内部 STALE_STATE 変換、unknown fields と JSON サイズ、info の実版・完全な操作一覧と機能発見、v1 の既存クライアントとの互換性。
 16. release manifest の通常版・source 版の両方に本書が含まれること。指定 Node と既存の全自動テストで回帰確認する。
+
+### 段階1の検証と手動確認
+
+段階1の追加試験は `tests/external-control.test.ts`、`tests/external-desktop.test.ts`、`tests/external-control-ui.test.ts`。本節 1〜5・7〜9・11〜16 の段階1部分を検証する。WS は既存の snapshot-delivery の送信フレームと、server.ts から共通化した handshake / receiver を使用し、試験クライアントは Node TCP で Bearer 付き upgrade とマスク付きフレームを送る。新規依存は使わない。Node 22.23.4 の実 fetch では `Sec-Fetch-Mode: cors`、Origin・Sec-Fetch-Site なし、Bearer ありを観測し成功した。ブラウザ相当の Origin / Sec-Fetch-Site と preflight は HTTP / WS とも拒否する。
+
+段階2に残すものは B の権限付与 UI と arm / execute、操作別の B 依存世代、シーン preview / recall、録音選択・操作、メーター購読。実 Stream Deck / Companion と機器側の保存・書き出しの検証は段階3で行う。段階1でも内部 PREVIEW_SCENE は分類上 A のままとし、外部 scene.* の実行は提供しない。設定された TX に Adapter のメタデータがまだない場合は NO_BOT を表示し、その TX の操作は既存 backend の検査を迂回せず UNAVAILABLE とする。
+
+Bot と音声機器を使わない手動確認は、リポジトリ直下の PowerShell で新しい検証用 settings root を作り、native をモックする既存試験起動ヘルパーを使う。次の起動は Bot Adapter を起動しない。
+
+```powershell
+$env:PATH = (Resolve-Path target/review-pr1/node22).Path + ';' + $env:PATH
+$qaRoot = Join-Path (Get-Location) ('target/external-api-manual-' + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $qaRoot | Out-Null
+$env:DBR_SETTINGS_ROOT = $qaRoot
+$env:RECORDER_FOLDER = Join-Path $qaRoot 'recordings'
+$env:DISCORD_BOT_RACK_JSON = '[]'
+$env:DISCORD_BOT_TOKEN = ''
+$env:DBR_DEMO_CHANNELS = '0'
+$env:DISCORD_IPC_ENDPOINT = '\\.\pipe\external-api-manual-' + [guid]::NewGuid()
+$env:PORT = '4173'
+$env:DBR_OPERATOR_ORIGIN = 'http://127.0.0.1:4173'
+node --experimental-test-module-mocks tests/helpers/server-without-rust.ts
+```
+
+1. `http://127.0.0.1:4173` を開く。SETUP の「接続する機器」で登録し、一度だけ表示されるトークンを機器側の秘密設定へ手動保存する。再表示はない。段階 B の許可 UI はない。
+2. SETUP で外部操作を有効にする。別の PowerShell で発行トークンを `$env:PARABUS_EXTERNAL_TOKEN` に設定し、以下を試す（値は表示・共有しない）。
+
+```powershell
+$base = 'http://127.0.0.1:4175/external/v1'
+$auth = @{ Authorization = 'Bearer ' + $env:PARABUS_EXTERNAL_TOKEN }
+$info = Invoke-RestMethod "$base/info" -Headers $auth
+Invoke-RestMethod "$base/state" -Headers $auth
+curl.exe -i -H "Authorization: Bearer $env:PARABUS_EXTERNAL_TOKEN" -H 'Origin: null' "$base/info"
+$payload = @{ requestId = [guid]::NewGuid().ToString(); instanceId = $info.instanceId; operation = 'emergency.set'; args = @{ active = $true } } | ConvertTo-Json -Depth 8
+Invoke-RestMethod "$base/actions" -Method Post -Headers $auth -ContentType 'application/json' -Body $payload
+```
+
+3. info / state は 200、Origin 付き要求は 403 ORIGIN_FORBIDDEN、緊急ミュートの有効化は 200。tx.take は空アームなら INVALID、B の緊急ミュート解除は TIER_FORBIDDEN となる。出力未準備の設定ロック ON は LOCKED。
+4. メイン画面の「外部操作を止める」で以後は 503 DISABLED。再起動しても無効を維持する。SETUP で明示的に再有効化し、取り消し・再発行で旧トークンが 401 になること、表示名許可、登録数と接続中の台数の違いを確認する。
+5. SETUP でポートを変更し、現在の URL と再起動後のポート表示を確認する。同じポートをほかの listener が使用している場合は外部操作だけが利用不可となる。操作画面の停止・緊急ミュートは使える。
 
 ## 19. 現状調査
 

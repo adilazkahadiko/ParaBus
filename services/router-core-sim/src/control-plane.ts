@@ -18,6 +18,7 @@ import type { RecorderManager } from "./recorder.ts";
 import { isRecorderSelection } from "./recorder.ts";
 import type { UserSessionRegistry } from "./user-session-registry.ts";
 import { StaleSafetyStateError } from "./stale-state.ts";
+import { ControlCommandError } from "./control-error.ts";
 import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
 import type { TabletSnapshotSource } from "./tablet-server.ts";
 import type { OperationalEvent } from "./operational-log.ts";
@@ -687,7 +688,7 @@ export class ControlPlane {
           conflict: { resource: error.resource, expected: error.expected, current: error.current },
         };
       }
-      return this.denied(error instanceof Error ? error.message : String(error));
+      return { ...this.denied(error instanceof Error ? error.message : String(error)), code: error instanceof ControlCommandError ? error.code : "INTERNAL" };
     }
   }
 

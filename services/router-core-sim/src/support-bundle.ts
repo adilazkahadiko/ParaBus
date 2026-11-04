@@ -24,11 +24,12 @@ function selectedHostApi(value: string | null | undefined) {
 }
 
 /** Export projection, not a raw snapshot: no scenes, routes, profiles, paths or errors. */
-export function supportDiagnostics(snapshot: RouterSnapshot) {
+export function supportDiagnostics(snapshot: RouterSnapshot, externalControl?: { deviceCount: number; enabled: boolean }) {
   const discord = snapshot.discord;
   const capture = snapshot.input?.captureTiming;
   const runtimeFields = ["startedAt", "durationMs", "eventLoopP99Ms", "eventLoopMaxMs", "processBlockMaxMs", "processBlocks"];
   return {
+    ...(externalControl ? { externalControl: { deviceCount: externalControl.deviceCount, enabled: externalControl.enabled } } : {}),
     ...pick(snapshot, ["state", "emergencyMuted", "sampleRate", "blockSize", "uptimeSeconds", "callbackLoad", "xruns", "topologyMutationFaults"]),
     input: { ...pick(snapshot.input, ["state", "activeChannelCount", "sampleRate", "framesCaptured", "peak"]), selectedHostApi: selectedHostApi(snapshot.input?.selectedHostApi),
       captureTiming: capture ? {
