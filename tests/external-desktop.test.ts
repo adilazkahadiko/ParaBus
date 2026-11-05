@@ -46,14 +46,21 @@ test("real desktop management requires nonce, Origin and local source, survives 
   const info = (await external("/info")).body; const instanceId = info.instanceId;
   assert.equal((await fetch(base + "/info", { headers: { authorization: `Bearer ${nonce}` } })).status, 401);
   assert.equal((await manage({ action: "status" }, { "x-dbr-session-nonce": token })).status, 403);
-  assert.equal((await manage({ action: "permissions", deviceId, readDisplayNames: true, allowedTierBOperations: ["recording.start"] })).status, 400);
+  assert.equal((await manage({ action: "permissions", deviceId, readDisplayNames: true, allowedTierBOperations: ["scene.preview"] })).status, 400);
+  assert.equal((await manage({ action: "permissions", deviceId, readDisplayNames: false, allowedTierBOperations: ["settings.lock.set"] })).status, 200);
+  const armResponse = await fetch(base + "/arm", { method: "POST", headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({ requestId: randomUUID(), instanceId, operation: "settings.lock.set", args: { locked: false } }) });
+  assert.equal(armResponse.status, 200); const armId = (await armResponse.json() as any).data.armId;
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  assert.equal((await fetch(base + "/execute", { method: "POST", headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({ requestId: randomUUID(), instanceId, armId }) })).status, 200);
   const status = await (await manage({ action: "status" })).json() as any; assert.equal(status.data.activeDeviceCount, 1); assert.equal(status.data.deviceCount, 1);
   assert.equal(JSON.stringify(status).includes(token), false); assert.equal(JSON.stringify(status).includes(hash), false);
   const action = await fetch(base + "/actions", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ requestId: randomUUID(), instanceId, operation: "emergency.set", args: { active: true } }) }); assert.equal(action.status, 200);
   const desktop = await (await fetch(origin + "/api/state")).text(); for (const sensitive of [token, hash, deviceId, "Local private device"]) assert.equal(desktop.includes(sensitive), false);
   const bundleResponse = await fetch(origin + "/api/support-bundle", { method: "POST", headers: { origin, "x-dbr-session-nonce": nonce, "content-type": "application/json" }, body: "{}" });
   assert.equal(bundleResponse.status, 200); const bundle = await bundleResponse.json() as any; const bytes = readFileSync(bundle.path);
-  for (const sensitive of [token, hash, deviceId, "Local private device", "External control action", "external-control.json"]) assert.equal(bytes.includes(Buffer.from(sensitive)), false);
+  for (const sensitive of [token, hash, armId, deviceId, "Local private device", "External control action", "external-control.json"]) assert.equal(bytes.includes(Buffer.from(sensitive)), false);
   assert.equal(bytes.includes(Buffer.from('"deviceCount": 1')), true); assert.equal(bytes.includes(Buffer.from('"enabled": true')), true);
   assert.equal((await manage({ action: "stop" })).status, 200); assert.equal((await external("/info")).status, 503); await stop();
   nonce = await start(true); assert.equal((await external("/info")).body.code, "DISABLED");
@@ -67,7 +74,10 @@ test("real desktop management requires nonce, Origin and local source, survives 
   await stop();
   const log = readdirSync(join(root, "logs")).filter(name => name.endsWith(".jsonl")).map(name => readFileSync(join(root, "logs", name), "utf8")).join("");
   assert.match(log, /External control action operation=emergency.set tier=A result=SUCCESS/);
-  for (const sensitive of [token, hash, deviceId, "Local private device"]) { assert.equal(log.includes(sensitive), false); assert.equal(output.includes(sensitive), false); }
+  assert.match(log, /operation=settings.lock.set tier=B result=SUCCESS phase=arm/);
+  assert.match(log, /operation=settings.lock.set tier=B result=SUCCESS phase=execute/);
+  assert.ok(log.includes(`deviceId=${deviceId}`));
+  for (const sensitive of [token, hash, armId, "Local private device"]) { assert.equal(log.includes(sensitive), false); assert.equal(output.includes(sensitive), false); }
 });
 
 async function until(predicate: () => boolean | Promise<boolean>) {

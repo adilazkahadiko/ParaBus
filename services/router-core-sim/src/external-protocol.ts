@@ -25,7 +25,7 @@ export const COMMAND_POLICIES = {
 export function classifyCommand(command: ControlCommand, context: { state: string; increaseDb?: number; adjust?: boolean }): Tier {
   const policy = Object.hasOwn(COMMAND_POLICIES, command.type) ? COMMAND_POLICIES[command.type] : "C";
   if (policy === "state") return command.type === "SET_STATE" && command.state === "ON_AIR" && ["SETUP", "READY", "ON_AIR"].includes(context.state) ? "A"
-    : command.type === "SET_STATE" && command.state === "SETUP" && context.state === "ON_AIR" ? "B" : "C";
+    : command.type === "SET_STATE" && command.state === "SETUP" && ["ON_AIR", "SETUP"].includes(context.state) ? "B" : "C";
   if (policy === "emergency") return command.type === "EMERGENCY_MUTE" && command.active === true ? "A" : "B";
   if (policy === "profile") return "profileId" in command && typeof command.profileId === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(command.profileId) ? "A" : "C";
   if (policy === "send" && command.type === "SET_VC_SEND" && command.db === undefined) return "A";
@@ -41,6 +41,14 @@ export const OPERATIONS = [
   "settings.lock.set", "tx.start", "tx.stop", "tx.clear", "tx.targets.set", "tx.take",
 ] as const;
 export const TIER_B_OPERATIONS = ["bus.limiter.set", "bus.compressor.set", "scene.preview", "scene.recall", "recording.start", "recording.stop"];
+// Only operation names that can be B in §6 are valid persisted permissions (including future 2b operations).
+export const ALLOWED_TIER_B_OPERATIONS = ["channel.fader.set", "bus.fader.set", "send.fader.set", "tx.fader.set",
+  "emergency.set", "settings.lock.set", "bus.limiter.set", "bus.compressor.set", "scene.recall", "recording.start", "recording.stop"];
+export function tierBPermissions(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some(v => typeof v !== "string" || !ALLOWED_TIER_B_OPERATIONS.includes(v))
+    || new Set(value).size !== value.length) return fail("INVALID");
+  return [...value].sort();
+}
 export const LIMITS = {
   maxBodyBytes: 16384, actionRatePerSecond: 20, actionBurst: 20,
   faderMaxIncreaseDb: 6, faderIncreaseFloorDb: -40, faderIncreaseDbPerSecond: 20, faderIncreaseBurstDb: 10,
@@ -52,12 +60,15 @@ export const LIMITS = {
 };
 export const STATUS = { INVALID: 400, UNAUTHORIZED: 401, HOST_FORBIDDEN: 403, ORIGIN_FORBIDDEN: 403,
   TIER_FORBIDDEN: 403, NOT_FOUND: 404, LOCKED: 409, STALE_REVISION: 409, RATE_LIMITED: 429,
+  CONFIRMATION_REQUIRED: 409, ARM_TOO_EARLY: 409, ARM_INVALID: 409, ARM_EXPIRED: 410,
   DISABLED: 503, UNAVAILABLE: 503, INTERNAL: 500 } as const;
 export type ErrorCode = keyof typeof STATUS;
 const MESSAGES: Record<ErrorCode, string> = {
   INVALID: "Invalid request", UNAUTHORIZED: "Bearer authentication required", HOST_FORBIDDEN: "Host or connection forbidden",
   ORIGIN_FORBIDDEN: "Browser requests are forbidden", TIER_FORBIDDEN: "Operation is not permitted",
   NOT_FOUND: "Target is unavailable", LOCKED: "Operation is blocked by current safety conditions",
+  CONFIRMATION_REQUIRED: "Arm and execute confirmation required", ARM_TOO_EARLY: "Minimum confirmation time not reached",
+  ARM_INVALID: "Invalid confirmation", ARM_EXPIRED: "Confirmation expired",
   STALE_REVISION: "Related state changed; refresh before retry", RATE_LIMITED: "Request limit exceeded",
   DISABLED: "External control is disabled", UNAVAILABLE: "External control backend is unavailable", INTERNAL: "Internal control failure",
 };
@@ -130,6 +141,8 @@ export function canonical(value: unknown): string {
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as RecordValue)[key])}`).join(",")}}`;
   return JSON.stringify(value);
 }
+/** Opaque IDs may contain punctuation; tuple encoding prevents dependency-key collisions. */
+export function dependencyKey(...parts: string[]): string { return JSON.stringify(parts); }
 
 export class Bucket {
   readonly rate: number; readonly capacity: number;

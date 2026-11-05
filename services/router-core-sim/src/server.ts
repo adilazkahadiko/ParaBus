@@ -135,7 +135,7 @@ const externalControl = new ExternalControlServer({
   version: JSON.parse(readFileSync(join(projectDirectory, "package.json"), "utf8")).version,
   log: message => operationalLog.append({ at: new Date().toISOString(), level: "INFO", message }),
 });
-discordIngest.onControlStateChange(() => externalControl.state.observe());
+discordIngest.onControlStateChange(() => externalControl.observe());
 discordIngest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
 const systemMonitor = new SystemMonitor();
 let supportBundleBusy = false;
@@ -159,7 +159,7 @@ function executeControlCommand(command: ControlCommand): CommandResult {
     };
   }
   const result = control.execute(command);
-  externalControl.state.observe();
+  externalControl.observe();
   if (result.ok) {
     void rustManagement.shadowControlCommand(command, {
       state: control.state,
