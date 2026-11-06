@@ -45,7 +45,7 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
         for (const [operation, title] of [["channel.fader.set", "参加者フェーダーの大幅上昇"], ["bus.fader.set", "Busフェーダーの大幅上昇"],
           ["send.fader.set", "Sendフェーダーの大幅上昇"], ["tx.fader.set", "TXフェーダーの大幅上昇"], ["emergency.set", "緊急ミュート解除"],
           ["settings.lock.set", "設定ロック解除"], ["bus.limiter.set", "Busリミッター"], ["bus.compressor.set", "Busコンプレッサー"],
-          ["scene.recall", "シーン呼び出し（段階2bで提供予定）"], ["recording.start", "録音開始（段階2bで提供予定）"], ["recording.stop", "録音停止（段階2bで提供予定）"]]) {
+          ["scene.recall", "シーン呼び出し"], ["recording.start", "録音開始"], ["recording.stop", "録音停止"]]) {
           const label = document.createElement("label"), input = document.createElement("input");
           input.type = "checkbox"; input.checked = device.allowedTierBOperations.includes(operation); input.disabled = !setup;
           choices.push({ operation, input }); input.addEventListener("change", savePermissions);

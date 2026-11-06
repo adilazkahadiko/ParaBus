@@ -660,6 +660,9 @@ export class DiscordIngestServer {
     return this.txSnapshots().map(({ profileId, active, state, peak, masterDb }) => ({ profileId, active, state, peak, masterDb }));
   }
 
+  /** Control observers need only the stored master value, without reading or projecting meters. */
+  txMasterDb(profileId: string): number | undefined { return this.#txStems.get(profileId)?.masterDb; }
+
   txSnapshot(now = Date.now(), profileId?: string): DiscordTxSnapshot {
     const bot = this.txBot(profileId);
     if (bot) return this.txSnapshotForBot(bot, now);

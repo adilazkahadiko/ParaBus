@@ -33,8 +33,8 @@ export class FakeAdapter extends EventEmitter {
   resetAndDestroy() { this.destroy(); }
   destroy() { this.destroyed = true; this.writable = false; this.emit("close"); }
 }
-export async function fixture(t: TestContext, teams = 2) {
-  const root = testRoot(), engine = new AudioEngine(48000, 480, 4), profiles = new UserProfileStore(root), sessions = new UserSessionRegistry(profiles);
+export async function fixture(t: TestContext, teams = 2, outputChannels = 4) {
+  const root = testRoot(), engine = new AudioEngine(48000, 480, outputChannels), profiles = new UserProfileStore(root), sessions = new UserSessionRegistry(profiles);
   const bus = new VcBus("bus", "Private bus label", 480, 48000); bus.linkedDiscordGuildId = GUILD; bus.linkedDiscordVoiceChannelId = VC; engine.addBus(bus);
   const channel = new AudioChannel(`discord-user:${GUILD}:${VC}:${USER}`, "Private guest", "DiscordUser", new SilenceSource(), 480, 48000);
   channel.vcSends.set(bus.id, { gainDb: -20, mute: true }); engine.addChannel(channel); sessions.join(channel, USER, VC, channel.label);
@@ -51,7 +51,7 @@ export async function fixture(t: TestContext, teams = 2) {
   const api = new ExternalControlServer({ control, ingest: () => ingest.snapshot(), store, version: "0.1.0", now: () => now,
     txIdentities: () => [...ingest.bots.values()].filter(bot => bot.role === "TX" || bot.role === "DUPLEX"),
     execute: command => { commands.push(command); return control.execute(command); }, log: message => logs.push(message) });
-  const unsubscribe = ingest.onControlStateChange(() => api.observe());
+  const unsubscribe = ingest.onControlStateChange(() => api.noteChange());
   await api.start(); t.after(async () => { unsubscribe(); await api.close(); profiles.flush(); await ingest.close(); });
   const base = `http://127.0.0.1:${api.port}/external/v1`, headers = { authorization: `Bearer ${registration.token}`, "content-type": "application/json" };
   const advance = (ms = 1000) => { now += ms; };

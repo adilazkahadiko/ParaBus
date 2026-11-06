@@ -2,7 +2,7 @@
 
 本書は Stream Deck プラグイン、Bitfocus Companion モジュール、curl などに共通する、ParaBus 外部操作 API の実装契約である。本文の「必須」「拒否する」は実装時の要件を表す。プラグインとモジュールは別リポジトリで開発し、本書だけで相互運用できることを目標とする。
 
-**状態: 段階2aを実装。** 段階1の別 listener、ローカル機器管理、停止、状態 HTTP / WS、段階 A に加え、操作別 B 権限と `/arm`・`/execute` を提供する。2a の B は全4系統の大幅フェーダー set、緊急ミュート解除、設定ロック解除、Bus リミッター・コンプレッサー。`scene.*`（preview を含む）と `recording.*` は権限の有無によらず `TIER_FORBIDDEN` とし、段階2bへ回す。メーターも未提供。未提供機能は info に広告しない。末尾の「現状調査」は仕様策定時の `d6de003f350a9e22733c1dbc4928811704b4a6b5` の記録である。
+**状態: 段階2bを実装。** 段階2aの操作別 B 権限・arm / execute に加え、scene.preview（A）、scene.recall・recording.start / stop（B）、WS メーター購読を提供する。段階 A と tx.take の分類、起動時の無効化、権限変更・停止の失効規則を維持する。シーンの保存・削除は引き続き C。末尾の「現状調査」は仕様策定時の `d6de003f350a9e22733c1dbc4928811704b4a6b5` の記録である。
 
 実装判断: メンテナーの決定により `tx.take` は集合の大きさ・選択方式によらず段階 A。機器名はローカル管理応答だけに含める。段階2aのメンテナー決定により operational log の外部操作行には deviceId を記録する（第12節）。機器登録は settings root の `external-control.json`（最大128件、取り消し済みを含む）へ原子的に保存する。POSIX は mode 0600、Windows は公開前に継承 ACL を外して実行ユーザーのみに Full Control を付与する。破損した登録ファイルは自動上書きせず外部操作を利用不可とする。
 
@@ -60,7 +60,7 @@ Stream Deck の Property Inspector はブラウザとして扱い、ParaBus API 
 
 機器登録ファイルの上限128件は、有効・取り消し済みの保存レコードを合算する。SETUP では取り消し済みの機器だけを削除でき、削除後は1枠が空く。削除は旧トークンを復活させず、同じ名前で登録し直しても新しい deviceId とトークンを発行する。Bundle の deviceCount は従来どおり未取り消しの機器数だけとする。
 
-`allowedTierBOperations` は第6節で B を取り得る操作名だけ（未提供の scene.recall / recording.start / recording.stop を含む）を、重複なしの配列として保存・読み込みする。scene.preview、A 専用操作、未知の名前、重複、型違いは登録ファイル全体を破損扱いにし、自動上書きせず利用不可とする。SETUP の個別チェックボックスで許可・取り消しできる。2b 用の許可を保存しても2aでは実行できない。
+`allowedTierBOperations` は第6節で B を取り得る操作名だけを、重複なしの配列として保存・読み込みする。scene.preview、A 専用操作、未知の名前、重複、型違いは登録ファイル全体を破損扱いにし、自動上書きせず利用不可とする。SETUP の個別チェックボックスで許可・取り消しできる。scene.preview は A のため、この B 許可リストには含めない。
 
 ローカル管理の permissions 要求で allowedTierBOperations を省略した場合は、既存の許可を維持して表示名権限だけを変更する。空配列を明示すると B をすべて取り消す。登録ファイル内の deviceId は本体が発行した UUID として検証する（外部クライアントは引き続き不透明な ID として扱う）。
 
@@ -213,7 +213,9 @@ Discord User ID は 17〜20 桁の **文字列** のまま扱い、JSON number �
 | slot 指定を含む全操作 | 必須の `expectedParticipantsRevision`、scope と index で解決した本人 | 参加者対応の変更は `STALE_REVISION`。この検査は全体 revision と分離して維持 |
 | その他の A 操作 | 明示した対象と実行時の既存安全条件 | 全体 revision や無関係な対象の変更を理由に拒否しない |
 
-外部操作が無効、または開いている WS がなく最後の認証済み HTTP から30秒以上経過した場合、100msごとの observe とローカル操作ごとの projection 作成を休止する。再開時は revision / participantsRevision / targetsRevision を単調に進め、休止前の slot / TX targets の revision を拒否する（状態が元に戻る ABA も同様）。固定対象の A 操作と全体 expectedRevision の参照値としての意味は維持する。B の有効期間5秒より休止までの時間が長く、有効な arm の依存観測は休止しない。
+外部操作が無効、または開いている WS がなく最後の認証済み HTTP から30秒以上経過した場合、100msごとの observe を休止する。ローカル操作ごとの projection 作成は段階2bから行わない。再開時は revision / participantsRevision / targetsRevision を単調に進め、休止前の slot / TX targets の revision を拒否する（状態が元に戻る ABA も同様）。固定対象の A 操作と全体 expectedRevision の参照値としての意味は維持する。B の有効期間5秒より休止までの時間が長く、有効な arm の依存観測は休止しない。
+
+ローカルの ControlPlane 命令が実際に変更したフェーダー値・Send だけを同期で世代更新し、同じ値への設定は世代を進めない。値を変えてから元に戻す ABA は、次の100ms配信より前でも検出する。値変更後に保存コールバックが失敗した場合も変更を追跡する。完全な projection は通常の最大10Hzの観測、明示的な HTTP の照会・実行境界で作成する。参加者・TX 対応・構造変更の観測は対象解決のために同期で維持する。
 
 B の依存関係は arm 時に ParaBus が保存し、execute 時に照合する。個別の値・対象世代は変更の後に値が元へ戻っても世代を戻さず、ABA を検出する。ただし toggle は**現在の boolean 値**だけを比較し、履歴の一致は要求しない。slot 指定では、無関係な参加者の入退室でも `participantsRevision` が変われば安全のため拒否する。この明示的な例外を固定ユーザー指定や参加者に依存しない操作へ広げない。
 
@@ -249,11 +251,11 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 
 コンプのパラメーターは `enabled:boolean`、`thresholdDb` (-60〜0)、`ratio` (1〜20)、`attackMs` (0.1〜200)、`releaseMs` (10〜2000)、`makeupDb` (-12〜24)。省略した値は変更しない。リミッターは enabled のみとし、天井など内部パラメーターは公開しない。
 
-`recording.start` の `selection` は空集合不可。`outputs` は 0 始まりで state の `outputCount` 未満、最大 64。`busIds` は最大 32、`participants` は最大 112。各配列の重複は禁止。参加者は arm 時点でオンライン対象へ固定し、execute 時の変更は拒否する。内部の `selection.channelIds` に解決し、`matrixOutput` は最初の選択出力または出力 0、`includeUsers:false,includeBuses:false` とともに渡す。後二者による全対象の自動展開には依存しない。出力が存在しない、対象が欠けた、録音中・停止処理中の場合は既存の制約に従い拒否する。保存パスの指定や全新規参加者の自動追加は提供しない。
+`recording.start` の `selection` は空集合不可。`outputs` は 0 始まりで state の `outputCount` 未満、最大 64。`busIds` は最大 32、`participants` は最大 112。各配列の重複は禁止。participants の固定ユーザー指定と slot 指定が同じ本人へ解決される場合も重複として INVALID。slot は第5節の expectedParticipantsRevision を arm / execute の両方で検査する。参加者は arm 時点でオンライン対象へ固定し、execute 時の変更は拒否する。内部の `selection.channelIds` に解決し、`matrixOutput` は最初の選択出力または出力 0、`includeUsers:false,includeBuses:false` とともに渡す。後二者による全対象の自動展開には依存しない。出力が存在しない、対象が欠けた、録音中・停止処理中の場合は既存の制約に従い拒否する。保存パスの指定や全新規参加者の自動追加は提供しない。録音セッション・状態は非同期の終了・FAULT も含む単調な世代で追跡し、IDLE → RECORDING → IDLE の ABA でも確認を失効させる。必要な backend がない・FAULT・同期的な保存先のエラーは UNAVAILABLE、二重開始・STOPPING・非録音時の停止は LOCKED。開始応答後に非同期のファイル書き込みが失敗した場合は state.recorder.state が FAULT になる。
 
 `scene.preview` は全体の `expectedRevision` を要求せず、副作用なしでその時点の差分を返す。成功の `data` は `previewId`、`sceneId`、`changes`、`excludedParticipantCount`。`changes` の要素は `{target,field,from,to,recallSafe,locked}` とし、`target` は `{kind:"channel",target:<固定参加者>}`、`{kind:"bus",busId}`、または `{kind:"other",id:<不透明ID>}`。`field` は保存された内部パラメーター名の文字列、`from` / `to` は number / boolean / string / null、後二つは boolean。`from` が存在しない場合は null とする。`label` など名称フィールドは `readDisplayNames:false` なら `from` / `to` を null にする。内部 snapshot 全体、参加者の除外理由の生文字列やパスは返さない。
 
-`previewId` は機器・シーン内容の版・差分と安全依存関係に結び付く一時 ID で、有効期限は 30 秒。B の arm と execute でその差分を再確認し、差分・適用や除外の対象・関連する安全条件が変わったら `STALE_REVISION`、期限切れ・別機器・未知の ID は `INVALID`。表示名権限で秘匿した from / to もサーバーでは実値で比較する。シーンに関係のないフェーダーや、差分と適用・除外対象に影響しない参加者の入退室では失効させない。成立した arm はプレビューを取り込むため、その後は arm の期限を適用する。Recall Safe、既存のスキップ対象、ロックされたパラメーターは変更しない。シーン経由で既存のラベルや順番などが復元され得ることもプレビューに含めるが、外部からシーン内容や任意の内部命令を注入することはできない。
+`previewId` は機器・シーン内容の版・差分と安全依存関係に結び付く一時 ID で、有効期限は発行から30000ms未満（単調時計）で、30000ms以上は INVALID。未期限のプレビューは機器ごと最大32件とし、超過は RATE_LIMITED（期限内のものを押し出さない）。停止・切断・権限変更・取り消し・再発行で機器のプレビューを破棄する。B の arm と execute でその差分を再確認し、差分・適用や除外の対象・関連する安全条件が変わったら `STALE_REVISION`、期限切れ・別機器・未知の ID は `INVALID`。表示名権限で秘匿した from / to もサーバーでは実値で比較する。シーンに関係のないフェーダーや、差分と適用・除外対象に影響しない参加者の入退室では失効させない。成立した arm はプレビューを取り込むため、その後は arm の期限を適用する。Recall Safe、既存のスキップ対象、ロックされたパラメーターは変更しない。未対応の内部パラメーターや型不正な保存値を持つシーンは外部 preview / recall では INVALID とし、内部情報を推測して公開しない。シーン経由で既存のラベルや順番などが復元され得ることもプレビューに含めるが、外部からシーン内容や任意の内部命令を注入することはできない。
 
 フェーダー・ミュート・設定ロック・リミッターの成功 `data` は `{value:<確定したnumberまたはboolean>}`。`emergency.set` は `{value:<active>,emergencyEpoch:<現在値>}`、コンプは `{value:<state と同じ compressor オブジェクト>}`。PFL は `{source:<正規化したsource>}`、`loudness.reset` と `scene.recall` と録音操作は `{}`。TX 操作は `{targetsRevision:<更新後の値>}`、TX フェーダーは `{value:<db>}`。B arm と execute の応答は第 9 節に従う。
 
@@ -358,9 +360,11 @@ WS は認証成功後、ただちに `{type:"state",payload:<state>}` を送り�
 {"type":"meters.subscribe","requestId":"deaf2ad5-582c-40b6-bda5-76a74db8db38","sources":[{"kind":"bus","busId":"interview"}],"hz":10}
 ```
 
-sources は `{kind:"channel",target:<固定参加者>}`、`{kind:"bus",busId}`、`{kind:"tx",profileId}`。slot 指定は受け付けない。最大 32 個、重複不可、hz は整数 1〜10 で、上限超過は `INVALID`。`{type:"meters.unsubscribe",requestId}` で停止する。再 subscribe は置き換え。応答は `{type:"result",requestId,payload:{ok:true,data:{hz:10}}}`（unsubscribe の data は `{}`）。失敗は同じ envelope 内に第 13 節のエラーを入れる。各 requestId は UUID とし、不正なメッセージで有効な ID がなければ応答の requestId を null にする。未知の type は `INVALID`。初回 subscribe で存在しない対象は `NOT_FOUND` とし、購読を部分的に更新しない。
+sources は `{kind:"channel",target:<固定参加者>}`、`{kind:"bus",busId}`、`{kind:"tx",profileId}`。slot 指定は受け付けない。最大 32 個、重複不可、hz は整数 1〜10 で、上限超過は `INVALID`。`{type:"meters.unsubscribe",requestId}` で停止する。再 subscribe は置き換え。応答は `{type:"result",requestId,payload:{ok:true,data:{hz:10}}}`（unsubscribe の data は `{}`）。失敗は同じ envelope 内に第 13 節のエラーを入れる。各 requestId は UUID とし、不正なメッセージで有効な ID がなければ応答の requestId を null にする。未知の type は `INVALID`。subscribe は全検査に成功した場合だけ購読を置き換える。初回 subscribe で存在しない対象は `NOT_FOUND` とし、購読を部分的に更新しない。
 
 配信は `{type:"meters",instanceId,sequence,values:[{source,peak,rms,clip,stale}]}`。`sequence` は WS ごとの単調増加整数、peak / rms は 0 以上の線形振幅、clip / stale は boolean。1 を超える振幅はあり得る。TX の現行ソースに rms / clip がなければそれらは null とし、推測値を作らない。対象消失は `stale:true,peak:0,rms:null,clip:null` として通知し、自動的に他の参加者へ置き換えない。
+
+メーターは操作画面と同じ既存の channel.outputMeter / bus.meter の peak・rms・clip と既存 TX メーター値だけを、購読した対象・配信時刻に読み取る。オーディオのブロック処理・DSP計算・PCM走査は追加しない。購読者がいなければメーターの取得・投影・配信処理を実行しない。既存の100msタイマーで最大10Hzの時刻判定を行い、新しいオーディオタイマーは作らない。同じ tick では state を先に送り、メーターの送信待ち超過はフレームを捨てて扱う。
 
 WS は機器あたり最大 2 接続、全体最大 16 接続。購読は切断で消え、再接続で勝手に復元しない。送信待ちが 256 KiB を超えたらメーターを捨て、なお state を送れなければ close `1013`。ping を 15 秒ごとに送り、45 秒 pong がなければ切断する。再接続は 1 秒から最大 30 秒の指数バックオフと jitter を使い、状態を取得し直す。認証・無効化で閉じられたら自動再接続を停止する。
 
@@ -438,7 +442,7 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
 {
   "apiVersion": "1.0",
   "paraBusVersion": "0.1.0",
-  "features": ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute"],
+  "features": ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute", "scene.preview", "scene.recall", "recording.selection", "meters.ws"],
   "operations": [
     { "name": "channel.fader.adjust", "tiers": ["A"] },
     { "name": "channel.fader.set", "tiers": ["A", "B"] },
@@ -449,6 +453,10 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
     { "name": "settings.lock.set", "tiers": ["A", "B"] },
     { "name": "bus.limiter.set", "tiers": ["B"] },
     { "name": "bus.compressor.set", "tiers": ["B"] },
+    { "name": "scene.preview", "tiers": ["A"] },
+    { "name": "scene.recall", "tiers": ["B"] },
+    { "name": "recording.start", "tiers": ["B"] },
+    { "name": "recording.stop", "tiers": ["B"] },
     { "name": "tx.take", "tiers": ["A"] }
   ],
   "limits": {
@@ -460,13 +468,17 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
     "faderIncreaseDbPerSecond": 20,
     "faderIncreaseBurstDb": 10,
     "maxWsPerDevice": 2,
-    "deduplicationMs": 60000
+    "deduplicationMs": 60000,
+    "maxMeterSources": 32,
+    "maxMeterHz": 10,
+    "maxPreviewsPerDevice": 32,
+    "previewExpiresInMs": 30000
   },
   "permissions": { "allowedTierBOperations": [], "readDisplayNames": false }
 }
 ```
 
-これは段階2aの抜粋例であり、`operations` は第6節の実装済み操作を1操作1要素で全列挙する。`.adjust` / `.set` も個別に列挙し、全4系統のフェーダー set、emergency.set、settings.lock.set は ["A","B"]、bus.limiter.set / bus.compressor.set は ["B"]、残りは ["A"]。`tx.take` は常に ["A"] とする。`confirmation.arm-execute` は B の確認経路の提供を示す。scene.* / recording.* とメーターは operations / features に含めず、前者の既知操作は TIER_FORBIDDEN、未提供の WS type は INVALID。`faderMaxIncreaseDb` と dB 速度枠は A 用で、B の大幅 set は第7節の例外を使う。permissions はこのトークンの実際の許可、paraBusVersion は実行中のパッケージ版、共通 envelope の instanceId は現在の起動 ID である。
+これは段階2bの抜粋例であり、`operations` は第6節の実装済み操作を1操作1要素で全列挙する。`.adjust` / `.set` も個別に列挙し、全4系統のフェーダー set、emergency.set、settings.lock.set は ["A","B"]、bus.limiter.set / bus.compressor.set / scene.recall / recording.start / recording.stop は ["B"]、残りは ["A"]。`tx.take` は常に ["A"] とする。`confirmation.arm-execute` は B の確認経路の提供を示す。scene.preview は ["A"]。scene.preview / scene.recall / recording.selection / meters.ws を features に含める。メーターは WS 専用のため operations には追加せず、未知の WS type は INVALID。`faderMaxIncreaseDb` と dB 速度枠は A 用で、B の大幅 set は第7節の例外を使う。permissions はこのトークンの実際の許可、paraBusVersion は実行中のパッケージ版、共通 envelope の instanceId は現在の起動 ID である。
 
 v1 内の互換性変更は操作・任意レスポンスフィールド・機能の追加だけ。既存の意味、段階、安全上限、必須フィールド、エラーコードの意味を変える場合は v2 とする。クライアントは未知の応答フィールドや feature を無視し、未対応の操作を送らない。サーバーが未知要求フィールドを拒否することとは両立する。
 
@@ -528,11 +540,11 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 15. 全エラーの HTTP 対応・安全な message、内部 STALE_STATE 変換、unknown fields と JSON サイズ、info の実版・完全な操作一覧と機能発見、v1 の既存クライアントとの互換性。
 16. release manifest の通常版・source 版の両方に本書が含まれること。指定 Node と既存の全自動テストで回帰確認する。
 
-### 段階1の検証と手動確認
+### 実装段階の検証と手動確認
 
 段階1の追加試験は `tests/external-control.test.ts`、`tests/external-desktop.test.ts`、`tests/external-control-ui.test.ts`。本節 1〜5・7〜9・11〜16 の段階1部分を検証する。WS は既存の snapshot-delivery の送信フレームと、server.ts から共通化した handshake / receiver を使用し、試験クライアントは Node TCP で Bearer 付き upgrade とマスク付きフレームを送る。新規依存は使わない。Node 22.23.4 の実 fetch では `Sec-Fetch-Mode: cors`、Origin・Sec-Fetch-Site なし、Bearer ありを観測し成功した。ブラウザ相当の Origin / Sec-Fetch-Site と preflight は HTTP / WS とも拒否する。
 
-段階2aの追加試験は `tests/external-control-stage2a.test.ts` と既存の外部操作・UI・desktop 統合試験。本節の2a部分、特に6・11・12・14を検証する。単調時計の999 / 1000 / 4999 / 5000ms、操作別ABA、権限変更・再発行・取り消し・停止とbody受信中の競合、WS切断、保存失敗後の再起動、休止後のrevision、Bundleと実operational logを含む。段階2b以降に残すものはシーン preview / recall、録音選択・操作、メーター購読。実 Stream Deck / Companion と機器側の保存・書き出しの検証は段階3で行う。段階1でも内部 PREVIEW_SCENE は分類上 A のままとし、外部 scene.* の実行は提供しない。設定された TX に Adapter のメタデータがまだない場合は NO_BOT を表示し、その TX の操作は既存 backend の検査を迂回せず UNAVAILABLE とする。
+段階2aの追加試験は `tests/external-control-stage2a.test.ts` と既存の外部操作・UI・desktop 統合試験。本節の2a部分、特に6・11・12・14を検証する。単調時計の999 / 1000 / 4999 / 5000ms、操作別ABA、権限変更・再発行・取り消し・停止とbody受信中の競合、WS切断、保存失敗後の再起動、休止後のrevision、Bundleと実operational logを含む。段階2bは `tests/external-control-stage2b.test.ts` と既存 desktop 統合試験で、本節10・11、preview の29999 / 30000ms、録音選択の最大値・世代、メーター32対象・10Hz・再購読・流量・backpressure・切断、プレビューIDのBundle除外、projectionを挟まないABAを検証する。実 Stream Deck / Companion と機器側の保存・書き出しの検証は段階3で行う。段階1でも内部 PREVIEW_SCENE は分類上 A のままとし、外部 scene.* の実行は提供しない。設定された TX に Adapter のメタデータがまだない場合は NO_BOT を表示し、その TX の操作は既存 backend の検査を迂回せず UNAVAILABLE とする。
 
 Bot と音声機器を使わない手動確認は、リポジトリ直下の PowerShell で新しい検証用 settings root を作り、native をモックする既存試験起動ヘルパーを使う。次の起動は Bot Adapter を起動しない。
 

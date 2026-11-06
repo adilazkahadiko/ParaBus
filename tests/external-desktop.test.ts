@@ -54,13 +54,19 @@ test("real desktop management requires nonce, Origin and local source, survives 
   await new Promise(resolve => setTimeout(resolve, 1000));
   assert.equal((await fetch(base + "/execute", { method: "POST", headers: { ...headers, "content-type": "application/json" },
     body: JSON.stringify({ requestId: randomUUID(), instanceId, armId }) })).status, 200);
+  const desktopCommand = (command: unknown) => fetch(origin + "/api/command", { method: "POST", headers: { origin, "x-dbr-session-nonce": nonce, "content-type": "application/json" }, body: JSON.stringify(command) });
+  const sceneResponse = await desktopCommand({ type: "SAVE_SCENE", name: "Bundle preview fixture" });
+  assert.equal(sceneResponse.status, 200); const sceneId = (await sceneResponse.json() as any).data.id;
+  const previewResponse = await fetch(base + "/actions", { method: "POST", headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({ requestId: randomUUID(), instanceId, operation: "scene.preview", args: { sceneId } }) });
+  assert.equal(previewResponse.status, 200); const previewId = (await previewResponse.json() as any).data.previewId;
   const status = await (await manage({ action: "status" })).json() as any; assert.equal(status.data.activeDeviceCount, 1); assert.equal(status.data.deviceCount, 1);
   assert.equal(JSON.stringify(status).includes(token), false); assert.equal(JSON.stringify(status).includes(hash), false);
   const action = await fetch(base + "/actions", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ requestId: randomUUID(), instanceId, operation: "emergency.set", args: { active: true } }) }); assert.equal(action.status, 200);
   const desktop = await (await fetch(origin + "/api/state")).text(); for (const sensitive of [token, hash, deviceId, "Local private device"]) assert.equal(desktop.includes(sensitive), false);
   const bundleResponse = await fetch(origin + "/api/support-bundle", { method: "POST", headers: { origin, "x-dbr-session-nonce": nonce, "content-type": "application/json" }, body: "{}" });
   assert.equal(bundleResponse.status, 200); const bundle = await bundleResponse.json() as any; const bytes = readFileSync(bundle.path);
-  for (const sensitive of [token, hash, armId, deviceId, "Local private device", "External control action", "external-control.json"]) assert.equal(bytes.includes(Buffer.from(sensitive)), false);
+  for (const sensitive of [token, hash, armId, previewId, deviceId, "Local private device", "External control action", "external-control.json"]) assert.equal(bytes.includes(Buffer.from(sensitive)), false);
   assert.equal(bytes.includes(Buffer.from('"deviceCount": 1')), true); assert.equal(bytes.includes(Buffer.from('"enabled": true')), true);
   assert.equal((await manage({ action: "stop" })).status, 200); assert.equal((await external("/info")).status, 503); await stop();
   nonce = await start(true); assert.equal((await external("/info")).body.code, "DISABLED");
@@ -77,7 +83,7 @@ test("real desktop management requires nonce, Origin and local source, survives 
   assert.match(log, /operation=settings.lock.set tier=B result=SUCCESS phase=arm/);
   assert.match(log, /operation=settings.lock.set tier=B result=SUCCESS phase=execute/);
   assert.ok(log.includes(`deviceId=${deviceId}`));
-  for (const sensitive of [token, hash, armId, "Local private device"]) { assert.equal(log.includes(sensitive), false); assert.equal(output.includes(sensitive), false); }
+  for (const sensitive of [token, hash, armId, previewId, "Local private device"]) { assert.equal(log.includes(sensitive), false); assert.equal(output.includes(sensitive), false); }
 });
 
 async function until(predicate: () => boolean | Promise<boolean>) {
