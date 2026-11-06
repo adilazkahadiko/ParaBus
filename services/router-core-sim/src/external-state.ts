@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DiscordIngestSnapshot } from "../../../packages/shared-types/src/index.ts";
 import type { ControlPlane } from "./control-plane.ts";
 import type { ExternalDevice } from "./external-device-store.ts";
-import { canonical, fail, fields, revision, textId } from "./external-protocol.ts";
+import { canonical, dependencyKey as dep, fail, fields, revision, textId } from "./external-protocol.ts";
 
 const displayName = (name: string) => name.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 80);
 export class ExternalState {
@@ -19,14 +19,21 @@ export class ExternalState {
   #appearance = 0;
   #identities = new WeakMap<object, number>();
   #identity = 0;
+  #dependencies = new Map<string, { value: string; generation: number }>();
+  #dependencyClock = 0;
+  #userAppearances = new Map<string, number>();
   readonly txIdentities: () => readonly object[];
   readonly configuredTx: readonly { profileId: string; destination: string | null }[];
   constructor(control: ControlPlane, ingest: () => DiscordIngestSnapshot, txIdentities: () => readonly object[] = () => [], configuredTx: readonly { profileId: string; destination: string | null }[] = []) {
     this.control = control; this.ingest = ingest;
     this.txIdentities = txIdentities;
     this.configuredTx = configuredTx;
-    control.userSessions?.onJoin(() => { this.#appearance++; });
-    control.userSessions?.onLeave(() => { this.#appearance++; });
+    const appearance = (channel: { discordUserId?: string }) => {
+      this.#appearance++;
+      if (channel.discordUserId) this.#userAppearances.set(channel.discordUserId, this.#appearance);
+    };
+    control.userSessions?.onJoin(appearance);
+    control.userSessions?.onLeave(appearance);
     this.observe();
   }
   private identity(object: object) {
@@ -45,6 +52,36 @@ export class ExternalState {
   }
   observe() {
     const ingest = this.ingest(), channels = this.channels(), engine = this.control.engine;
+    const values = new Map<string, unknown>();
+    values.set("lock", this.control.state);
+    values.set("emergency", this.control.emergencyEpoch);
+    for (const c of channels) {
+      values.set(dep("channel", c.id), [this.identity(c), c.currentVoiceChannelId, this.#userAppearances.get(c.discordUserId!)]);
+      values.set(dep("channel", c.id, "fader"), c.faderDb);
+      for (const [busId, send] of c.vcSends) {
+        values.set(dep("send", c.id, busId), this.identity(send));
+        values.set(dep("send", c.id, busId, "fader"), send.gainDb);
+      }
+    }
+    for (const b of engine.buses.values()) {
+      values.set(dep("bus", b.id), [this.identity(b), b.linkedDiscordGuildId, b.linkedDiscordVoiceChannelId, b.groupSourceIds]);
+      values.set(dep("bus", b.id, "fader"), b.masterDb);
+      values.set(dep("bus", b.id, "limiter"), b.limiter.enabled);
+      for (const [key, value] of Object.entries({ enabled: b.compressorEnabled, thresholdDb: b.compressor.thresholdDb,
+        ratio: b.compressor.ratio, attackMs: b.compressor.attackMs, releaseMs: b.compressor.releaseMs, makeupDb: b.compressor.makeupDb })) values.set(dep("bus", b.id, "compressor", key), value);
+    }
+    const identities = this.txIdentities();
+    for (const bot of ingest.txStems) if (bot.profileId) {
+      values.set(dep("tx", bot.profileId), [identities.filter(b => (b as { profileId?: string }).profileId === bot.profileId).map(b => this.identity(b)),
+        bot.destination, bot.state, bot.active, bot.sourceInputChannelId, bot.sourceInputRightChannelId, bot.sourceOutput,
+        ingest.bots.filter(b => b.profileId === bot.profileId).map(b => [b.botId, b.voiceChannelId])]);
+      values.set(dep("tx", bot.profileId, "fader"), bot.masterDb ?? 0);
+    }
+    for (const key of this.#dependencies.keys()) if (!values.has(key)) values.set(key, null);
+    for (const [key, value] of values) {
+      const serialized = canonical(value), previous = this.#dependencies.get(key);
+      if (!previous || previous.value !== serialized) this.#dependencies.set(key, { value: serialized, generation: ++this.#dependencyClock });
+    }
     const participants = canonical([this.#appearance, channels.map(c => [c.discordUserId, this.identity(c), c.currentVoiceChannelId, c.preferredStripPosition]),
       [...engine.buses.values()].map(b => [b.id, this.identity(b), b.linkedDiscordGuildId, b.linkedDiscordVoiceChannelId, b.groupSourceIds]), this.orders()]);
     if (this.#participants && participants !== this.#participants) this.participantsRevision++;
@@ -71,6 +108,9 @@ export class ExternalState {
     this.observe();
   }
   internalTargetsRevision() { return this.#internalTargetsRevision; }
+  dependencies(keys: string[]) { return canonical(keys.map(key => [key, this.#dependencies.get(key)?.generation ?? 0])); }
+  /** No old target/slot revision may survive an interval in which mutations were not observed. */
+  resume() { this.revision++; this.participantsRevision++; this.targetsRevision++; this.observe(); }
   resolveTarget(value: unknown) {
     const target = fields(value, ["kind"], ["discordUserId", "scope", "index", "expectedParticipantsRevision"]);
     let userId: string;
@@ -127,7 +167,7 @@ export class ExternalState {
         selectionKind: this.selectionKind, allTeams: teams.length > 0 && teams.every(id => armed.includes(id)), takeTier: armed.length ? "A" as const : null, bots },
       recorder: { state: this.control.recorder?.snapshot().state ?? "IDLE" },
       scenes: [...this.control.scenes.keys()].map(sceneId => ({ sceneId })), currentSceneId: this.control.currentSceneId,
-      permissions: { allowedTierBOperations: [], readDisplayNames: device.readDisplayNames },
+      permissions: { allowedTierBOperations: [...device.allowedTierBOperations], readDisplayNames: device.readDisplayNames },
     };
   }
 }

@@ -19,7 +19,7 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
   }
   async function refresh() {
     const state = await post({ action: "status" });
-    $("external-control-status").textContent = `外部操作: ${state.enabled ? "有効" : "無効"} / 接続中 ${state.activeDeviceCount} 台${state.activeDeviceNames.length ? ` (${state.activeDeviceNames.join("、")})` : ""}`;
+    $("external-control-status").textContent = `外部操作: ${state.stopSaveFailed ? "停止済み（保存に失敗）" : state.enabled ? "有効" : "無効"} / 接続中 ${state.activeDeviceCount} 台${state.activeDeviceNames.length ? ` (${state.activeDeviceNames.join("、")})` : ""}`;
     $("external-control-url").textContent = `${state.url}${state.available ? "" : " — 利用不可（ポートの競合・登録ファイルを確認）"}${state.port !== state.activePort ? ` / 再起動後のポート: ${state.port}` : ""}`;
     const setup = state.state === "SETUP";
     $("external-control-enable").disabled = !setup || state.enabled || !state.available;
@@ -36,11 +36,29 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
         const label = document.createElement("label"), readNames = document.createElement("input");
         readNames.type = "checkbox"; readNames.checked = device.readDisplayNames; readNames.disabled = !setup;
         label.append(readNames, document.createTextNode("表示名の読み取り")); row.append(label);
-        readNames.addEventListener("change", () => operate({ action: "permissions", deviceId: device.deviceId, readDisplayNames: readNames.checked }));
+        const tierB = document.createElement("fieldset"), legend = document.createElement("legend");
+        legend.textContent = "段階Bの許可（操作ごとに確認が必要）"; tierB.append(legend);
+        const choices = [];
+        const savePermissions = () => operate({ action: "permissions", deviceId: device.deviceId, readDisplayNames: readNames.checked,
+          allowedTierBOperations: choices.filter(c => c.input.checked).map(c => c.operation) });
+        readNames.addEventListener("change", savePermissions);
+        for (const [operation, title] of [["channel.fader.set", "参加者フェーダーの大幅上昇"], ["bus.fader.set", "Busフェーダーの大幅上昇"],
+          ["send.fader.set", "Sendフェーダーの大幅上昇"], ["tx.fader.set", "TXフェーダーの大幅上昇"], ["emergency.set", "緊急ミュート解除"],
+          ["settings.lock.set", "設定ロック解除"], ["bus.limiter.set", "Busリミッター"], ["bus.compressor.set", "Busコンプレッサー"],
+          ["scene.recall", "シーン呼び出し（段階2bで提供予定）"], ["recording.start", "録音開始（段階2bで提供予定）"], ["recording.stop", "録音停止（段階2bで提供予定）"]]) {
+          const label = document.createElement("label"), input = document.createElement("input");
+          input.type = "checkbox"; input.checked = device.allowedTierBOperations.includes(operation); input.disabled = !setup;
+          choices.push({ operation, input }); input.addEventListener("change", savePermissions);
+          label.append(input, document.createTextNode(title)); tierB.append(label);
+        }
+        row.append(tierB);
         for (const [action, title] of [["reissue", "再発行"], ["revoke", "取り消し"]]) {
           const button = document.createElement("button"); button.type = "button"; button.textContent = title; button.disabled = !setup;
           button.addEventListener("click", () => operate({ action, deviceId: device.deviceId })); row.append(button);
         }
+      } else {
+        const button = document.createElement("button"); button.type = "button"; button.textContent = "削除"; button.disabled = !setup;
+        button.addEventListener("click", () => operate({ action: "delete", deviceId: device.deviceId })); row.append(button);
       }
       list.append(row);
     }

@@ -4,6 +4,7 @@ import { finished } from "node:stream/promises";
 import type { LogLevel, RouterSnapshot, RuntimeInfoSnapshot } from "../../../packages/shared-types/src/index.ts";
 import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
 import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
+import { OPERATIONS, TIER_B_OPERATIONS, STATUS } from "./external-protocol.ts";
 
 export type OperationalEvent = RouterSnapshot["alerts"][number] & { runtimeInfo?: RuntimeInfoSnapshot; localDetail?: string };
 
@@ -14,6 +15,14 @@ const QUEUE_WARN_MS = 60;
 const QUEUE_RECOVER_MS = 40;
 const QUEUE_WARNING_INTERVAL_MS = 60_000;
 const MAX_PENDING_LOG_BYTES = 1024 * 1024;
+function operationalMessage(message: string) {
+  // Preserve only the API's exact metadata schema, including both UUIDs, without generic 240-char truncation.
+  const match = /^External control action operation=([a-z.]+|UNKNOWN) tier=[ABC] result=([A-Z_]+) phase=(?:action|arm|execute) deviceId=([a-f0-9-]{36}) requestId=([a-f0-9-]{36}) deduplicated=(?:true|false)$/.exec(message);
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+  if (match && (match[1] === "UNKNOWN" || [...OPERATIONS, ...TIER_B_OPERATIONS].includes(match[1]))
+    && (match[2] === "SUCCESS" || Object.hasOwn(STATUS, match[2])) && uuid.test(match[3]) && uuid.test(match[4])) return message;
+  return sanitizeOperatorMessage(message, "Operational event");
+}
 
 function dateKey(date: Date): string {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
@@ -43,7 +52,7 @@ export class OperationalLog {
     const safe: OperationalEvent = {
       at: event.at,
       level: event.level,
-      message: sanitizeOperatorMessage(event.message, "Operational event"),
+      message: operationalMessage(event.message),
       ...(event.runtimeInfo ? { runtimeInfo: { ...event.runtimeInfo } } : {}),
       ...(event.localDetail ? { localDetail: localAudioFaultDetail(event.localDetail) } : {}),
     };

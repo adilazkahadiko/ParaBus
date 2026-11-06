@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { boolean, fields, fail, revision, strictJson, textId } from "./external-protocol.ts";
+import { boolean, fields, fail, revision, strictJson, textId, tierBPermissions, uuid } from "./external-protocol.ts";
 
 export interface ExternalDevice {
   deviceId: string; name: string; tokenHash: string; readDisplayNames: boolean;
@@ -12,6 +12,7 @@ interface Registration { version: 1; enabled: boolean; port: number; devices: Ex
 export class ExternalDeviceStore {
   readonly path: string;
   available = true;
+  stopSaveFailed = false;
   #value: Registration = { version: 1, enabled: false, port: 4175, devices: [] };
   constructor(root: string) {
     this.path = join(root, "external-control.json");
@@ -19,21 +20,22 @@ export class ExternalDeviceStore {
       if (!existsSync(this.path)) return;
       const raw = fields(strictJson(readFileSync(this.path, "utf8")), ["version", "enabled", "port", "devices"]);
       if (raw.version !== 1 || !Array.isArray(raw.devices) || raw.devices.length > 128) fail("INVALID");
-      const enabled = boolean(raw.enabled), port = this.validPort(raw.port);
+      boolean(raw.enabled); const port = this.validPort(raw.port);
       const devices = raw.devices.map(value => {
         const d = fields(value, ["deviceId", "name", "tokenHash", "readDisplayNames", "allowedTierBOperations", "createdAt", "revoked"]);
         if (!/^[a-f0-9]{64}$/.test(textId(d.tokenHash, 64)) || !Array.isArray(d.allowedTierBOperations)) fail("INVALID");
-        return { deviceId: textId(d.deviceId, 36), name: this.validName(d.name), tokenHash: d.tokenHash as string,
-          readDisplayNames: boolean(d.readDisplayNames), allowedTierBOperations: [], createdAt: textId(d.createdAt, 32), revoked: boolean(d.revoked) };
+        return { deviceId: uuid(d.deviceId), name: this.validName(d.name), tokenHash: d.tokenHash as string,
+          readDisplayNames: boolean(d.readDisplayNames), allowedTierBOperations: tierBPermissions(d.allowedTierBOperations), createdAt: textId(d.createdAt, 32), revoked: boolean(d.revoked) };
       });
       if (new Set(devices.map(d => d.deviceId)).size !== devices.length || new Set(devices.map(d => d.tokenHash)).size !== devices.length) fail("INVALID");
-      this.#value = { version: 1, enabled, port, devices };
+      // Activation is a per-launch explicit SETUP operation, even if a previous Stop could not persist.
+      this.#value = { version: 1, enabled: false, port, devices };
     } catch { this.available = false; }
   }
   get enabled() { return this.available && this.#value.enabled; }
   get port() { return this.#value.port; }
   summary() { return { deviceCount: this.#value.devices.filter(d => !d.revoked).length, enabled: this.enabled }; }
-  list() { return this.#value.devices.map(({ tokenHash: _hash, ...device }) => ({ ...device, allowedTierBOperations: [] })); }
+  list() { return this.#value.devices.map(({ tokenHash: _hash, ...device }) => ({ ...device, allowedTierBOperations: [...device.allowedTierBOperations] })); }
   authenticate(token: string): ExternalDevice | undefined {
     if (!this.available) return undefined;
     const digest = createHash("sha256").update(token).digest();
@@ -41,12 +43,13 @@ export class ExternalDeviceStore {
     for (const device of this.#value.devices) {
       if (timingSafeEqual(digest, Buffer.from(device.tokenHash, "hex")) && !device.revoked) match = device;
     }
-    return match ? { ...match, allowedTierBOperations: [] } : undefined;
+    return match ? { ...match, allowedTierBOperations: [...match.allowedTierBOperations] } : undefined;
   }
   setEnabled(enabled: boolean) {
     // A failed disk write must never leave the running listener enabled after Stop.
     if (!enabled) this.#value = { ...this.#value, enabled: false };
-    this.save({ ...this.#value, enabled });
+    try { this.save({ ...this.#value, enabled }); this.stopSaveFailed = false; }
+    catch (error) { if (enabled) throw error; this.stopSaveFailed = true; }
   }
   setPort(port: unknown) { this.save({ ...this.#value, port: this.validPort(port) }); }
   register(name: unknown, readDisplayNames: unknown = false) {
@@ -57,12 +60,20 @@ export class ExternalDeviceStore {
     this.save({ ...this.#value, devices: [...this.#value.devices, device] });
     return { deviceId: device.deviceId, token };
   }
-  change(id: unknown, action: "revoke" | "reissue" | "permissions", readDisplayNames?: unknown) {
+  delete(id: unknown) {
+    const deviceId = textId(id, 36), current = this.#value.devices.find(d => d.deviceId === deviceId);
+    if (!current) fail("NOT_FOUND");
+    if (!current.revoked) fail("INVALID");
+    this.save({ ...this.#value, devices: this.#value.devices.filter(d => d !== current) });
+    return {};
+  }
+  change(id: unknown, action: "revoke" | "reissue" | "permissions", readDisplayNames?: unknown, allowedTierBOperations?: unknown) {
     const deviceId = textId(id, 36), current = this.#value.devices.find(d => d.deviceId === deviceId && !d.revoked);
     if (!current) fail("NOT_FOUND");
     const token = action === "reissue" ? randomBytes(32).toString("base64url") : undefined;
     const next = { ...current, revoked: action === "revoke", ...(token ? { tokenHash: this.hash(token) } : {}),
-      ...(action === "permissions" ? { readDisplayNames: boolean(readDisplayNames), allowedTierBOperations: [] } : {}) };
+      ...(action === "permissions" ? { readDisplayNames: boolean(readDisplayNames), allowedTierBOperations: allowedTierBOperations === undefined
+        ? [...current.allowedTierBOperations] : tierBPermissions(allowedTierBOperations) } : {}) };
     this.save({ ...this.#value, devices: this.#value.devices.map(d => d.deviceId === deviceId ? next : d) });
     return token ? { deviceId, token } : {};
   }

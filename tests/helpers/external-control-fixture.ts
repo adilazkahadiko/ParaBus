@@ -51,7 +51,7 @@ export async function fixture(t: TestContext, teams = 2) {
   const api = new ExternalControlServer({ control, ingest: () => ingest.snapshot(), store, version: "0.1.0", now: () => now,
     txIdentities: () => [...ingest.bots.values()].filter(bot => bot.role === "TX" || bot.role === "DUPLEX"),
     execute: command => { commands.push(command); return control.execute(command); }, log: message => logs.push(message) });
-  const unsubscribe = ingest.onControlStateChange(() => api.state.observe());
+  const unsubscribe = ingest.onControlStateChange(() => api.observe());
   await api.start(); t.after(async () => { unsubscribe(); await api.close(); profiles.flush(); await ingest.close(); });
   const base = `http://127.0.0.1:${api.port}/external/v1`, headers = { authorization: `Bearer ${registration.token}`, "content-type": "application/json" };
   const advance = (ms = 1000) => { now += ms; };

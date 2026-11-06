@@ -1,3 +1,4 @@
+import { clientFrame, connectWs } from "./helpers/external-ws.ts";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -55,7 +56,7 @@ test("registration persists only protected hashes and metadata, reissue/revoke a
   assert.equal(serialized.includes(createHash("sha256").update(token).digest("hex")), true);
   assert.equal(JSON.stringify(store.list()).includes("token"), false);
   assert.equal(store.authenticate(token)?.readDisplayNames, false); assert.deepEqual(store.authenticate(token)?.allowedTierBOperations, []);
-  store.setEnabled(true); assert.equal(new ExternalDeviceStore(root).enabled, true);
+  store.setEnabled(true); assert.equal(new ExternalDeviceStore(root).enabled, false);
   const renewed = store.change(deviceId, "reissue") as { token: string }; assert.equal(store.authenticate(token), undefined); assert.ok(store.authenticate(renewed.token));
   store.change(deviceId, "permissions", true); assert.equal(store.authenticate(renewed.token)?.readDisplayNames, true);
   store.change(deviceId, "revoke"); assert.equal(store.authenticate(renewed.token), undefined); assert.deepEqual(store.summary(), { deviceCount: 0, enabled: true });
@@ -72,8 +73,8 @@ test("Node 22 fetch succeeds with Bearer while browser, Host and alternate authe
     site: "sec-fetch-site" in request.headers, bearer: Boolean(request.headers.authorization?.startsWith("Bearer ")) }));
   const info = await fetch(f.base + "/info", { headers: { authorization: f.headers.authorization } }); assert.equal(info.status, 200); assert.equal(info.headers.get("cache-control"), "no-store");
   assert.deepEqual(observations[0], { mode: "cors", origin: false, site: false, bearer: true });
-  const data = (await info.json() as any).data; assert.equal(data.paraBusVersion, "0.1.0"); assert.deepEqual(data.operations.map((o: any) => o.name), [...OPERATIONS]);
-  assert.equal(data.features.some((s: string) => /meters|confirmation/.test(s)), false); assert.deepEqual(data.operations.find((o: any) => o.name === "tx.take").tiers, ["A"]);
+  const data = (await info.json() as any).data; assert.equal(data.paraBusVersion, "0.1.0"); assert.deepEqual(data.operations.map((o: any) => o.name), [...OPERATIONS, "bus.limiter.set", "bus.compressor.set"]);
+  assert.equal(data.features.includes("confirmation.arm-execute"), true); assert.equal(data.features.some((s: string) => /meters/.test(s)), false); assert.deepEqual(data.operations.find((o: any) => o.name === "tx.take").tiers, ["A"]);
   for (const header of [{ origin: "null" }, { origin: `http://127.0.0.1:${f.api.port}` }, { origin: "https://example.invalid" }, { "sec-fetch-site": "same-origin" }] as Record<string, string>[]) {
     f.advance(); const response = await fetch(f.base + "/info", { headers: { ...f.headers, ...header } }); assert.equal(response.status, 403); assert.equal(response.headers.get("access-control-allow-origin"), null);
     assert.equal((await response.json() as any).code, "ORIGIN_FORBIDDEN");
@@ -249,12 +250,12 @@ test("unauthenticated limiter is separate, aggregates secrets-free logs and devi
   for (let i = 0; i < 20; i++) assert.equal((await f.raw(f.request("channel.mute.set", { target, mute: false }))).status, 200);
   assert.equal(f.api.managementSnapshot().activeDeviceCount, 1); assert.equal(f.logs.filter(s => s === "External control authentication rejected").length, 1);
   f.advance(60000); f.api.tick(); assert.ok(f.logs.some(s => s === "External control authentication suppressed=21")); assert.equal(f.api.managementSnapshot().activeDeviceCount, 0);
-  const text = f.logs.join("\n"); for (const secret of [f.registration.token, f.registration.deviceId, "Private device"]) assert.equal(text.includes(secret), false);
+  const text = f.logs.join("\n"); for (const secret of [f.registration.token, "Private device"]) assert.equal(text.includes(secret), false);
 });
 
 test("HTTP errors use fixed status/messages and reject management, unknown fields, malformed and oversized input", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" });
-  for (const path of ["/arm", "/execute", "/shutdown", "/settings", "/actions?token=x"]) code(await f.raw(f.request("tx.clear", {}), path), "INVALID", 400);
+  for (const path of ["/execute", "/shutdown", "/settings", "/actions?token=x"]) code(await f.raw(f.request("tx.clear", {}), path), "INVALID", 400);
   for (const body of ["{", '{"a":1,"a":2}', "[]", JSON.stringify(f.request("new.operation", {})), JSON.stringify(f.request("channel.fader.set", { target, db: null }))]) { f.advance(); code(await f.raw(body), "INVALID", 400); }
   f.advance(); code(await f.raw(" ".repeat(16385)), "INVALID", 413);
   f.advance(); code(await f.raw("{}", "/actions", { ...f.headers, "content-type": "text/plain" }), "INVALID", 415);
@@ -362,7 +363,7 @@ test("external source guard rejects IPv6 and non-loopback sockets and reports un
 });
 
 test("configured TX without an Adapter is projected as NO_BOT and metadata ABA advances targets revision", async t => {
-  const f = await fixture(t); const state = new ExternalState(f.control, () => f.ingest.snapshot(), undefined, [{ profileId: "OFFLINE", destination: "SPARE" }]);
+  const f = await fixture(t); f.api.manage({ action: "enable" }); await f.state(); const state = new ExternalState(f.control, () => f.ingest.snapshot(), undefined, [{ profileId: "OFFLINE", destination: "SPARE" }]);
   const projection = state.project({ readDisplayNames: false, allowedTierBOperations: [] }, true);
   assert.equal(projection.tx.bots.find(bot => bot.profileId === "OFFLINE")!.state, "NO_BOT");
   const before = f.api.state.targetsRevision;
@@ -382,39 +383,5 @@ test("WS total capacity, permission invalidation, bounded backpressure and state
   f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true }); assert.equal((await connections[0].next()).closeCode, 4001);
   let closeCode = 0;
   const socket = { destroyed: false, writableLength: 262144, end(frame: Buffer) { closeCode = frame.readUInt16BE(2); }, destroy() {}, once() {} };
-  const peer = { socket, closing: false }; (f.api as any).send(peer, { type: "state", payload: {} }); assert.equal(closeCode, 1013); assert.equal(peer.closing, true);
+  const peer = { socket, closing: false, device: { deviceId: f.registration.deviceId } }; (f.api as any).send(peer, { type: "state", payload: {} }); assert.equal(closeCode, 1013); assert.equal(peer.closing, true);
 });
-
-export function clientFrame(text: string, opcode = 1) {
-  const payload = Buffer.from(text), mask = Buffer.from([1, 2, 3, 4]), header = payload.length < 126 ? Buffer.from([0x80 | opcode, 0x80 | payload.length]) : Buffer.from([0x80 | opcode, 0xfe, payload.length >> 8, payload.length & 255]);
-  return Buffer.concat([header, mask, Buffer.from(payload.map((v, i) => v ^ mask[i % 4]))]);
-}
-export async function connectWs(port: number, authorization?: string, extra = "") {
-  const socket = createConnection(port, "127.0.0.1"); let buffer = Buffer.alloc(0), status = 0, upgraded = false;
-  const messages: any[] = [], waiters: Array<(value: any) => void> = [];
-  const deliver = (value: any) => { const waiter = waiters.shift(); if (waiter) waiter(value); else messages.push(value); };
-  await new Promise<void>((resolve, reject) => {
-    socket.on("error", reject);
-    socket.on("connect", () => socket.write(`GET /external/v1/ws HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ZGJyLXRlc3Qta2V5LTEyMw==\r\n${authorization ? `Authorization: ${authorization}\r\n` : ""}${extra}\r\n`));
-    socket.on("data", (chunk: Buffer) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (!upgraded) {
-        const end = buffer.indexOf("\r\n\r\n"); if (end < 0) return;
-        status = Number(buffer.toString("latin1", 0, end).split(" ")[1]); if (status !== 101) { socket.destroy(); resolve(); return; }
-        buffer = buffer.subarray(end + 4); upgraded = true; resolve();
-      }
-      while (buffer.length >= 2) {
-        const opcode = buffer[0] & 15, n = buffer[1] & 127; let length = n, offset = 2;
-        if (n === 126) { if (buffer.length < 4) return; length = buffer.readUInt16BE(2); offset = 4; }
-        else if (n === 127) { if (buffer.length < 10) return; length = Number(buffer.readBigUInt64BE(2)); offset = 10; }
-        if (buffer.length < offset + length) return;
-        const payload = buffer.subarray(offset, offset + length); buffer = buffer.subarray(offset + length);
-        deliver(opcode === 1 ? JSON.parse(payload.toString()) : opcode === 8 ? { closeCode: payload.readUInt16BE() } : { opcode });
-      }
-    });
-  });
-  const next = async (): Promise<any> => messages.length ? messages.shift() : new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("WS message timed out")), 3000); waiters.push(value => { clearTimeout(timer); resolve(value); });
-  });
-  return { socket, status, next };
-}
