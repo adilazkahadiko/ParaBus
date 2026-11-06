@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ControlCommand, DiscordIngestSnapshot } from "../../../packages/shared-types/src/index.ts";
 import type { ControlPlane } from "./control-plane.ts";
-import type { ExternalDevice } from "./external-device-store.ts";
+import type { ExternalDevice, ExternalDeviceStore } from "./external-device-store.ts";
 import { canonical, dependencyKey as dep, fail, fields, revision, textId } from "./external-protocol.ts";
 
 const displayName = (name: string) => name.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 80);
@@ -25,19 +25,24 @@ export class ExternalState {
   #userAppearances = new Map<string, number>();
   #publicBusIds = new Map<string, string>();
   #internalBusIds = new Map<string, string>();
+  #collidingBusAliases = new Set<string>();
+  #busAliasStore?: Pick<ExternalDeviceStore, "available" | "busAlias">;
+  #log: (message: string) => void;
   readonly txIdentities: () => readonly object[];
   readonly configuredTx: readonly { profileId: string; destination: string | null }[];
-  constructor(control: ControlPlane, ingest: () => DiscordIngestSnapshot, txIdentities: () => readonly object[] = () => [], configuredTx: readonly { profileId: string; destination: string | null }[] = []) {
+  constructor(control: ControlPlane, ingest: () => DiscordIngestSnapshot, txIdentities: () => readonly object[] = () => [], configuredTx: readonly { profileId: string; destination: string | null }[] = [],
+    busAliasStore?: Pick<ExternalDeviceStore, "available" | "busAlias">, log: (message: string) => void = () => {}) {
     this.control = control; this.ingest = ingest;
     this.txIdentities = txIdentities;
     this.configuredTx = configuredTx;
+    this.#busAliasStore = busAliasStore; this.#log = log;
     const appearance = (channel: { discordUserId?: string }) => {
       this.#appearance++;
       if (channel.discordUserId) this.#userAppearances.set(channel.discordUserId, this.#appearance);
     };
     control.userSessions?.onJoin(appearance);
     control.userSessions?.onLeave(appearance);
-    this.observe();
+    if (!busAliasStore || busAliasStore.available) this.observe();
   }
   private identity(object: object) {
     let id = this.#identities.get(object); if (!id) { id = ++this.#identity; this.#identities.set(object, id); } return id;
@@ -93,12 +98,23 @@ export class ExternalState {
     if (!/discord-(?:vc|user):|\d{17,20}|^external-bus:/.test(id)) return id;
     let alias = this.#publicBusIds.get(id);
     if (!alias) {
-      do { alias = `external-bus:${randomUUID()}`; } while (this.control.engine.buses.has(alias) || this.#internalBusIds.has(alias));
-      this.#publicBusIds.set(id, alias); this.#internalBusIds.set(alias, id);
+      alias = this.#busAliasStore?.busAlias(id) ?? fail("UNAVAILABLE");
+      const previous = this.#internalBusIds.get(alias);
+      if (previous !== undefined && previous !== id) {
+        if (!this.#collidingBusAliases.has(alias)) this.#log("External control Bus alias collision");
+        this.#collidingBusAliases.add(alias); this.#internalBusIds.delete(alias);
+      } else if (!this.#collidingBusAliases.has(alias)) this.#internalBusIds.set(alias, id);
+      this.#publicBusIds.set(id, alias);
     }
     return alias;
   }
-  resolveBusId(value: unknown) { const id = textId(value); return this.#internalBusIds.get(id) ?? id; }
+  get busAliasCollision() { return this.#collidingBusAliases.size > 0; }
+  assertBusAliasIntegrity() {
+    if (this.#busAliasStore && !this.#busAliasStore.available) fail("UNAVAILABLE");
+    for (const id of this.control.engine.buses.keys()) this.publicBusId(id);
+    if (this.busAliasCollision) fail("UNAVAILABLE");
+  }
+  resolveBusId(value: unknown) { const id = textId(value); this.assertBusAliasIntegrity(); return this.#internalBusIds.get(id) ?? id; }
   watch(key: string, read: () => unknown, groups: string[] = [key]) {
     let entry = this.#dependencies.get(key);
     if (entry) entry.read = read;

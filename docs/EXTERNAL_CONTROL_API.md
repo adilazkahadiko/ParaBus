@@ -64,6 +64,12 @@ Stream Deck の Property Inspector はブラウザとして扱い、ParaBus API 
 
 ローカル管理の permissions 要求で allowedTierBOperations を省略した場合は、既存の許可を維持して表示名権限だけを変更する。空配列を明示すると B をすべて取り消す。登録ファイル内の deviceId は本体が発行した UUID として検証する（外部クライアントは引き続き不透明な ID として扱う）。
 
+Bus 別名用の秘密鍵は settings root の `external-control.json` の `busAliasKey` に、32 bytes の暗号学的乱数を正規の base64url（43文字・paddingなし）で保存する。別ファイルを増やさず、機器登録と同じ原子的置換・保存前の ACL 制限を共用する。鍵はこの保存ファイルと必要な内部メモリだけで扱い、ログ・state・info・エラー・Support Bundle・管理画面には値を含めない。`external-control.json` の既存の gitignore・release 禁止リスト・Bundle 入力除外を維持する。
+
+新規の保存形式は `version:2` とし、鍵を必須にする。既存の `version:1`（鍵なし）は、ファイル全体の検証後に鍵を生成し、機器・トークンハッシュ・権限・port・保存済み enabled を維持して version 2 へ原子的に移行する。新規 settings root でも最初に鍵を生成・保存する。鍵の保存に成功するまでは別名を発行せず、失敗時は外部操作だけを利用不可にして、旧ファイルを上書きしない。起動中の有効状態は従来どおり常に無効から始める。
+
+version 2 で鍵が欠落・不正・読み取り不能な場合や、登録ファイル全体が壊れている場合は、自動再生成・自動上書きをせず外部操作を利用不可にする。これは保存済みの鍵の消失を旧形式と誤認して別名を変えないためである。復旧はアプリ停止中に有効なバックアップを戻すか、意図的に新しい32-byte鍵へ置き換えて再起動する。鍵を作り直すと別名は変わり、機器側で ID を設定し直す必要がある。version 1 のバックアップから移行し直す場合も新しい鍵になる。
+
 段階 A は有効な全トークンに与える。段階 B は操作名ごとの `allowedTierBOperations` に明示登録する。既定は空で、包括的な「全命令可」は作らない。段階 C の許可設定は存在しない。表示名を読む `readDisplayNames` は操作権限と別の権限で、既定 `false` とする。
 
 ## 3. 権限と全命令の分類
@@ -184,7 +190,9 @@ HTTP は UTF-8 JSON、POST は `Content-Type: application/json` を必須とす�
 | 固定参加者 | `{"kind":"user","discordUserId":"100000000000000001"}` |
 | 並び順の参加者 | `{"kind":"slot","scope":{"kind":"all"},"index":1,"expectedParticipantsRevision":17}` |
 
-Discord の内部形式（`discord-vc:` / `discord-user:`）や17〜20桁の数列を含む Bus ID は、外部では `external-bus:<UUID>` の別名にする。`external-bus:` は外部用の予約接頭辞とし、同じ接頭辞を持つ内部 ID も別名にする。対応は起動中のメモリ内だけで保持し、同じ内部 Bus ID には同じ別名を返す。再起動時には変わるため、新しい instanceId を取得したら state から ID を取得し直す。通常の機器情報を含まない Bus ID は従来どおり。外部 state、Send、slot の scope、PFL、メーター、scene.preview、arm summary は同じ公開 Bus ID を使い、操作入力ではその ID を内部 Bus へ解決する。互換性のため旧内部 Bus ID の入力も受け付けるが、応答には公開 ID を返す。
+Discord の内部形式（`discord-vc:` / `discord-user:`）や17〜20桁の数列を含む Bus ID は、外部では `external-bus:<base64url>` の別名にする。末尾は保存鍵による HMAC-SHA256 の全256 bit（43文字・paddingなし）で、メッセージは UTF-8 の `ParaBus external bus alias v1`、NUL byte、内部 Bus ID の順に連結する。鍵なしのハッシュは使わない。同じ鍵を保存しているかぎり同じ内部 Bus ID の別名は再起動後も変わらず、機器のボタン設定に保存できる。鍵を作り直すと変わる。`external-bus:` は外部用の予約接頭辞とし、同じ接頭辞を持つ内部 ID も別名にする。通常の Discord 識別子を含まない Bus ID は従来どおり。外部 state、Send、slot の scope、PFL、メーター、scene.preview、arm summary は同じ公開 Bus ID を使い、操作入力ではその ID を内部 Bus へ解決する。互換性のため旧内部 Bus ID の入力も受け付けるが、応答には公開 ID を返す。
+
+別名の逆引きは候補 Bus の HMAC を計算して作る対応表だけを使う。異なる内部 Bus ID が同じ別名になった場合は片方を選ばず、安全側に倒して外部 API 全体を `503 UNAVAILABLE` にする。旧内部 ID による入力やキャッシュ照会も拒否し、保持中の arm / preview を失効させ、既存 WS は UNAVAILABLE を通知して4003で閉じる。ログは最初の検出時に衝突という種類だけを記録し、鍵・別名・内部 Bus ID・名前を含めない。管理画面のローカル操作は利用できる。起動中に衝突を検出した後は、設定を修復して再起動するまで推測で復帰しない。
 
 Discord User ID は 17〜20 桁の **文字列** のまま扱い、JSON number に変換しない。固定参加者は登録済みユーザーに結び付け、要求時点のオンライン channel に解決する。オフラインなら `NOT_FOUND` とし、保存プロファイルを変更したり、再入室まで操作を予約したりしない。
 
@@ -537,7 +545,7 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 各実装 PR では実 Bot・音声機器を使わない単体・統合試験を基本に、以下のうち実装段階に該当するものを必須とする。段階1は Node 22.23.4 の fetch と共通 WS フレーミングを使う Node TCP クライアントで検証し、Stream Deck / Companion 実クライアントでの試験は段階3で行う。
 
 1. `ControlCommand` 全 type の分類網羅、引数分岐、既定拒否、外部操作 allowlist。命令追加時の未分類をコンパイルまたはテストで検出する。C と管理 HTTP、`confirmed` の注入を拒否する。
-2. 外部無効が初期値、SETUP のローカル認証、機器登録、一度だけの表示、hash のみ保存、機器単位失効、権限変更、再発行。操作画面 nonce と外部トークンの相互流用を拒否する。プラグイン側では実際のプロファイル・設定書き出しにトークンが含まれないこと、Property Inspector の直接 API 接続がなく、本体経由でもトークンを返さないことを試験する。
+2. 外部無効が初期値、SETUP のローカル認証、機器登録、一度だけの表示、トークンは hash のみ保存、機器単位失効、権限変更、再発行。Bus 別名は保存鍵による HMAC-SHA256 とし、ストアと ExternalState を再作成しても同じ ID になること、鍵が異なれば変わること、元の ID や鍵が応答・ログ・管理画面・Bundle に出ないことを試験する。version 1 からの原子的移行・保存失敗・version 2 の鍵欠落や破損での利用不可と非上書き、保存ファイルの ACL、強制衝突時に両方の Bus と既存 arm / WS を拒否することを含む。操作画面 nonce と外部トークンの相互流用を拒否する。プラグイン側では実際のプロファイル・設定書き出しにトークンが含まれないこと、Property Inspector の直接 API 接続がなく、本体経由でもトークンを返さないことを試験する。
 3. 127.0.0.1 以外へ bind しないこと、操作画面 LAN ON/OFF の独立性、bind 失敗時の非公開、Host 欠落・重複・DNS 名・転送ヘッダー、非ローカル接続拒否。
 4. CSRF、DNS rebinding、Origin `null` / ローカル / 外部、Sec-Fetch-Site、simple request、preflight、ブラウザ WS、query / subprotocol / Cookie 認証を拒否する。一方で Sec-Fetch-Mode 単独は拒否せず、Stream Deck の実 Node 20 系、Companion の採用 Node ランタイムで、実際の fetch と採用 WS クライアント（ヘッダーをモックしない）から Bearer 付き HTTP / WS 接続が成功することを検証する。Node 22.23.4 のサーバーとの組み合わせで、自動付与ヘッダー・preflight の有無・Authorization 送信を確認し、Node / WS 実装の版と観測結果を記録する。
 5. A 全操作の入力と内部マッピング、B の操作別権限、A/B 分岐、既存 STRUCTURAL_COMMANDS、FAULT、READY、緊急ミュート、silent stream、presence monitoring の検査を維持する。

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
@@ -8,19 +8,24 @@ export interface ExternalDevice {
   deviceId: string; name: string; tokenHash: string; readDisplayNames: boolean;
   allowedTierBOperations: string[]; createdAt: string; revoked: boolean;
 }
-interface Registration { version: 1; enabled: boolean; port: number; devices: ExternalDevice[] }
+interface Registration { version: 2; enabled: boolean; port: number; devices: ExternalDevice[]; busAliasKey: string }
 export class ExternalDeviceStore {
   readonly path: string;
   available = true;
   stopSaveFailed = false;
-  #value: Registration = { version: 1, enabled: false, port: 4175, devices: [] };
+  #value: Registration = { version: 2, enabled: false, port: 4175, devices: [], busAliasKey: "" };
+  #busAliasKey?: Buffer;
   constructor(root: string) {
     this.path = join(root, "external-control.json");
     try {
-      if (!existsSync(this.path)) return;
-      const raw = fields(strictJson(readFileSync(this.path, "utf8")), ["version", "enabled", "port", "devices"]);
-      if (raw.version !== 1 || !Array.isArray(raw.devices) || raw.devices.length > 128) fail("INVALID");
-      boolean(raw.enabled); const port = this.validPort(raw.port);
+      if (!existsSync(this.path)) {
+        const key = randomBytes(32);
+        this.save({ ...this.#value, busAliasKey: key.toString("base64url") }); this.#busAliasKey = key; return;
+      }
+      const raw = fields(strictJson(readFileSync(this.path, "utf8")), ["version", "enabled", "port", "devices"], ["busAliasKey"]);
+      if (raw.version !== 1 && raw.version !== 2 || !Array.isArray(raw.devices) || raw.devices.length > 128) fail("INVALID");
+      if (raw.version === 2 && !Object.hasOwn(raw, "busAliasKey")) fail("INVALID");
+      const enabled = boolean(raw.enabled), port = this.validPort(raw.port);
       const devices = raw.devices.map(value => {
         const d = fields(value, ["deviceId", "name", "tokenHash", "readDisplayNames", "allowedTierBOperations", "createdAt", "revoked"]);
         if (!/^[a-f0-9]{64}$/.test(textId(d.tokenHash, 64)) || !Array.isArray(d.allowedTierBOperations)) fail("INVALID");
@@ -28,12 +33,20 @@ export class ExternalDeviceStore {
           readDisplayNames: boolean(d.readDisplayNames), allowedTierBOperations: tierBPermissions(d.allowedTierBOperations), createdAt: textId(d.createdAt, 32), revoked: boolean(d.revoked) };
       });
       if (new Set(devices.map(d => d.deviceId)).size !== devices.length || new Set(devices.map(d => d.tokenHash)).size !== devices.length) fail("INVALID");
-      // Activation is a per-launch explicit SETUP operation, even if a previous Stop could not persist.
-      this.#value = { version: 1, enabled: false, port, devices };
+      const key = Object.hasOwn(raw, "busAliasKey") ? this.validBusAliasKey(raw.busAliasKey) : randomBytes(32);
+      this.#value = { version: 2, enabled: false, port, devices, busAliasKey: key.toString("base64url") };
+      // Migrate only a valid legacy file. Publish the key with the same atomic write and ACL as device hashes.
+      // Preserve its on-disk enabled flag; activation in memory always starts disabled.
+      if (raw.version === 1) this.save({ ...this.#value, enabled });
+      this.#value = { ...this.#value, enabled: false }; this.#busAliasKey = key;
     } catch { this.available = false; }
   }
   get enabled() { return this.available && this.#value.enabled; }
   get port() { return this.#value.port; }
+  busAlias(internalId: string): string {
+    if (!this.available || !this.#busAliasKey) fail("UNAVAILABLE");
+    return `external-bus:${createHmac("sha256", this.#busAliasKey).update("ParaBus external bus alias v1\0", "utf8").update(internalId, "utf8").digest("base64url")}`;
+  }
   summary() { return { deviceCount: this.#value.devices.filter(d => !d.revoked).length, enabled: this.enabled }; }
   list() { return this.#value.devices.map(({ tokenHash: _hash, ...device }) => ({ ...device, allowedTierBOperations: [...device.allowedTierBOperations] })); }
   authenticate(token: string): ExternalDevice | undefined {
@@ -80,6 +93,12 @@ export class ExternalDeviceStore {
   private validName(value: unknown) { const name = textId(value, 80).trim(); return name.length ? name : fail("INVALID"); }
   private validPort(value: unknown) { const port = revision(value); return port <= 65535 ? port : fail("INVALID"); }
   private hash(token: string) { return createHash("sha256").update(token).digest("hex"); }
+  private validBusAliasKey(value: unknown): Buffer {
+    if (typeof value !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value)) fail("INVALID");
+    const key = Buffer.from(value, "base64url");
+    if (key.length !== 32 || key.toString("base64url") !== value) fail("INVALID");
+    return key;
+  }
   private save(next: Registration) {
     if (!this.available) fail("UNAVAILABLE");
     const temporary = `${this.path}.${randomUUID()}.tmp`;

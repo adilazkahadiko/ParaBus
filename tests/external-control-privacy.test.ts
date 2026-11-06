@@ -156,7 +156,7 @@ test("display-only projection preserves internal scene parameter checks, ABA, Re
 });
 
 test("Bus aliases remain stable within the launch, old raw input stays compatible, and alias/raw duplicates are rejected", async t => {
-  const f = await privateFixture(t); assert.match(f.publicBusId, /^external-bus:[a-f0-9-]{36}$/);
+  const f = await privateFixture(t); assert.match(f.publicBusId, /^external-bus:[A-Za-z0-9_-]{43}$/);
   assert.equal((await f.get("/state")).data.buses.some((b: any) => b.busId === "bus"), true);
   assert.equal(f.api.state.publicBusId(f.bus.id), f.publicBusId);
   assert.equal((await f.post("bus.mute.set", { busId: f.bus.id, mute: true })).status, 200); assert.equal(f.bus.mute, true);

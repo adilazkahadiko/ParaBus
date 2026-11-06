@@ -57,7 +57,7 @@ export class ExternalControlServer {
   constructor(options: ExternalOptions) {
     this.options = options; this.store = options.store; this.port = this.store.port;
     this.now = options.now ?? (() => performance.now());
-    this.state = new ExternalState(options.control, options.ingest, options.txIdentities, options.configuredTx);
+    this.state = new ExternalState(options.control, options.ingest, options.txIdentities, options.configuredTx, this.store, options.log);
     this.scenes = new ExternalScenes(this.state, this.now);
     this.meters = new ExternalMeters(this.state, () => options.control.txController?.txMeters?.() ?? options.ingest().txStems);
     this.#unsubscribe = options.control.onCommand((command, valueChanged) => this.noteChange(command, valueChanged));
@@ -89,7 +89,7 @@ export class ExternalControlServer {
   managementSnapshot() {
     const now = this.now(), active = this.store.list().filter(d => !d.revoked && ([...this.#peers].some(p => !p.closing && p.device.deviceId === d.deviceId)
       || now - (this.#devices.get(d.deviceId)?.lastHttp ?? -Infinity) < 30000));
-    return { ...this.store.summary(), stopSaveFailed: this.store.stopSaveFailed, state: this.options.control.state, available: this.available && this.store.available, port: this.store.port, activePort: this.port,
+    return { ...this.store.summary(), stopSaveFailed: this.store.stopSaveFailed, state: this.options.control.state, available: this.available && this.store.available && !this.state.busAliasCollision, port: this.store.port, activePort: this.port,
       url: `http://127.0.0.1:${this.port}/external/v1`, activeDeviceCount: active.length, activeDeviceNames: active.map(d => d.name), devices: this.store.list() };
   }
   /** Called only by nonce/Origin/local-protected desktop management routes. Synchronous with action commits. */
@@ -142,6 +142,7 @@ export class ExternalControlServer {
       this.#unauthorized.spend(); fail("UNAUTHORIZED");
     }
     if (!this.store.enabled) fail("DISABLED");
+    this.state.assertBusAliasIntegrity();
     return device;
   }
   private runtime(device: ExternalDevice) {
@@ -614,6 +615,14 @@ export class ExternalControlServer {
   }
   tick() {
     const now = this.now(); this.flushLogs();
+    if (this.store.enabled) {
+      try { this.state.assertBusAliasIntegrity(); }
+      catch {
+        for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.previews.clear(); }
+        for (const peer of this.#peers) { this.send(peer, { type: "error", payload: new ExternalError("UNAVAILABLE").body() }); this.closePeer(peer, 4003); }
+        return;
+      }
+    }
     const sceneKeys = new Set<string>();
     for (const runtime of this.#devices.values()) {
       if (runtime.arm && now - runtime.arm.at >= 60000) runtime.arm = undefined;
