@@ -57,7 +57,7 @@ export class ExternalControlServer {
   constructor(options: ExternalOptions) {
     this.options = options; this.store = options.store; this.port = this.store.port;
     this.now = options.now ?? (() => performance.now());
-    this.state = new ExternalState(options.control, options.ingest, options.txIdentities, options.configuredTx);
+    this.state = new ExternalState(options.control, options.ingest, options.txIdentities, options.configuredTx, this.store, options.log);
     this.scenes = new ExternalScenes(this.state, this.now);
     this.meters = new ExternalMeters(this.state, () => options.control.txController?.txMeters?.() ?? options.ingest().txStems);
     this.#unsubscribe = options.control.onCommand((command, valueChanged) => this.noteChange(command, valueChanged));
@@ -89,7 +89,7 @@ export class ExternalControlServer {
   managementSnapshot() {
     const now = this.now(), active = this.store.list().filter(d => !d.revoked && ([...this.#peers].some(p => !p.closing && p.device.deviceId === d.deviceId)
       || now - (this.#devices.get(d.deviceId)?.lastHttp ?? -Infinity) < 30000));
-    return { ...this.store.summary(), stopSaveFailed: this.store.stopSaveFailed, state: this.options.control.state, available: this.available && this.store.available, port: this.store.port, activePort: this.port,
+    return { ...this.store.summary(), stopSaveFailed: this.store.stopSaveFailed, state: this.options.control.state, available: this.available && this.store.available && !this.state.busAliasCollision, port: this.store.port, activePort: this.port,
       url: `http://127.0.0.1:${this.port}/external/v1`, activeDeviceCount: active.length, activeDeviceNames: active.map(d => d.name), devices: this.store.list() };
   }
   /** Called only by nonce/Origin/local-protected desktop management routes. Synchronous with action commits. */
@@ -142,6 +142,7 @@ export class ExternalControlServer {
       this.#unauthorized.spend(); fail("UNAUTHORIZED");
     }
     if (!this.store.enabled) fail("DISABLED");
+    this.state.assertBusAliasIntegrity();
     return device;
   }
   private runtime(device: ExternalDevice) {
@@ -296,7 +297,7 @@ export class ExternalControlServer {
       const value = kind === "fader" ? finite(args[key], key === "db" ? -90 : -Number.MAX_VALUE, key === "db" ? 12 : Number.MAX_VALUE) : boolean(args[key]);
       if (key === "deltaDb" && value === 0) fail("INVALID");
       const channel = selectors.includes("target") ? this.state.resolveTarget(args.target) : undefined;
-      const busId = selectors.includes("busId") ? textId(args.busId) : undefined;
+      const busId = selectors.includes("busId") ? this.state.resolveBusId(args.busId) : undefined;
       const bus = busId ? engine.buses.get(busId) ?? fail("NOT_FOUND") : undefined;
       const send = family === "send" ? channel!.vcSends.get(busId!) ?? fail("NOT_FOUND") : undefined;
       if (send && bus!.groupSourceIds !== null) fail("INVALID");
@@ -327,8 +328,8 @@ export class ExternalControlServer {
           : family === "send" ? [dep("channel", channel!.id), dep("bus", busId!), dep("send", channel!.id, busId!), dep("send", channel!.id, busId!, "fader")]
           : [dep("tx", profileId!), dep("tx", profileId!, "fader")];
         return this.handleB(operation, args, runtime, device, phase, { command, keys, increaseDb: increase,
-          summary: { target: channel ? { kind: "user", discordUserId: channel.discordUserId } : busId ? { busId } : { profileId },
-            ...(family === "send" ? { busId } : {}), currentDb: current, targetDb: next, increaseDb: increase }, data: () => ({ value: next }) }, arm);
+          summary: { target: channel ? { kind: "user", discordUserId: channel.discordUserId } : busId ? { busId: this.state.publicBusId(busId) } : { profileId },
+            ...(family === "send" ? { busId: this.state.publicBusId(busId!) } : {}), currentDb: current, targetDb: next, increaseDb: increase }, data: () => ({ value: next }) }, arm);
       }
       // A saved B must never be silently downgraded after its fader changed.
       if (phase === "execute") fail("STALE_REVISION");
@@ -351,13 +352,13 @@ export class ExternalControlServer {
           fields(s, ["kind", "target"]); const channel = this.state.resolveTarget(s.target); sourceId = channel.id;
           source = { kind: "channel", target: { kind: "user", discordUserId: channel.discordUserId } };
         } else if (s.kind === "bus") {
-          fields(s, ["kind", "busId"]); sourceId = textId(s.busId); if (!engine.buses.has(sourceId)) fail("NOT_FOUND"); source = { kind: "bus", busId: sourceId };
+          fields(s, ["kind", "busId"]); sourceId = this.state.resolveBusId(s.busId); if (!engine.buses.has(sourceId)) fail("NOT_FOUND"); source = { kind: "bus", busId: this.state.publicBusId(sourceId) };
         } else fail("INVALID");
       }
       this.commit({ type: "SET_PFL", sourceId }); return { source };
     }
     if (operation === "loudness.reset") {
-      fields(args, ["busId"]); const busId = textId(args.busId); if (!engine.buses.has(busId)) fail("NOT_FOUND");
+      fields(args, ["busId"]); const busId = this.state.resolveBusId(args.busId); if (!engine.buses.has(busId)) fail("NOT_FOUND");
       this.commit({ type: "RESET_LOUDNESS", busId }); return {};
     }
     if (operation === "emergency.set") {
@@ -431,7 +432,7 @@ export class ExternalControlServer {
     const limiter = operation === "bus.limiter.set";
     const ranges: Record<string, [number, number]> = { thresholdDb: [-60, 0], ratio: [1, 20], attackMs: [0.1, 200], releaseMs: [10, 2000], makeupDb: [-12, 24] };
     fields(args, limiter ? ["busId", "enabled"] : ["busId"], limiter ? [] : ["enabled", ...Object.keys(ranges)]);
-    const busId = textId(args.busId), parameters: Record<string, number | boolean> = {};
+    const busId = this.state.resolveBusId(args.busId), parameters: Record<string, number | boolean> = {};
     for (const key of Object.keys(args).filter(k => k !== "busId")) parameters[key] = key === "enabled" ? boolean(args[key]) : finite(args[key], ...ranges[key]);
     if (!Object.keys(parameters).length) fail("INVALID");
     if (confirmationOnly) fail("CONFIRMATION_REQUIRED");
@@ -439,7 +440,7 @@ export class ExternalControlServer {
     return { command: limiter ? { type: "SET_LIMITER", busId, enabled: parameters.enabled as boolean }
       : { type: "SET_BUS_COMPRESSOR", busId, ...parameters },
       keys: [dep("bus", busId!), ...(limiter ? [dep("bus", busId, "limiter")] : Object.keys(parameters).map(k => dep("bus", busId, "compressor", k)))],
-      summary: { busId, ...parameters }, data: () => ({ value: limiter ? bus.limiter.enabled : {
+      summary: { busId: this.state.publicBusId(busId), ...parameters }, data: () => ({ value: limiter ? bus.limiter.enabled : {
         enabled: bus.compressorEnabled, thresholdDb: bus.compressor.thresholdDb, ratio: bus.compressor.ratio,
         attackMs: bus.compressor.attackMs, releaseMs: bus.compressor.releaseMs, makeupDb: bus.compressor.makeupDb } }) };
   }
@@ -461,7 +462,7 @@ export class ExternalControlServer {
     fields(args, ["selection"]); const selection = fields(args.selection, ["outputs", "busIds", "participants"]);
     const array = (value: unknown, limit: number): unknown[] => Array.isArray(value) && value.length <= limit ? value : fail("INVALID");
     const outputs = array(selection.outputs, 64).map(n => { const v = finite(n, 0, 63); return Number.isInteger(v) ? v : fail("INVALID"); });
-    const busIds = array(selection.busIds, 32).map(id => textId(id));
+    const busIds = array(selection.busIds, 32).map(id => this.state.resolveBusId(id));
     const participants = array(selection.participants, 112);
     for (const participant of participants) this.state.validateTarget(participant);
     if (!outputs.length && !busIds.length && !participants.length || new Set(outputs).size !== outputs.length || new Set(busIds).size !== busIds.length
@@ -477,7 +478,7 @@ export class ExternalControlServer {
     const keys = ["recorder", ...outputs.map(n => dep("output", String(n))), ...busIds.map(id => dep("bus", id)), ...channels.map(c => dep("channel", c.id))];
     return { command: { type: "START_RECORDING", matrixOutput: outputs[0] ?? 0, includeUsers: false, includeBuses: false,
       selection: { outputs, busIds, channelIds: channels.map(c => c.id) } }, keys,
-      summary: { selection: { outputs, busIds, participants: channels.map(c => ({ kind: "user", discordUserId: c.discordUserId })) } }, data: () => ({}) };
+      summary: { selection: { outputs, busIds: busIds.map(id => this.state.publicBusId(id)), participants: channels.map(c => ({ kind: "user", discordUserId: c.discordUserId })) } }, data: () => ({}) };
   }
   private checkBSafety(command: ControlCommand) {
     const control = this.options.control;
@@ -614,6 +615,14 @@ export class ExternalControlServer {
   }
   tick() {
     const now = this.now(); this.flushLogs();
+    if (this.store.enabled) {
+      try { this.state.assertBusAliasIntegrity(); }
+      catch {
+        for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.previews.clear(); }
+        for (const peer of this.#peers) { this.send(peer, { type: "error", payload: new ExternalError("UNAVAILABLE").body() }); this.closePeer(peer, 4003); }
+        return;
+      }
+    }
     const sceneKeys = new Set<string>();
     for (const runtime of this.#devices.values()) {
       if (runtime.arm && now - runtime.arm.at >= 60000) runtime.arm = undefined;

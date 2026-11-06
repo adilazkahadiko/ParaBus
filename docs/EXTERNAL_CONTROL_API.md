@@ -64,6 +64,12 @@ Stream Deck の Property Inspector はブラウザとして扱い、ParaBus API 
 
 ローカル管理の permissions 要求で allowedTierBOperations を省略した場合は、既存の許可を維持して表示名権限だけを変更する。空配列を明示すると B をすべて取り消す。登録ファイル内の deviceId は本体が発行した UUID として検証する（外部クライアントは引き続き不透明な ID として扱う）。
 
+Bus 別名用の秘密鍵は settings root の `external-control.json` の `busAliasKey` に、32 bytes の暗号学的乱数を正規の base64url（43文字・paddingなし）で保存する。別ファイルを増やさず、機器登録と同じ原子的置換・保存前の ACL 制限を共用する。鍵はこの保存ファイルと必要な内部メモリだけで扱い、ログ・state・info・エラー・Support Bundle・管理画面には値を含めない。`external-control.json` の既存の gitignore・release 禁止リスト・Bundle 入力除外を維持する。
+
+新規の保存形式は `version:2` とし、鍵を必須にする。既存の `version:1`（鍵なし）は、ファイル全体の検証後に鍵を生成し、機器・トークンハッシュ・権限・port・保存済み enabled を維持して version 2 へ原子的に移行する。新規 settings root でも最初に鍵を生成・保存する。鍵の保存に成功するまでは別名を発行せず、失敗時は外部操作だけを利用不可にして、旧ファイルを上書きしない。起動中の有効状態は従来どおり常に無効から始める。
+
+version 2 で鍵が欠落・不正・読み取り不能な場合や、登録ファイル全体が壊れている場合は、自動再生成・自動上書きをせず外部操作を利用不可にする。これは保存済みの鍵の消失を旧形式と誤認して別名を変えないためである。復旧はアプリ停止中に有効なバックアップを戻すか、意図的に新しい32-byte鍵へ置き換えて再起動する。鍵を作り直すと別名は変わり、機器側で ID を設定し直す必要がある。version 1 のバックアップから移行し直す場合も新しい鍵になる。
+
 段階 A は有効な全トークンに与える。段階 B は操作名ごとの `allowedTierBOperations` に明示登録する。既定は空で、包括的な「全命令可」は作らない。段階 C の許可設定は存在しない。表示名を読む `readDisplayNames` は操作権限と別の権限で、既定 `false` とする。
 
 ## 3. 権限と全命令の分類
@@ -184,13 +190,17 @@ HTTP は UTF-8 JSON、POST は `Content-Type: application/json` を必須とす�
 | 固定参加者 | `{"kind":"user","discordUserId":"100000000000000001"}` |
 | 並び順の参加者 | `{"kind":"slot","scope":{"kind":"all"},"index":1,"expectedParticipantsRevision":17}` |
 
+Discord の内部形式（`discord-vc:` / `discord-user:`）や17〜20桁の数列を含む Bus ID は、外部では `external-bus:<base64url>` の別名にする。末尾は保存鍵による HMAC-SHA256 の全256 bit（43文字・paddingなし）で、メッセージは UTF-8 の `ParaBus external bus alias v1`、NUL byte、内部 Bus ID の順に連結する。鍵なしのハッシュは使わない。同じ鍵を保存しているかぎり同じ内部 Bus ID の別名は再起動後も変わらず、機器のボタン設定に保存できる。鍵を作り直すと変わる。`external-bus:` は外部用の予約接頭辞とし、同じ接頭辞を持つ内部 ID も別名にする。通常の Discord 識別子を含まない Bus ID は従来どおり。外部 state、Send、slot の scope、PFL、メーター、scene.preview、arm summary は同じ公開 Bus ID を使い、操作入力ではその ID を内部 Bus へ解決する。互換性のため旧内部 Bus ID の入力も受け付けるが、応答には公開 ID を返す。
+
+別名の逆引きは候補 Bus の HMAC を計算して作る対応表だけを使う。異なる内部 Bus ID が同じ別名になった場合は片方を選ばず、安全側に倒して外部 API 全体を `503 UNAVAILABLE` にする。旧内部 ID による入力やキャッシュ照会も拒否し、保持中の arm / preview を失効させ、既存 WS は UNAVAILABLE を通知して4003で閉じる。ログは最初の検出時に衝突という種類だけを記録し、鍵・別名・内部 Bus ID・名前を含めない。管理画面のローカル操作は利用できる。起動中に衝突を検出した後は、設定を修復して再起動するまで推測で復帰しない。
+
 Discord User ID は 17〜20 桁の **文字列** のまま扱い、JSON number に変換しない。固定参加者は登録済みユーザーに結び付け、要求時点のオンライン channel に解決する。オフラインなら `NOT_FOUND` とし、保存プロファイルを変更したり、再入室まで操作を予約したりしない。
 
 並び順は 1 始まりで、オンライン Discord 参加者だけを対象とする。`scope` は全参加者の `{"kind":"all"}`、または VC に紐付く Bus の `{"kind":"bus","busId":"..."}`。後者は当該 VC のみを対象にし、Group Bus や VC 未紐付け Bus は `INVALID` とする。オンラインかつスコープ内の参加者を `preferredStripPosition` 昇順、同順位なら `discordUserId` の文字列昇順で並べ、隙間を詰めた順番とする。画面の ALL / VC 表示に対応する順番であり、Bot カード番号やオフラインの保存位置ではない。スコープと並びは ParaBus が state 内で配信する。
 
 `expectedParticipantsRevision` は slot 指定で必須。入退室、再入室、VC 移動、並び順、対象 Bus の世代が変わったら増加し、古い番号を別人へ適用しない。固定参加者も解決後の対象がコミットまでに変われば拒否する。内部 `sessionGeneration` は再入室で常に増えるわけではないため、それだけを対象の寿命判定に使わない。API は別途オンライン出現の世代を追跡する。
 
-現行の channel ID は `discord-user:<guildId>:<voiceChannelId>:<userId>` で VC 移動により変わる。固定ボタンの永続キーには使わない。自動 Bus の ID は `discord-vc:<guildId>:<voiceChannelId>`、手動 Bus の ID は名前由来と衝突用の接尾辞であり、削除後の再作成で同じ ID になり得る。API は内部 ID だけで同一物と判断せず、同じ起動中の削除・再作成を revision と対象世代で検出する。Bot の削除・再登録にも同じ規則を適用する。
+現行の内部 channel ID は `discord-user:<guildId>:<voiceChannelId>:<userId>` で VC 移動により変わる。固定ボタンの永続キーには使わず、外部応答にも含めない。自動 Bus の内部 ID は `discord-vc:<guildId>:<voiceChannelId>`（外部では上記の別名）、手動 Bus の ID は名前由来と衝突用の接尾辞であり、削除後の再作成で同じ ID になり得る。API は内部 ID やその別名だけで同一物と判断せず、同じ起動中の削除・再作成を revision と対象世代で検出する。Bot の削除・再登録にも同じ規則を適用する。
 
 ### 外部用 revision
 
@@ -253,7 +263,18 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 
 `recording.start` の `selection` は空集合不可。`outputs` は 0 始まりで state の `outputCount` 未満、最大 64。`busIds` は最大 32、`participants` は最大 112。各配列の重複は禁止。participants の固定ユーザー指定と slot 指定が同じ本人へ解決される場合も重複として INVALID。slot は第5節の expectedParticipantsRevision を arm / execute の両方で検査する。参加者は arm 時点でオンライン対象へ固定し、execute 時の変更は拒否する。内部の `selection.channelIds` に解決し、`matrixOutput` は最初の選択出力または出力 0、`includeUsers:false,includeBuses:false` とともに渡す。後二者による全対象の自動展開には依存しない。出力が存在しない、対象が欠けた、録音中・停止処理中の場合は既存の制約に従い拒否する。保存パスの指定や全新規参加者の自動追加は提供しない。録音セッション・状態は非同期の終了・FAULT も含む単調な世代で追跡し、IDLE → RECORDING → IDLE の ABA でも確認を失効させる。必要な backend がない・FAULT・同期的な保存先のエラーは UNAVAILABLE、二重開始・STOPPING・非録音時の停止は LOCKED。開始応答後に非同期のファイル書き込みが失敗した場合は state.recorder.state が FAULT になる。
 
-`scene.preview` は全体の `expectedRevision` を要求せず、副作用なしでその時点の差分を返す。成功の `data` は `previewId`、`sceneId`、`changes`、`excludedParticipantCount`。`changes` の要素は `{target,field,from,to,recallSafe,locked}` とし、`target` は `{kind:"channel",target:<固定参加者>}`、`{kind:"bus",busId}`、または `{kind:"other",id:<不透明ID>}`。`field` は保存された内部パラメーター名の文字列、`from` / `to` は number / boolean / string / null、後二つは boolean。`from` が存在しない場合は null とする。`label` など名称フィールドは `readDisplayNames:false` なら `from` / `to` を null にする。内部 snapshot 全体、参加者の除外理由の生文字列やパスは返さない。
+`scene.preview` は全体の `expectedRevision` を要求せず、副作用なしでその時点の差分を返す。成功の `data` は `previewId`、`sceneId`、`changes`、`excludedParticipantCount`。`changes` の要素は `{target,field,from,to,recallSafe,locked}` とし、`target` は `{kind:"channel",target:<固定参加者>}`、`{kind:"bus",busId}`、または `{kind:"other",id:<不透明ID>}`。`field` は **target からの相対名** とし、内部の `channel.<内部channel ID>.` / `bus.<内部Bus ID>.` / `matrix.<内部route ID>.` を返さない。相対名は次表に限定する。
+
+| target / 対象 | field の一覧 |
+| --- | --- |
+| `channel`（固定参加者） | `faderDb`, `mute`, `trimDb`, `label`, `order`, `send.<公開busId>.gainDb`, `send.<公開busId>.mute` |
+| `bus` | `masterDb`, `mute`, `label`, `compressorEnabled`, `compressorThresholdDb`, `compressorRatio`, `compressorAttackMs`, `compressorReleaseMs`, `compressorMakeupDb`, `limiterEnabled`, `limiterCeilingDb`, `limiterReleaseMs` |
+| `other`（参加者以外の channel） | `faderDb`, `mute`, `trimDb`, `label`, `order`, `send.<公開busId>.gainDb`, `send.<公開busId>.mute` |
+| `other`（matrix route） | `gainDb`, `mute` |
+
+`other.id` はプレビュー内の `other` 対象の初出順に `other-1`, `other-2`, ... を割り当てる。同じ対象の複数 field は同じ ID を共有する。種類と内部 ID の対応表を応答作成中だけ使い、内部 ID やハッシュは公開しない。この ID はそのプレビューの表示専用であり、別プレビュー・再起動後の同一性や操作対象の入力キーとして使わない。参加者として解決できる channel はオンライン・オフラインとも固定参加者の target を使う。
+
+`from` / `to` は number / boolean / string / null、`recallSafe` / `locked` は boolean。`from` が存在しない場合は null とする。`label` など名称フィールドは `readDisplayNames:false` なら `from` / `to` を null にする。内部 snapshot 全体、参加者の除外理由の生文字列やパスは返さない。相対 field と other.id は外部の表示だけに使い、previewId・差分 fingerprint・依存世代・Recall Safe・ロック・実行照合は従来どおり内部パラメーター名と内部対象で行う。
 
 `previewId` は機器・シーン内容の版・差分と安全依存関係に結び付く一時 ID で、有効期限は発行から30000ms未満（単調時計）で、30000ms以上は INVALID。未期限のプレビューは機器ごと最大32件とし、超過は RATE_LIMITED（期限内のものを押し出さない）。停止・切断・権限変更・取り消し・再発行で機器のプレビューを破棄する。B の arm と execute でその差分を再確認し、差分・適用や除外の対象・関連する安全条件が変わったら `STALE_REVISION`、期限切れ・別機器・未知の ID は `INVALID`。表示名権限で秘匿した from / to もサーバーでは実値で比較する。シーンに関係のないフェーダーや、差分と適用・除外対象に影響しない参加者の入退室では失効させない。成立した arm はプレビューを取り込むため、その後は arm の期限を適用する。Recall Safe、既存のスキップ対象、ロックされたパラメーターは変更しない。未対応の内部パラメーターや型不正な保存値を持つシーンは外部 preview / recall では INVALID とし、内部情報を推測して公開しない。シーン経由で既存のラベルや順番などが復元され得ることもプレビューに含めるが、外部からシーン内容や任意の内部命令を注入することはできない。
 
@@ -524,7 +545,7 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 各実装 PR では実 Bot・音声機器を使わない単体・統合試験を基本に、以下のうち実装段階に該当するものを必須とする。段階1は Node 22.23.4 の fetch と共通 WS フレーミングを使う Node TCP クライアントで検証し、Stream Deck / Companion 実クライアントでの試験は段階3で行う。
 
 1. `ControlCommand` 全 type の分類網羅、引数分岐、既定拒否、外部操作 allowlist。命令追加時の未分類をコンパイルまたはテストで検出する。C と管理 HTTP、`confirmed` の注入を拒否する。
-2. 外部無効が初期値、SETUP のローカル認証、機器登録、一度だけの表示、hash のみ保存、機器単位失効、権限変更、再発行。操作画面 nonce と外部トークンの相互流用を拒否する。プラグイン側では実際のプロファイル・設定書き出しにトークンが含まれないこと、Property Inspector の直接 API 接続がなく、本体経由でもトークンを返さないことを試験する。
+2. 外部無効が初期値、SETUP のローカル認証、機器登録、一度だけの表示、トークンは hash のみ保存、機器単位失効、権限変更、再発行。Bus 別名は保存鍵による HMAC-SHA256 とし、ストアと ExternalState を再作成しても同じ ID になること、鍵が異なれば変わること、元の ID や鍵が応答・ログ・管理画面・Bundle に出ないことを試験する。version 1 からの原子的移行・保存失敗・version 2 の鍵欠落や破損での利用不可と非上書き、保存ファイルの ACL、強制衝突時に両方の Bus と既存 arm / WS を拒否することを含む。操作画面 nonce と外部トークンの相互流用を拒否する。プラグイン側では実際のプロファイル・設定書き出しにトークンが含まれないこと、Property Inspector の直接 API 接続がなく、本体経由でもトークンを返さないことを試験する。
 3. 127.0.0.1 以外へ bind しないこと、操作画面 LAN ON/OFF の独立性、bind 失敗時の非公開、Host 欠落・重複・DNS 名・転送ヘッダー、非ローカル接続拒否。
 4. CSRF、DNS rebinding、Origin `null` / ローカル / 外部、Sec-Fetch-Site、simple request、preflight、ブラウザ WS、query / subprotocol / Cookie 認証を拒否する。一方で Sec-Fetch-Mode 単独は拒否せず、Stream Deck の実 Node 20 系、Companion の採用 Node ランタイムで、実際の fetch と採用 WS クライアント（ヘッダーをモックしない）から Bearer 付き HTTP / WS 接続が成功することを検証する。Node 22.23.4 のサーバーとの組み合わせで、自動付与ヘッダー・preflight の有無・Authorization 送信を確認し、Node / WS 実装の版と観測結果を記録する。
 5. A 全操作の入力と内部マッピング、B の操作別権限、A/B 分岐、既存 STRUCTURAL_COMMANDS、FAULT、READY、緊急ミュート、silent stream、presence monitoring の検査を維持する。
@@ -532,7 +553,7 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 7. 全 4 系統のフェーダーで床 -40 dB の計算、-90 → -40 の計上 0、-90 → -34 の計上 +6、+6 境界、adjust 超過の INVALID、set 超過の B 分類・権限・確認を検証する。「0 dB に戻す」が B execute で成功し、burst 10 dB で永久拒否されないこと。A の毎秒 +20 dB・burst +10 dB、1 dB / 50〜100 ms の継続成功、adjust / set の共有枠、床以下と下降で枠を消費・回復しないこと、同時並列の超過を検証する。相対下降の量制限なし、-90〜+12 dB の飽和、絶対値の範囲、非有限数、Send 不在、mute と承認ゲート保持も確認する。
 8. 参加者・Bus・Send の toggle に必須の expectedMute、一致時だけの反転、不一致時の STALE_REVISION と current.mute、同じ値への set の冪等性を検証する。expectedRevision の省略・指定・古い参照値にかかわらず、別フェーダーの変更や無関係な参加者の入退室があっても toggle と B execute が成功すること。反対に B の該当依存関係・自身のフェーダーの変更では拒否すること。旧 instanceId、入退室・再入室・VC 移動、slot の expectedParticipantsRevision とスコープ、同順位、固定ユーザーのオフライン、対象削除・同 ID 再作成と ABA を検証する。toggle の boolean 比較と、B の依存世代比較の違いも確認する。
 9. TX の profiles / destinations / allTeams、未設定・重複、TEAM 0 / 1 / 複数、INTERVIEW / SPARE、空アーム、1 対象・複数・allTeams 選択・isAllTeamsArmed が真でも A（空集合は INVALID）、targetsRevision、Bot・入力変更、緊急ミュート・FAULT 拒否、グループ失敗時停止、CLEAR_ALL と個別停止の違い。
-10. シーン preview / recall、表示名の秘匿、previewId の期限・所有者・内容変更、Recall Safe、除外対象、既存パラメーターロック。preview → arm → execute の差分が変われば STALE、差分に関係のない変更なら成功すること（秘匿した実値も比較）。録音の選択固定・対象消失・二重開始・停止処理中・保存失敗と、未選択参加者の入退室で確認が失効しないこと。
+10. シーン preview / recall、表示名の秘匿、相対 field・プレビュー内の other ID、previewId の期限・所有者・内容変更、Recall Safe、除外対象、既存パラメーターロック。preview → arm → execute の差分が変われば STALE、差分に関係のない変更なら成功すること（秘匿した実値も比較）。特徴的な模擬 guildId / voiceChannelId を含む参加者・Bus・other 対象を使い、HTTP info / state / scene.preview / arm summary / エラー、WS state / meters / result の JSON 全体にそれらと内部 channel ID が含まれないこと。公開 Bus ID で既存操作ができ、照合では元の内部対象と世代を使うこと。録音の選択固定・対象消失・二重開始・停止処理中・保存失敗と、未選択参加者の入退室で確認が失効しないこと。
 11. 外部 state の厳密なフィールド allowlist と名前の opt-in、GET / WS の一致、公開 revision の独立性、メーター購読上限、対象消失、再購読、backpressure、heartbeat と接続数制限。
 12. 一発停止と実行が競合しても停止確定後にコミットしないこと、HTTP 503 と WS close、arm / 待ち要求の破棄、再起動でも停止維持、明示再有効化、機器表示の重複排除と HTTP 活動判定。
 13. 機器・全体・未認証の流量と安全方向の予約枠、正常機器の 20 要求/秒を未認証枠で拒否しないこと、429 / Retry-After、重複排除 60 秒と容量、無効化・失効後のキャッシュ、切断後の自走・自動復元・キュー再生がないこと。

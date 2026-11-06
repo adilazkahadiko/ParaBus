@@ -27,8 +27,8 @@ export class ExternalMeters {
         } };
       }
       if (s.kind === "bus") {
-        fields(s, ["kind", "busId"]); const busId = textId(s.busId), bus = this.state.control.engine.buses.get(busId) ?? fail("NOT_FOUND");
-        return { source: { kind: "bus", busId }, read: () => this.state.control.engine.buses.get(busId) !== bus ? missing()
+        fields(s, ["kind", "busId"]); const busId = this.state.resolveBusId(s.busId), bus = this.state.control.engine.buses.get(busId) ?? fail("NOT_FOUND");
+        return { source: { kind: "bus", busId: this.state.publicBusId(busId) }, read: () => this.state.control.engine.buses.get(busId) !== bus ? missing()
           : { peak: bus.meter.peak, rms: bus.meter.rms, clip: bus.meter.clip, stale: false } };
       }
       if (s.kind === "tx") {

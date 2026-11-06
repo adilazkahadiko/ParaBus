@@ -38,7 +38,7 @@ test("real desktop management requires nonce, Origin and local source, survives 
   assert.equal((await fetch(origin + "/api/external-control")).status, 403);
   const registered = await (await manage({ action: "register", name: "Local private device", readDisplayNames: false })).json() as any;
   assert.equal(registered.ok, true); const { token, deviceId } = registered.data;
-  const stored = new ExternalDeviceStore(root), hash = JSON.parse(readFileSync(stored.path, "utf8")).devices[0].tokenHash;
+  const stored = new ExternalDeviceStore(root), savedRegistration = JSON.parse(readFileSync(stored.path, "utf8")), hash = savedRegistration.devices[0].tokenHash, aliasKey = savedRegistration.busAliasKey;
   const headers = { authorization: `Bearer ${token}` }, base = `http://127.0.0.1:${externalPort}/external/v1`;
   const external = async (path: string) => { const response = await fetch(base + path, { headers }); return { status: response.status, body: await response.json() as any }; };
   assert.equal((await external("/info")).body.code, "DISABLED");
@@ -62,11 +62,12 @@ test("real desktop management requires nonce, Origin and local source, survives 
   assert.equal(previewResponse.status, 200); const previewId = (await previewResponse.json() as any).data.previewId;
   const status = await (await manage({ action: "status" })).json() as any; assert.equal(status.data.activeDeviceCount, 1); assert.equal(status.data.deviceCount, 1);
   assert.equal(JSON.stringify(status).includes(token), false); assert.equal(JSON.stringify(status).includes(hash), false);
+  assert.equal(JSON.stringify(status).includes(aliasKey), false); assert.equal(JSON.stringify(info).includes(aliasKey), false);
   const action = await fetch(base + "/actions", { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ requestId: randomUUID(), instanceId, operation: "emergency.set", args: { active: true } }) }); assert.equal(action.status, 200);
-  const desktop = await (await fetch(origin + "/api/state")).text(); for (const sensitive of [token, hash, deviceId, "Local private device"]) assert.equal(desktop.includes(sensitive), false);
+  const desktop = await (await fetch(origin + "/api/state")).text(); for (const sensitive of [token, hash, aliasKey, deviceId, "Local private device"]) assert.equal(desktop.includes(sensitive), false);
   const bundleResponse = await fetch(origin + "/api/support-bundle", { method: "POST", headers: { origin, "x-dbr-session-nonce": nonce, "content-type": "application/json" }, body: "{}" });
   assert.equal(bundleResponse.status, 200); const bundle = await bundleResponse.json() as any; const bytes = readFileSync(bundle.path);
-  for (const sensitive of [token, hash, armId, previewId, deviceId, "Local private device", "External control action", "external-control.json"]) assert.equal(bytes.includes(Buffer.from(sensitive)), false);
+  for (const sensitive of [token, hash, aliasKey, armId, previewId, deviceId, "Local private device", "External control action", "external-control.json"]) assert.equal(bytes.includes(Buffer.from(sensitive)), false);
   assert.equal(bytes.includes(Buffer.from('"deviceCount": 1')), true); assert.equal(bytes.includes(Buffer.from('"enabled": true')), true);
   assert.equal((await manage({ action: "stop" })).status, 200); assert.equal((await external("/info")).status, 503); await stop();
   nonce = await start(true); assert.equal((await external("/info")).body.code, "DISABLED");
@@ -83,7 +84,7 @@ test("real desktop management requires nonce, Origin and local source, survives 
   assert.match(log, /operation=settings.lock.set tier=B result=SUCCESS phase=arm/);
   assert.match(log, /operation=settings.lock.set tier=B result=SUCCESS phase=execute/);
   assert.ok(log.includes(`deviceId=${deviceId}`));
-  for (const sensitive of [token, hash, armId, previewId, "Local private device"]) { assert.equal(log.includes(sensitive), false); assert.equal(output.includes(sensitive), false); }
+  for (const sensitive of [token, hash, aliasKey, armId, previewId, "Local private device"]) { assert.equal(log.includes(sensitive), false); assert.equal(output.includes(sensitive), false); }
 });
 
 async function until(predicate: () => boolean | Promise<boolean>) {

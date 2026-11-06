@@ -36,12 +36,12 @@ test("scene.preview is A, read-only, strictly projected and hides names while re
   assert.deepEqual(Object.keys(p.body.data).sort(), ["previewId", "sceneId", "changes", "excludedParticipantCount"].sort());
   assert.ok(Buffer.from(p.body.data.previewId, "base64url").length >= 16);
   for (const change of p.body.data.changes) assert.deepEqual(Object.keys(change).sort(), ["target", "field", "from", "to", "recallSafe", "locked"].sort());
-  const label = p.body.data.changes.find((c: any) => c.field.endsWith(".label")); assert.equal(label.from, null); assert.equal(label.to, null);
+  const label = p.body.data.changes.find((c: any) => c.field === "label"); assert.equal(label.from, null); assert.equal(label.to, null);
   assert.equal(JSON.stringify(p.body.data).includes("private guest"), false);
   assert.deepEqual({ revision: f.control.revision, scene: f.control.currentSceneId, db: f.channel.faderDb, commands: f.commands.length }, before);
   f.channel.label = "Different hidden name"; f.api.observe(); code(await recall(f, id, p.body.data.previewId), "STALE_REVISION", 409);
   f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true, allowedTierBOperations: ["scene.recall"] });
-  const named = await preview(f, id); assert.equal(named.body.data.changes.find((c: any) => c.field.endsWith(".label")).from, "Different hidden name");
+  const named = await preview(f, id); assert.equal(named.body.data.changes.find((c: any) => c.field === "label").from, "Different hidden name");
   code(await arm(f, "scene.preview", { sceneId: id }), "INVALID", 400);
   for (const command of ["SAVE_SCENE", "DELETE_SCENE"]) code(await f.raw(f.request(command, {})), "TIER_FORBIDDEN", 403);
 });
@@ -71,8 +71,8 @@ test("scene recall ignores unrelated faders, enforces Recall Safe and ON AIR loc
   f.control.execute({ type: "SET_LIMITER", busId: "bus", enabled: true });
   const parameter = `channel.${f.channel.id}.faderDb`;
   f.control.execute({ type: "SET_RECALL_SAFE", parameter, safe: true }); f.control.state = "ON_AIR";
-  const p = await preview(f, id); assert.ok(p.body.data.changes.some((c: any) => c.field === parameter && c.recallSafe));
-  assert.ok(p.body.data.changes.some((c: any) => c.field.endsWith(".limiterEnabled") && c.locked));
+  const p = await preview(f, id); assert.ok(p.body.data.changes.some((c: any) => c.field === "faderDb" && c.recallSafe));
+  assert.ok(p.body.data.changes.some((c: any) => c.field === "limiterEnabled" && c.locked));
   const a = await recall(f, id, p.body.data.previewId); assert.equal(a.status, 200);
   f.control.execute({ type: "SET_TX_MASTER", profileId: "TX1", db: -1 }); f.advance(1000);
   assert.equal((await execute(f, a.body.data.armId)).status, 200); assert.equal(f.channel.faderDb, -20); assert.equal(f.bus.limiter.enabled, true);
