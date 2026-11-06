@@ -23,6 +23,8 @@ export class ExternalState {
   #dependencyGroups = new Map<string, Set<string>>();
   #dependencyClock = 0;
   #userAppearances = new Map<string, number>();
+  #publicBusIds = new Map<string, string>();
+  #internalBusIds = new Map<string, string>();
   readonly txIdentities: () => readonly object[];
   readonly configuredTx: readonly { profileId: string; destination: string | null }[];
   constructor(control: ControlPlane, ingest: () => DiscordIngestSnapshot, txIdentities: () => readonly object[] = () => [], configuredTx: readonly { profileId: string; destination: string | null }[] = []) {
@@ -86,6 +88,17 @@ export class ExternalState {
   }
   internalTargetsRevision() { return this.#internalTargetsRevision; }
   identityOf(value: object | undefined | null) { return value ? this.identity(value) : null; }
+  /** Keep ordinary IDs compatible, but never publish Discord topology encoded inside an ID. */
+  publicBusId(id: string) {
+    if (!/discord-(?:vc|user):|\d{17,20}|^external-bus:/.test(id)) return id;
+    let alias = this.#publicBusIds.get(id);
+    if (!alias) {
+      do { alias = `external-bus:${randomUUID()}`; } while (this.control.engine.buses.has(alias) || this.#internalBusIds.has(alias));
+      this.#publicBusIds.set(id, alias); this.#internalBusIds.set(alias, id);
+    }
+    return alias;
+  }
+  resolveBusId(value: unknown) { const id = textId(value); return this.#internalBusIds.get(id) ?? id; }
   watch(key: string, read: () => unknown, groups: string[] = [key]) {
     let entry = this.#dependencies.get(key);
     if (entry) entry.read = read;
@@ -172,10 +185,10 @@ export class ExternalState {
     } else if (target.kind === "slot") {
       fields(value, ["kind", "scope", "index", "expectedParticipantsRevision"]);
       const expected = revision(target.expectedParticipantsRevision), index = revision(target.index);
-      const scope = fields(target.scope, ["kind"], ["busId"]);
+      const scope = { ...fields(target.scope, ["kind"], ["busId"]) };
       if (scope.kind === "all") fields(scope, ["kind"]);
       else if (scope.kind === "bus") {
-        fields(scope, ["kind", "busId"]); textId(scope.busId);
+        fields(scope, ["kind", "busId"]); scope.busId = this.resolveBusId(scope.busId);
         const bus = this.control.engine.buses.get(scope.busId as string);
         if (!bus) fail("NOT_FOUND");
         if (bus.groupSourceIds !== null || !bus.linkedDiscordVoiceChannelId) fail("INVALID");
@@ -211,18 +224,19 @@ export class ExternalState {
     const armed = ingest.txTargets?.armed ?? [], teams = ingest.txTargets?.allTeams ?? [];
     const monitor = engine.monitorSourceId, channel = channels.find(c => c.id === monitor);
     const pfl = channel ? { kind: "channel" as const, target: { kind: "user" as const, discordUserId: channel.discordUserId! } }
-      : monitor && engine.buses.has(monitor) ? { kind: "bus" as const, busId: monitor } : null;
+      : monitor && engine.buses.has(monitor) ? { kind: "bus" as const, busId: this.publicBusId(monitor) } : null;
     return {
       instanceId: this.instanceId, revision: this.revision, participantsRevision: this.participantsRevision, enabled,
       state: this.control.state, settingsLocked: this.control.state === "ON_AIR", emergencyMuted: engine.emergencyMuted, emergencyEpoch: this.control.emergencyEpoch,
       outputCount: Math.min(64, this.control.outputManager?.snapshot(false).activeChannelCount ?? engine.outputChannelCount),
       participants: channels.map(c => ({ discordUserId: c.discordUserId!, faderDb: c.faderDb, mute: c.mute,
-        sends: [...c.vcSends].map(([busId, s]) => ({ busId, db: s.gainDb, mute: s.mute })),
+        sends: [...c.vcSends].map(([busId, s]) => ({ busId: this.publicBusId(busId), db: s.gainDb, mute: s.mute })),
         ...(device.readDisplayNames ? { displayName: displayName(c.label) } : {}) })),
       registeredUsers: [...(this.control.userSessions?.profiles.profiles.values() ?? [])].map(p => ({ discordUserId: p.discordUserId,
         online: channels.some(c => c.discordUserId === p.discordUserId), ...(device.readDisplayNames ? { displayName: displayName(p.displayName) } : {}) })),
-      participantOrders: this.orders(),
-      buses: [...engine.buses.values()].map(b => ({ busId: b.id, kind: b.groupSourceIds !== null ? "group" : b.linkedDiscordVoiceChannelId ? "vc" : "other",
+      participantOrders: this.orders().map(order => ({ ...order, scope: order.scope.kind === "bus"
+        ? { kind: "bus" as const, busId: this.publicBusId(order.scope.busId) } : order.scope })),
+      buses: [...engine.buses.values()].map(b => ({ busId: this.publicBusId(b.id), kind: b.groupSourceIds !== null ? "group" : b.linkedDiscordVoiceChannelId ? "vc" : "other",
         masterDb: b.masterDb, mute: b.mute, limiterEnabled: b.limiter.enabled,
         compressor: { enabled: b.compressorEnabled, thresholdDb: b.compressor.thresholdDb, ratio: b.compressor.ratio,
           attackMs: b.compressor.attackMs, releaseMs: b.compressor.releaseMs, makeupDb: b.compressor.makeupDb } })),

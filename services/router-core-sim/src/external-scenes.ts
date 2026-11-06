@@ -61,14 +61,18 @@ export class ExternalScenes {
     const id = randomBytes(32).toString("base64url");
     const record: ScenePreview = { id, at: this.now(), sceneId, fingerprint: snapshot.fingerprint, keys: snapshot.keys,
       dependencies: this.state.dependencies(snapshot.keys) };
+    const otherIds = new Map<string, string>();
     return { record, data: { previewId: id, sceneId, changes: snapshot.changes.map(change => {
-      const [kind, internalId] = change.parameter.split("."), channel = this.state.control.engine.channels.get(internalId);
+      const [kind, internalId, ...relative] = change.parameter.split("."), channel = this.state.control.engine.channels.get(internalId);
       const userId = channel?.discordUserId ?? /^discord-user:[^:]+:[^:]+:(\d{17,20})$/.exec(internalId)?.[1];
+      const otherKey = canonical([kind, internalId]);
+      if (!(kind === "channel" && userId) && kind !== "bus" && !otherIds.has(otherKey)) otherIds.set(otherKey, `other-${otherIds.size + 1}`);
       const target = kind === "channel" && userId ? { kind: "channel", target: { kind: "user", discordUserId: userId } }
-        : kind === "bus" ? { kind: "bus", busId: internalId } : { kind: "other", id: internalId };
+        : kind === "bus" ? { kind: "bus", busId: this.state.publicBusId(internalId) } : { kind: "other", id: otherIds.get(otherKey)! };
+      if (relative[0] === "send") relative[1] = this.state.publicBusId(relative[1]);
       const value = (v: SceneValue | undefined) => !readDisplayNames && change.parameter.endsWith(".label") ? null
         : typeof v === "string" ? v.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 80) : v ?? null;
-      return { target, field: change.parameter, from: value(change.from), to: value(change.to), recallSafe: change.recallSafe, locked: change.locked };
+      return { target, field: relative.join("."), from: value(change.from), to: value(change.to), recallSafe: change.recallSafe, locked: change.locked };
     }), excludedParticipantCount: snapshot.excludedParticipantCount } };
   }
   check(record: ScenePreview) {
