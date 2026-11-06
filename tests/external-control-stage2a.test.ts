@@ -109,19 +109,15 @@ for (const family of ["channel", "bus", "send", "tx"]) test(`${family} B fader r
   assert.equal(f.channel.approvalGateOpen, false); assert.equal(f.channel.vcSends.get("bus")!.mute, true);
 });
 
-test("A arm is INVALID; all future scene/recording operations stay forbidden even with grants; info/state disclose actual tiers", async t => {
+test("A arm is INVALID; info/state disclose all supported tiers", async t => {
   const f = await fixture(t); await ready(f, [...ALLOWED_TIER_B_OPERATIONS]);
   code(await arm(f, "tx.clear", {}), "INVALID", 400);
   code(await arm(f, "channel.fader.set", { target, db: -1 }), "INVALID", 400);
-  for (const name of ["scene.preview", "scene.recall", "recording.start", "recording.stop"]) {
-    code(await f.raw(f.request(name, {})), "TIER_FORBIDDEN", 403); code(await arm(f, name, {}), "TIER_FORBIDDEN", 403);
-  }
   f.advance(); const response = await fetch(f.base + "/info", { headers: f.headers }), info = (await response.json() as any).data;
   assert.deepEqual(info.permissions.allowedTierBOperations, [...ALLOWED_TIER_B_OPERATIONS].sort());
   assert.deepEqual((await f.state()).permissions, info.permissions);
   for (const operation of info.operations) {
-    assert.equal(/^(scene|recording)\./.test(operation.name), false);
-    assert.deepEqual(operation.tiers, operation.name === "bus.limiter.set" || operation.name === "bus.compressor.set" ? ["B"]
+    assert.deepEqual(operation.tiers, ["bus.limiter.set", "bus.compressor.set", "scene.recall", "recording.start", "recording.stop"].includes(operation.name) ? ["B"]
       : operation.name.endsWith(".fader.set") || ["emergency.set", "settings.lock.set"].includes(operation.name) ? ["A", "B"] : ["A"]);
   }
   assert.equal(new Set(info.operations.map((o: any) => o.name)).size, info.operations.length);

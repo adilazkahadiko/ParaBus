@@ -6,7 +6,7 @@ import { request as httpRequest } from "node:http";
 import { createConnection, createServer } from "node:net";
 import { join } from "node:path";
 import test from "node:test";
-import { COMMAND_POLICIES, OPERATIONS, Bucket, ExternalError, classifyCommand, strictJson } from "../services/router-core-sim/src/external-protocol.ts";
+import { COMMAND_POLICIES, OPERATIONS, TIER_B_OPERATIONS, Bucket, ExternalError, classifyCommand, strictJson } from "../services/router-core-sim/src/external-protocol.ts";
 import { ExternalDeviceStore } from "../services/router-core-sim/src/external-device-store.ts";
 import { ExternalControlServer } from "../services/router-core-sim/src/external-control.ts";
 import { ExternalState } from "../services/router-core-sim/src/external-state.ts";
@@ -73,8 +73,8 @@ test("Node 22 fetch succeeds with Bearer while browser, Host and alternate authe
     site: "sec-fetch-site" in request.headers, bearer: Boolean(request.headers.authorization?.startsWith("Bearer ")) }));
   const info = await fetch(f.base + "/info", { headers: { authorization: f.headers.authorization } }); assert.equal(info.status, 200); assert.equal(info.headers.get("cache-control"), "no-store");
   assert.deepEqual(observations[0], { mode: "cors", origin: false, site: false, bearer: true });
-  const data = (await info.json() as any).data; assert.equal(data.paraBusVersion, "0.1.0"); assert.deepEqual(data.operations.map((o: any) => o.name), [...OPERATIONS, "bus.limiter.set", "bus.compressor.set"]);
-  assert.equal(data.features.includes("confirmation.arm-execute"), true); assert.equal(data.features.some((s: string) => /meters/.test(s)), false); assert.deepEqual(data.operations.find((o: any) => o.name === "tx.take").tiers, ["A"]);
+  const data = (await info.json() as any).data; assert.equal(data.paraBusVersion, "0.1.0"); assert.deepEqual(data.operations.map((o: any) => o.name), [...OPERATIONS, ...TIER_B_OPERATIONS]);
+  assert.equal(data.features.includes("confirmation.arm-execute"), true); assert.equal(data.features.includes("meters.ws"), true); assert.deepEqual(data.operations.find((o: any) => o.name === "tx.take").tiers, ["A"]);
   for (const header of [{ origin: "null" }, { origin: `http://127.0.0.1:${f.api.port}` }, { origin: "https://example.invalid" }, { "sec-fetch-site": "same-origin" }] as Record<string, string>[]) {
     f.advance(); const response = await fetch(f.base + "/info", { headers: { ...f.headers, ...header } }); assert.equal(response.status, 403); assert.equal(response.headers.get("access-control-allow-origin"), null);
     assert.equal((await response.json() as any).code, "ORIGIN_FORBIDDEN");
@@ -146,7 +146,7 @@ test("all remaining A mappings, external confirmed rejection and B/C default ref
   assert.equal((await f.action("loudness.reset", { busId: "bus" })).status, 200);
   assert.equal((await f.action("settings.lock.set", { locked: true })).status, 200); assert.equal(f.control.state, "ON_AIR");
   const before = f.control.revision; await f.action("settings.lock.set", { locked: true }); assert.equal(f.control.revision, before);
-  for (const [operation, args] of [["settings.lock.set", { locked: false }], ["emergency.set", { active: false, expectedEmergencyEpoch: 1 }], ["bus.limiter.set", { busId: "bus", enabled: true }], ["bus.compressor.set", { busId: "bus", enabled: true }], ["scene.preview", { sceneId: "s" }], ["scene.recall", {}], ["recording.start", {}], ["recording.stop", {}]] as const) code(await f.action(operation, args), "TIER_FORBIDDEN", 403);
+  for (const [operation, args] of [["settings.lock.set", { locked: false }], ["emergency.set", { active: false, expectedEmergencyEpoch: 1 }], ["bus.limiter.set", { busId: "bus", enabled: true }], ["bus.compressor.set", { busId: "bus", enabled: true }], ["scene.recall", {}], ["recording.start", {}], ["recording.stop", {}]] as const) code(await f.action(operation, args), "TIER_FORBIDDEN", 403);
   for (const operation of Object.keys(COMMAND_POLICIES)) code(await f.action(operation, {}), "TIER_FORBIDDEN", 403);
   code(await f.action("channel.mute.set", { target, mute: true, confirmed: true }), "INVALID");
   code(await f.action("channel.mute.set", { target, mute: true }, { confirmed: true }), "INVALID");

@@ -5,22 +5,28 @@ import type { CommandResult, ControlCommand, DiscordIngestSnapshot } from "../..
 import type { ControlPlane } from "./control-plane.ts";
 import { ExternalDeviceStore, type ExternalDevice } from "./external-device-store.ts";
 import { ExternalState } from "./external-state.ts";
+import { ExternalScenes, type ScenePreview } from "./external-scenes.ts";
+import { ExternalMeters, type MeterBinding } from "./external-meters.ts";
 import { Bucket, COMMAND_POLICIES, ExternalError, LIMITS, OPERATIONS, TIER_B_OPERATIONS, boolean, canonical, dependencyKey as dep, classifyCommand, fail, fields, finite, object, revision, strictJson, textId, uuid, type RecordValue } from "./external-protocol.ts";
 import { encodeWebSocketFrame } from "./snapshot-delivery.ts";
 import { acceptWebSocket, closeWebSocket, controlFrame, websocketReceiver } from "./websocket.ts";
 
 type Reply = { status: number; body: unknown; retryAfterSeconds?: number };
 type Cached = { at: number; payload: string; reply: Reply; operation: string; tier: string };
-type Arm = { id: string; at: number; operation: string; args: RecordValue; keys: string[]; dependencies: string };
-type PreparedB = { command: ControlCommand; keys: string[]; summary: unknown; increaseDb?: number; data: () => unknown; noop?: boolean };
+type Arm = { id: string; at: number; operation: string; args: RecordValue; keys: string[]; dependencies: string; preview?: ScenePreview };
+type PreparedB = { command: ControlCommand; keys: string[]; summary: unknown; increaseDb?: number; data: () => unknown; noop?: boolean; preview?: ScenePreview };
 interface DeviceRuntime {
   normal: Bucket; safety: Bucket; reads: Bucket; db: Map<string, Bucket>;
   cache: Map<string, Cached>; lastHttp: number; limited: number; lastLog: number;
   generation: number;
   arm?: Arm;
   deniedArms: Map<string, { operation: string; at: number }>;
+  previews: Map<string, ScenePreview>;
 }
-interface Peer { socket: Duplex; device: ExternalDevice; revision: number; pongAt: number; pingAt: number; closing: boolean }
+interface Peer {
+  socket: Duplex; device: ExternalDevice; revision: number; pongAt: number; pingAt: number; closing: boolean;
+  meters?: { bindings: MeterBinding[]; hz: number; at: number }; sequence: number;
+}
 export interface ExternalOptions {
   control: ControlPlane; ingest: () => DiscordIngestSnapshot; store: ExternalDeviceStore;
   execute: (command: ControlCommand) => CommandResult; version: string; now?: () => number;
@@ -32,6 +38,8 @@ export interface ExternalOptions {
 export class ExternalControlServer {
   readonly store: ExternalDeviceStore;
   readonly state: ExternalState;
+  readonly scenes: ExternalScenes;
+  readonly meters: ExternalMeters;
   readonly server = createServer({ requireHostHeader: false }, (request, response) => { void this.http(request, response); });
   readonly port: number;
   readonly options: ExternalOptions;
@@ -45,10 +53,14 @@ export class ExternalControlServer {
   #observing = true;
   #logTier = "A";
   #timer?: ReturnType<typeof setInterval>;
+  #unsubscribe: () => void;
   constructor(options: ExternalOptions) {
     this.options = options; this.store = options.store; this.port = this.store.port;
     this.now = options.now ?? (() => performance.now());
     this.state = new ExternalState(options.control, options.ingest, options.txIdentities, options.configuredTx);
+    this.scenes = new ExternalScenes(this.state, this.now);
+    this.meters = new ExternalMeters(this.state, () => options.control.txController?.txMeters?.() ?? options.ingest().txStems);
+    this.#unsubscribe = options.control.onCommand((command, valueChanged) => this.noteChange(command, valueChanged));
     this.#normal = new Bucket(100, 100, this.now()); this.#safety = new Bucket(20, 20, this.now()); this.#unauthorized = new Bucket(10, 20, this.now());
     this.server.requestTimeout = 5000; this.server.headersTimeout = 5000; this.server.maxHeadersCount = 64;
     this.server.on("checkContinue", (req, res) => { void this.http(req, res); });
@@ -66,8 +78,9 @@ export class ExternalControlServer {
     if (!this.store.available) this.options.log("External control registration unavailable");
   }
   async close() {
+    this.#unsubscribe();
     this.#stopGeneration++;
-    for (const runtime of this.#devices.values()) runtime.arm = undefined;
+    for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.previews.clear(); }
     if (this.#timer) clearInterval(this.#timer);
     this.flushLogs(true);
     for (const peer of this.#peers) peer.socket.destroy(); this.#peers.clear();
@@ -86,7 +99,7 @@ export class ExternalControlServer {
     if (action === "stop") {
       fields(input, ["action"]); this.#stopGeneration++;
       this.#observing = false;
-      for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.deniedArms.clear(); }
+      for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.deniedArms.clear(); runtime.previews.clear(); }
       try { this.store.setEnabled(false); }
       finally { for (const peer of this.#peers) {
         this.send(peer, { type: "error", payload: new ExternalError("DISABLED").body() }); this.closePeer(peer, 4003);
@@ -107,7 +120,7 @@ export class ExternalControlServer {
       const runtime = this.#devices.get(input.deviceId as string);
       if (runtime?.arm && action === "permissions") runtime.deniedArms.set(runtime.arm.id, { operation: runtime.arm.operation, at: runtime.arm.at });
       for (const peer of this.#peers) if (peer.device.deviceId === input.deviceId) this.closePeer(peer, 4001);
-      if (runtime) { runtime.generation++; runtime.arm = undefined; }
+      if (runtime) { runtime.generation++; runtime.arm = undefined; runtime.previews.clear(); }
       return result;
     }
     return fail("INVALID");
@@ -135,7 +148,7 @@ export class ExternalControlServer {
     let runtime = this.#devices.get(device.deviceId);
     if (!runtime) {
       const now = this.now(); runtime = { normal: new Bucket(20, 20, now), safety: new Bucket(5, 5, now), reads: new Bucket(10, 10, now),
-        db: new Map(), cache: new Map(), deniedArms: new Map(), lastHttp: -Infinity, limited: 0, lastLog: now, generation: 0 }; this.#devices.set(device.deviceId, runtime);
+        db: new Map(), cache: new Map(), deniedArms: new Map(), previews: new Map(), lastHttp: -Infinity, limited: 0, lastLog: now, generation: 0 }; this.#devices.set(device.deviceId, runtime);
     }
     return runtime;
   }
@@ -256,7 +269,19 @@ export class ExternalControlServer {
   }
   private perform(operation: string, args: RecordValue, runtime: DeviceRuntime, device: ExternalDevice, phase: "action" | "arm" | "execute", arm?: Arm): unknown {
     const control = this.options.control, engine = control.engine;
-    if (operation.startsWith("scene.") || operation.startsWith("recording.")) return fail("TIER_FORBIDDEN");
+    if (operation === "scene.preview") {
+      if (phase === "arm") fail("INVALID");
+      if (classifyCommand({ type: "PREVIEW_SCENE", sceneId: textId(args.sceneId, 128) }, { state: control.state }) !== "A") fail("TIER_FORBIDDEN");
+      for (const [id, preview] of runtime.previews) if (this.now() - preview.at >= 30000) runtime.previews.delete(id);
+      if (runtime.previews.size >= 32) fail("RATE_LIMITED");
+      const { record, data } = this.scenes.preview(args, device.readDisplayNames); runtime.previews.set(record.id, record); return data;
+    }
+    if (operation === "scene.recall" || operation === "recording.start" || operation === "recording.stop") {
+      this.#logTier = "B";
+      if (!device.allowedTierBOperations.includes(operation)) fail("TIER_FORBIDDEN");
+      const prepared = operation === "scene.recall" ? this.prepareScene(args, runtime, phase, arm) : this.prepareRecording(operation, args, phase);
+      return this.handleB(operation, args, runtime, device, phase, prepared, arm);
+    }
     if (["bus.limiter.set", "bus.compressor.set"].includes(operation) || operation === "emergency.set" && args.active === false
       || operation === "settings.lock.set" && args.locked === false) {
       this.#logTier = "B";
@@ -418,6 +443,42 @@ export class ExternalControlServer {
         enabled: bus.compressorEnabled, thresholdDb: bus.compressor.thresholdDb, ratio: bus.compressor.ratio,
         attackMs: bus.compressor.attackMs, releaseMs: bus.compressor.releaseMs, makeupDb: bus.compressor.makeupDb } }) };
   }
+  private prepareScene(args: RecordValue, runtime: DeviceRuntime, phase: string, arm?: Arm): PreparedB {
+    fields(args, ["sceneId", "previewId"]); const sceneId = textId(args.sceneId, 128), previewId = textId(args.previewId, 64);
+    if (phase === "action") fail("CONFIRMATION_REQUIRED");
+    const preview = phase === "execute" ? arm?.preview : runtime.previews.get(previewId);
+    if (!preview || preview.id !== previewId || preview.sceneId !== sceneId || phase !== "execute" && this.now() - preview.at >= 30000) fail("INVALID");
+    const current = this.scenes.check(preview);
+    return { command: { type: "RECALL_SCENE", sceneId }, keys: preview.keys, preview,
+      summary: { sceneId, changeCount: current.changes.length, excludedParticipantCount: current.excludedParticipantCount }, data: () => ({}) };
+  }
+  private prepareRecording(operation: string, args: RecordValue, phase: string): PreparedB {
+    const control = this.options.control;
+    if (operation === "recording.stop") {
+      fields(args, []); if (phase === "action") fail("CONFIRMATION_REQUIRED");
+      return { command: { type: "STOP_RECORDING" }, keys: ["recorder"], summary: { stop: true }, data: () => ({}) };
+    }
+    fields(args, ["selection"]); const selection = fields(args.selection, ["outputs", "busIds", "participants"]);
+    const array = (value: unknown, limit: number): unknown[] => Array.isArray(value) && value.length <= limit ? value : fail("INVALID");
+    const outputs = array(selection.outputs, 64).map(n => { const v = finite(n, 0, 63); return Number.isInteger(v) ? v : fail("INVALID"); });
+    const busIds = array(selection.busIds, 32).map(id => textId(id));
+    const participants = array(selection.participants, 112);
+    for (const participant of participants) this.state.validateTarget(participant);
+    if (!outputs.length && !busIds.length && !participants.length || new Set(outputs).size !== outputs.length || new Set(busIds).size !== busIds.length
+      || new Set(participants.map(canonical)).size !== participants.length) fail("INVALID");
+    if (phase === "action") fail("CONFIRMATION_REQUIRED");
+    const outputCount = Math.min(64, control.outputManager?.snapshot(false).activeChannelCount ?? control.engine.outputChannelCount);
+    if (outputCount < 1) fail("LOCKED");
+    if (outputs.some(n => n >= outputCount)) fail("INVALID");
+    if (busIds.some(id => !control.engine.buses.has(id))) fail("NOT_FOUND");
+    const channels = participants.map(p => this.state.resolveTarget(p));
+    if (channels.some(c => control.userSessions?.sessions.get(c.discordUserId!)?.online === false)) fail("NOT_FOUND");
+    if (new Set(channels.map(c => c.id)).size !== channels.length) fail("INVALID");
+    const keys = ["recorder", ...outputs.map(n => dep("output", String(n))), ...busIds.map(id => dep("bus", id)), ...channels.map(c => dep("channel", c.id))];
+    return { command: { type: "START_RECORDING", matrixOutput: outputs[0] ?? 0, includeUsers: false, includeBuses: false,
+      selection: { outputs, busIds, channelIds: channels.map(c => c.id) } }, keys,
+      summary: { selection: { outputs, busIds, participants: channels.map(c => ({ kind: "user", discordUserId: c.discordUserId })) } }, data: () => ({}) };
+  }
   private checkBSafety(command: ControlCommand) {
     const control = this.options.control;
     if (command.type === "EMERGENCY_MUTE" && !command.active) {
@@ -428,6 +489,12 @@ export class ExternalControlServer {
     if (command.type === "SET_STATE" && !["ON_AIR", "SETUP"].includes(control.state)) fail("LOCKED");
     if (command.type === "SET_LIMITER" && (control.state === "ON_AIR" || !command.enabled && control.state !== "SETUP")) fail("LOCKED");
     if (command.type === "SET_TX_MASTER" && control.state === "FAULT") fail("LOCKED");
+    if (command.type === "RECALL_SCENE" && control.state === "FAULT") fail("LOCKED");
+    if (command.type === "START_RECORDING" || command.type === "STOP_RECORDING") {
+      if (!control.recorder) fail("UNAVAILABLE");
+      if (control.recorder.state === "FAULT") fail("UNAVAILABLE");
+      if (command.type === "START_RECORDING" ? control.recorder.state !== "IDLE" : control.recorder.state !== "RECORDING") fail("LOCKED");
+    }
   }
   private handleB(operation: string, args: RecordValue, runtime: DeviceRuntime, device: ExternalDevice,
     phase: "action" | "arm" | "execute", prepared: PreparedB, arm?: Arm) {
@@ -438,14 +505,15 @@ export class ExternalControlServer {
     const dependencies = this.state.dependencies(prepared.keys);
     if (phase === "arm") {
       const id = randomBytes(32).toString("base64url");
-      runtime.arm = { id, at: this.now(), operation, args: structuredClone(args), keys: prepared.keys, dependencies };
+      runtime.arm = { id, at: this.now(), operation, args: structuredClone(args), keys: prepared.keys, dependencies, preview: prepared.preview };
       return { armId: id, operation, tier: "B", summary: prepared.summary, minimumHoldMs: 1000, expiresInMs: 5000 };
     }
     if (!arm || arm.dependencies !== dependencies) fail("STALE_REVISION");
     // The synchronous commit boundary: authority, timing, dependency and safety checks have all passed.
     if (!prepared.noop) {
       const command = prepared.command;
-      this.commit(command.type === "EMERGENCY_MUTE" || command.type === "SET_STATE" ? { ...command, confirmed: true } : command,
+      this.commit(command.type === "EMERGENCY_MUTE" || command.type === "SET_STATE" || command.type === "RECALL_SCENE"
+        || command.type === "START_RECORDING" || command.type === "STOP_RECORDING" ? { ...command, confirmed: true } : command,
         prepared.increaseDb, false, "B");
     }
     return prepared.data();
@@ -470,9 +538,9 @@ export class ExternalControlServer {
   }
   private info(device: ExternalDevice) {
     return { apiVersion: "1.0", paraBusVersion: this.options.version,
-      features: ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute"],
-      operations: [...OPERATIONS, "bus.limiter.set", "bus.compressor.set"].map(name => ({ name,
-        tiers: name === "bus.limiter.set" || name === "bus.compressor.set" ? ["B"]
+      features: ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute", "scene.preview", "scene.recall", "recording.selection", "meters.ws"],
+      operations: [...OPERATIONS, ...TIER_B_OPERATIONS].map(name => ({ name,
+        tiers: TIER_B_OPERATIONS.includes(name) && name !== "scene.preview" ? ["B"]
           : name.endsWith(".fader.set") || name === "emergency.set" || name === "settings.lock.set" ? ["A", "B"] : ["A"] })), limits: LIMITS,
       permissions: { allowedTierBOperations: [...device.allowedTierBOperations], readDisplayNames: device.readDisplayNames } };
   }
@@ -498,17 +566,26 @@ export class ExternalControlServer {
       if (request.url !== "/external/v1/ws" || request.headers["sec-websocket-protocol"] !== undefined) fail("INVALID");
       if (this.#peers.size >= 16 || [...this.#peers].filter(p => p.device.deviceId === device.deviceId).length >= 2) { runtime.limited++; fail("RATE_LIMITED"); }
       if (!acceptWebSocket(request, socket, "Cache-Control: no-store\r\n")) fail("INVALID");
-      const peer: Peer = { socket, device, revision: 0, pongAt: this.now(), pingAt: this.now(), closing: false }; this.#peers.add(peer);
+      const peer: Peer = { socket, device, revision: 0, pongAt: this.now(), pingAt: this.now(), closing: false, sequence: 0 }; this.#peers.add(peer);
       const receive = websocketReceiver(16384, (opcode, payload) => {
         if (peer.closing) return;
         if (opcode === 8) { this.closePeer(peer, 1000); return; }
         if (opcode === 9) { if (socket.writableLength < LIMITS.maxWsPendingBytes) socket.write(controlFrame(10, payload)); else this.closePeer(peer, 1013); return; }
         if (opcode === 10) { peer.pongAt = this.now(); return; }
-        // State-only v1 stage 1 has no inbound commands/subscriptions.
         let requestId: string | null = null;
-        try { requestId = uuid(object(strictJson(new TextDecoder("utf-8", { fatal: true }).decode(payload))).requestId); } catch {}
-        try { this.rate(runtime, "read"); this.send(peer, { type: "result", requestId, payload: new ExternalError("INVALID").body() }); }
-        catch (error) { this.send(peer, { type: "result", requestId, payload: (error as ExternalError).body() }); }
+        let message: RecordValue | undefined;
+        try { message = object(strictJson(new TextDecoder("utf-8", { fatal: true }).decode(payload))); requestId = uuid(message.requestId); } catch {}
+        try {
+          this.rate(runtime, "read");
+          if (!message || !requestId || opcode !== 1) fail("INVALID");
+          let data: unknown;
+          if (message.type === "meters.subscribe") {
+            const subscription = this.meters.subscribe(message); peer.meters = { ...subscription, at: this.now() }; data = { hz: subscription.hz };
+          } else if (message.type === "meters.unsubscribe") {
+            fields(message, ["type", "requestId"]); peer.meters = undefined; data = {};
+          } else fail("INVALID");
+          this.send(peer, { type: "result", requestId, payload: { ok: true, data } });
+        } catch (error) { this.send(peer, { type: "result", requestId, payload: (error instanceof ExternalError ? error : new ExternalError("INVALID")).body() }); }
       });
       socket.on("data", (data: Buffer) => {
         try { receive(data); }
@@ -516,29 +593,36 @@ export class ExternalControlServer {
       });
       const disconnected = () => {
         this.#peers.delete(peer);
-        if (!peer.closing) { peer.closing = true; runtime.arm = undefined; }
+        peer.meters = undefined;
+        if (!peer.closing) { peer.closing = true; runtime.arm = undefined; runtime.previews.clear(); }
       };
       socket.on("close", disconnected); socket.on("error", disconnected);
       socket.on("end", () => { disconnected(); socket.destroy(); });
       this.observe(); this.sendState(peer); if (head.length) socket.emit("data", head);
     } catch (error) { this.socketReply(socket, this.errorReply(error)); }
   }
-  private closePeer(peer: Peer, code: number) { if (!peer.closing) { peer.closing = true; const runtime = this.#devices.get(peer.device.deviceId); if (runtime) runtime.arm = undefined; closeWebSocket(peer.socket, code); } }
-  private send(peer: Peer, message: unknown) {
-    if (peer.closing || peer.socket.destroyed) return;
+  private closePeer(peer: Peer, code: number) { if (!peer.closing) { peer.closing = true; peer.meters = undefined;
+    const runtime = this.#devices.get(peer.device.deviceId); if (runtime) { runtime.arm = undefined; runtime.previews.clear(); } closeWebSocket(peer.socket, code); } }
+  private send(peer: Peer, message: unknown, droppable = false) {
+    if (peer.closing || peer.socket.destroyed) return false;
     const frame = encodeWebSocketFrame(JSON.stringify(message));
-    if (peer.socket.writableLength + frame.length > LIMITS.maxWsPendingBytes) { this.closePeer(peer, 1013); return; }
-    peer.socket.write(frame);
+    if (peer.socket.writableLength + frame.length > LIMITS.maxWsPendingBytes) { if (!droppable) this.closePeer(peer, 1013); return false; }
+    peer.socket.write(frame); return true;
   }
   private sendState(peer: Peer) {
     this.send(peer, { type: "state", payload: this.state.project(peer.device, this.store.enabled) }); peer.revision = this.state.revision;
   }
   tick() {
-    this.observe(); const now = this.now(); this.flushLogs();
+    const now = this.now(); this.flushLogs();
+    const sceneKeys = new Set<string>();
     for (const runtime of this.#devices.values()) {
       if (runtime.arm && now - runtime.arm.at >= 60000) runtime.arm = undefined;
+      for (const [id, preview] of runtime.previews) if (now - preview.at >= 30000) runtime.previews.delete(id);
+      for (const preview of runtime.previews.values()) for (const key of preview.keys) sceneKeys.add(key);
+      if (runtime.arm && now - runtime.arm.at < 5000) for (const key of runtime.arm.keys) sceneKeys.add(key);
       for (const [id, denied] of runtime.deniedArms) if (now - denied.at >= 60000) runtime.deniedArms.delete(id);
     }
+    this.state.pruneSceneDependencies(sceneKeys); this.observe();
     for (const peer of this.#peers) {
       if (peer.closing) continue;
       if (now - peer.pongAt >= 45000) { this.closePeer(peer, 1001); continue; }
@@ -547,13 +631,25 @@ export class ExternalControlServer {
         peer.socket.write(controlFrame(9)); peer.pingAt = now;
       }
       if (peer.revision !== this.state.revision) this.sendState(peer);
+      if (!peer.closing && peer.meters && now - peer.meters.at >= 1000 / peer.meters.hz) {
+        peer.meters.at = now;
+        if (peer.socket.writableLength >= LIMITS.maxWsPendingBytes) continue;
+        if (this.send(peer, { type: "meters", instanceId: this.state.instanceId, sequence: peer.sequence + 1,
+          values: this.meters.values(peer.meters.bindings) }, true)) peer.sequence++;
+      }
     }
   }
   /** Called after local/ingest mutations too; idle launches do not build projections every 100ms. */
-  observe() {
-    const active = this.store.enabled && ([...this.#peers].some(p => !p.closing)
+  noteChange(command?: ControlCommand, valueChanged?: boolean) {
+    if (this.active()) this.state.changed(command, valueChanged);
+    else this.#observing = false;
+  }
+  private active() {
+    return this.store.enabled && ([...this.#peers].some(p => !p.closing)
       || [...this.#devices.values()].some(d => this.now() - d.lastHttp < 30000));
-    if (!active) { this.#observing = false; return; }
+  }
+  observe() {
+    if (!this.active()) { this.#observing = false; return; }
     if (!this.#observing) { this.#observing = true; this.state.resume(); }
     else this.state.observe();
   }

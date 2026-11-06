@@ -4,6 +4,7 @@ import { basename, join, resolve } from "node:path";
 import { finished } from "node:stream/promises";
 import { MAX_OUTPUT_CHANNELS, MAX_RX_CHANNELS, MAX_VC_BUSES, type RecorderSelection, type RecorderSnapshot, type RecorderState, type RecorderTrackKind, type RecorderTrackSnapshot } from "../../../packages/shared-types/src/index.ts";
 import type { AudioEngine } from "./audio-engine.ts";
+import { ControlCommandError } from "./control-error.ts";
 
 interface RecorderTrack {
   kind: RecorderTrackKind;
@@ -120,7 +121,10 @@ export class RecorderManager {
   readonly folder: string;
   readonly maxQueuedBlocks: number;
   readonly scheduleDrain: (callback: () => void) => void;
-  state: RecorderState = "IDLE";
+  #state: RecorderState = "IDLE";
+  generation = 1;
+  get state(): RecorderState { return this.#state; }
+  set state(value: RecorderState) { if (this.#state !== value) { this.#state = value; this.generation++; } }
   matrixOutput = 63;
   includeUsers = false;
   includeBuses = false;
@@ -151,8 +155,8 @@ export class RecorderManager {
   }
 
   start(options: RecorderStartOptions): void {
-    if (this.state === "RECORDING" || this.state === "STOPPING") throw new Error("Recorderはすでに動作中です");
-    if (this.#finishRequested) throw new Error("Recorderの終了処理が完了するまで待ってください");
+    if (this.state === "RECORDING" || this.state === "STOPPING") throw new ControlCommandError("LOCKED", "Recorderはすでに動作中です");
+    if (this.#finishRequested) throw new ControlCommandError("LOCKED", "Recorderの終了処理が完了するまで待ってください");
     if (!Number.isInteger(options.matrixOutput) || options.matrixOutput < 0 || options.matrixOutput >= this.engine.outputs.length) {
       throw new RangeError(`Matrix OUTは1〜${this.engine.outputs.length}で指定してください`);
     }
@@ -193,7 +197,7 @@ export class RecorderManager {
       this.state = "RECORDING";
     } catch (error) {
       this.fail(error);
-      throw error;
+      throw new ControlCommandError("UNAVAILABLE", "Recorder storage unavailable");
     }
   }
 
@@ -218,7 +222,7 @@ export class RecorderManager {
   }
 
   stop(): void {
-    if (this.state !== "RECORDING") throw new Error("Recorderは録音中ではありません");
+    if (this.state !== "RECORDING") throw new ControlCommandError("LOCKED", "Recorderは録音中ではありません");
     this.state = "STOPPING";
     this.stoppedAt = new Date();
     this.#finishRequested = true;

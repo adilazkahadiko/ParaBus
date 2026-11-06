@@ -41,7 +41,7 @@ export const OPERATIONS = [
   "settings.lock.set", "tx.start", "tx.stop", "tx.clear", "tx.targets.set", "tx.take",
 ] as const;
 export const TIER_B_OPERATIONS = ["bus.limiter.set", "bus.compressor.set", "scene.preview", "scene.recall", "recording.start", "recording.stop"];
-// Only operation names that can be B in §6 are valid persisted permissions (including future 2b operations).
+// Only operation names that can be B in §6 are valid persisted permissions.
 export const ALLOWED_TIER_B_OPERATIONS = ["channel.fader.set", "bus.fader.set", "send.fader.set", "tx.fader.set",
   "emergency.set", "settings.lock.set", "bus.limiter.set", "bus.compressor.set", "scene.recall", "recording.start", "recording.stop"];
 export function tierBPermissions(value: unknown): string[] {
@@ -56,6 +56,7 @@ export const LIMITS = {
   globalActionRatePerSecond: 100, globalActionBurst: 100, globalSafetyRatePerSecond: 20, globalSafetyBurst: 20,
   unauthenticatedRatePerSecond: 10, unauthenticatedBurst: 20,
   maxWsPerDevice: 2, maxWsTotal: 16, maxWsPendingBytes: 262144, stateMaxHz: 10,
+  maxMeterSources: 32, maxMeterHz: 10, maxPreviewsPerDevice: 32, previewExpiresInMs: 30000,
   pingIntervalMs: 15000, pongTimeoutMs: 45000, deduplicationMs: 60000, deduplicationCapacity: 2048,
 };
 export const STATUS = { INVALID: 400, UNAUTHORIZED: 401, HOST_FORBIDDEN: 403, ORIGIN_FORBIDDEN: 403,

@@ -103,6 +103,7 @@ function validateCommand(command: unknown): command is ControlCommand {
 }
 
 export interface DiscordTxController {
+  txMasterDb?(profileId: string): number | undefined;
   readonly txTargetsRevision?: number;
   connectBot(profileId: string): void;
   disconnectBot(profileId: string): void;
@@ -124,6 +125,10 @@ export interface DiscordTxController {
 }
 
 export class ControlPlane {
+  #commandListeners = new Set<(command: ControlCommand, valueChanged?: boolean) => void>();
+  onCommand(listener: (command: ControlCommand, valueChanged?: boolean) => void) {
+    this.#commandListeners.add(listener); return () => this.#commandListeners.delete(listener);
+  }
   readonly engine: AudioEngine;
   readonly outputManager?: AudioOutputManager;
   readonly cueOutputManager?: AudioOutputManager;
@@ -168,6 +173,34 @@ export class ControlPlane {
   }
 
   execute(command: ControlCommand): CommandResult {
+    const before = this.#commandListeners.size ? this.commandValue(command) : undefined;
+    const result = this.executeCommand(command);
+    const valueChanged = before === undefined ? undefined : before !== this.commandValue(command);
+    if ((result.ok || valueChanged) && command.type !== "PREVIEW_SCENE") for (const listener of this.#commandListeners) listener(command, valueChanged);
+    return result;
+  }
+
+  private commandValue(command: ControlCommand): unknown {
+    try {
+      if (command?.type === "SET_CHANNEL_FADER") return this.engine.channels.get(command.channelId)?.faderDb;
+      if (command?.type === "SET_BUS_MASTER") return this.engine.buses.get(command.busId)?.masterDb;
+      if (command?.type === "SET_VC_SEND") { const send = this.engine.channels.get(command.channelId)?.vcSends.get(command.busId); return JSON.stringify([send?.gainDb, send?.mute]); }
+      if (command?.type === "SET_TX_MASTER") return command.profileId ? this.txController?.txMasterDb?.(command.profileId) : undefined;
+      if (command?.type === "SET_STATE") return this.state;
+      if (command?.type === "EMERGENCY_MUTE") return `${this.emergencyEpoch}:${this.engine.emergencyMuted}`;
+      if (command?.type === "SET_CHANNEL_MUTE") return this.engine.channels.get(command.channelId)?.mute;
+      if (command?.type === "SET_BUS_MUTE") return this.engine.buses.get(command.busId)?.mute;
+      if (command?.type === "SET_LIMITER") return this.engine.buses.get(command.busId)?.limiter.enabled;
+      if (command?.type === "SET_BUS_COMPRESSOR") { const b = this.engine.buses.get(command.busId); return b ? JSON.stringify([b.compressorEnabled, b.compressor.thresholdDb, b.compressor.ratio, b.compressor.attackMs, b.compressor.releaseMs, b.compressor.makeupDb]) : undefined; }
+      if (command?.type === "SET_PFL") return this.engine.monitorSourceId;
+      if (command?.type === "SET_RECALL_SAFE") return this.recallSafe.has(command.parameter);
+      if (command?.type === "START_RECORDING" || command?.type === "STOP_RECORDING") return `${this.recorder?.state}:${this.recorder?.generation}`;
+      if (command?.type === "SAVE_SCENE" || command?.type === "DELETE_SCENE" || command?.type === "RECALL_SCENE") return JSON.stringify([this.currentSceneId, [...this.scenes.keys()]]);
+    } catch { /* A diagnostics read must not bypass the command's typed failure boundary. */ }
+    return undefined;
+  }
+
+  private executeCommand(command: ControlCommand): CommandResult {
     if (!validateCommand(command)) return this.denied("Invalid command");
     try {
       if (this.state === "ON_AIR" && STRUCTURAL_COMMANDS.has(command.type)) {
@@ -635,7 +668,7 @@ export class ControlPlane {
           break;
         case "START_RECORDING":
           if (!command.confirmed) return this.denied("録音開始には確認が必要です", true);
-          if (!this.recorder) return this.denied("Recorder backendがありません");
+          if (!this.recorder) throw new ControlCommandError("UNAVAILABLE", "Recorder backend unavailable");
           this.recorder.start({
             matrixOutput: command.matrixOutput,
             includeUsers: command.includeUsers,
@@ -646,7 +679,7 @@ export class ControlPlane {
           break;
         case "STOP_RECORDING":
           if (!command.confirmed) return this.denied("録音停止には確認が必要です", true);
-          if (!this.recorder) return this.denied("Recorder backendがありません");
+          if (!this.recorder) throw new ControlCommandError("UNAVAILABLE", "Recorder backend unavailable");
           this.recorder.stop();
           this.log("WARNING", "Recorder stopping");
           break;
@@ -895,7 +928,7 @@ export class ControlPlane {
     }));
   }
 
-  private previewScene(sceneId: string): SceneChange[] {
+  previewScene(sceneId: string): SceneChange[] {
     const scene = this.scenes.get(sceneId);
     if (!scene) throw new Error(`unknown scene: ${sceneId}`);
     const current = this.captureSceneValues();
@@ -911,6 +944,13 @@ export class ControlPlane {
       }));
   }
 
+  excludedSceneParticipantIds(sceneId: string): string[] {
+    const scene = this.scenes.get(sceneId);
+    if (!scene) throw new ControlCommandError("NOT_FOUND", "Scene unavailable");
+    return [...this.engine.channels.values()].filter(channel => channel.kind === "DiscordUser"
+      && !Object.hasOwn(scene.values, "channel." + channel.id + ".faderDb")).map(channel => channel.id);
+  }
+
   private excludedSceneParticipants(sceneId: string): string[] {
     const scene = this.scenes.get(sceneId);
     if (!scene) throw new Error("unknown scene: " + sceneId);
@@ -920,7 +960,7 @@ export class ControlPlane {
   }
 
   private applyScene(sceneId: string): void {
-    if (this.state === "FAULT") throw new Error("FAULT中はSceneをRecallできません");
+    if (this.state === "FAULT") throw new ControlCommandError("LOCKED", "Scene recall blocked during FAULT");
     const scene = this.scenes.get(sceneId);
     if (!scene) throw new Error(`unknown scene: ${sceneId}`);
     // Validate every still-live target before any mutation. Missing topology is
@@ -984,7 +1024,7 @@ export class ControlPlane {
     this.log("INFO", `Scene ${scene.name} recalled`);
   }
 
-  private sceneParameterLocked(parameter: string, value: SceneValue): boolean {
+  sceneParameterLocked(parameter: string, value: SceneValue): boolean {
     if ((this.state === "ON_AIR" || this.state === "FAULT") && parameter.endsWith(".order")) return true;
     return this.state !== "SETUP" && parameter.endsWith(".limiterEnabled") && value === false;
   }
@@ -1021,7 +1061,28 @@ export class ControlPlane {
     return false;
   }
 
-  private validSceneValue(parameter: string, value: SceneValue): boolean {
+  /** Reads the same values as captureSceneValues, without capturing unrelated strips. */
+  sceneParameterValue(parameter: string): SceneValue | undefined {
+    const [kind, id, field, busId, sendField] = parameter.split(".");
+    if (kind === "channel") {
+      const c = this.engine.channels.get(id); if (!c) return undefined;
+      if (field === "order") return [...this.engine.channels.keys()].indexOf(id);
+      if (field === "send") return sendField === "gainDb" ? c.vcSends.get(busId)?.gainDb : sendField === "mute" ? c.vcSends.get(busId)?.mute : undefined;
+      if (field === "label" || field === "faderDb" || field === "mute" || field === "trimDb") return c[field];
+    }
+    if (kind === "bus") {
+      const b = this.engine.buses.get(id); if (!b) return undefined;
+      if (field === "label" || field === "masterDb" || field === "mute") return b[field];
+      const values: Record<string, SceneValue> = { compressorEnabled: b.compressorEnabled, compressorThresholdDb: b.compressor.thresholdDb,
+        compressorRatio: b.compressor.ratio, compressorAttackMs: b.compressor.attackMs, compressorReleaseMs: b.compressor.releaseMs,
+        compressorMakeupDb: b.compressor.makeupDb, limiterEnabled: b.limiter.enabled, limiterCeilingDb: b.limiter.ceilingDb, limiterReleaseMs: b.limiter.releaseMs };
+      return values[field];
+    }
+    if (kind === "matrix") { const r = this.engine.matrixRoutes.get(id); return field === "gainDb" ? r?.gainDb : field === "mute" ? r?.mute : undefined; }
+    return undefined;
+  }
+
+  validSceneValue(parameter: string, value: SceneValue): boolean {
     const parts = parameter.split(".");
     const field = parts[0] === "channel" && parts[2] === "send" ? parts[4] : parts[2];
     if (field === "label") return typeof value === "string" && value.length <= 80;
