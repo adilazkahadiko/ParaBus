@@ -71,7 +71,7 @@ const desktopSessionNonce = createDesktopSessionNonce();
 const publicDirectory = join(import.meta.dirname, "../public");
 const manualFile = join(import.meta.dirname, "../../../docs/manual.html");
 const documentationDirectory = join(import.meta.dirname, "../../../docs");
-const documentationFiles = new Set(["CHECKLIST.md", "DISCORD_RX.md"]);
+const documentationFiles = new Set(["CHECKLIST.md", "DISCORD_RX.md", "EXTERNAL_CONTROL_API.md"]);
 const documentationRoutes = new Map([
   ["/checklist", "CHECKLIST.md"],
   ["/startup-guide", "DISCORD_RX.md"],

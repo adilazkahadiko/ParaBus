@@ -80,6 +80,7 @@
       <div style="padding:12px 12px 0"><input id="search" class="search" type="search" placeholder="マニュアル内を絞り込み" aria-label="マニュアル内を検索"></div>
       <nav id="toc">
         <a href="#quick">まず起動する</a><a href="#tray">常駐アイコン</a><a href="#discord">Discord設定</a><a href="#settings">設定ページ</a>
+        <a href="#external-control">外部操作（Stream Deckなど）</a>
         <a href="#screen">画面の見方</a><a href="#monitor-log">稼働状況とログ（STATUS）</a><a href="#bots">Bot稼働状況（STATUS / SETUP）</a><a href="#vcmix">参加者とVC MIX（MIX）</a><a href="#returns">Discord送信（TX）</a><a href="#recorder">WAV録音（SESSION）</a><a href="#scenes">Scene（SESSION）</a><a href="#io">音声デバイス（SETUP）</a><a href="#matrix">出力を割り当てる（ROUTE）</a>
         <a href="#meter">メーター</a><a href="#mix">ミキサー操作</a>
         <a href="#safety">安全機能</a><a href="#trouble">困ったとき</a><a href="#shutdown">終了・ログ</a>
@@ -169,6 +170,27 @@
         </tbody></table>
         <div class="callout"><strong>「設定済み」なら空欄でよい</strong>Token欄を空欄のまま保存すると、現在のTokenを保持します。保存後も欄は空になり、Tokenは再表示されません。JSON・state API・ログにも出しません。</div>
         <div class="callout warning"><strong>設定変更中は先に保存</strong>Guild / VC IDやTokenを変えた場合は保存後に対象Botを一度切断し、再接続します。起動・本体再起動時は有効なBotも未接続で待機するため、SETUPから接続してください。接続後の通信断からの自動復帰は維持します。PORT変更はParaBus再起動後に反映されます。</div>
+      </section>
+
+      <section id="external-control" data-search-section>
+        <h2>外部操作（Stream Deckなど）</h2>
+        <p>外部操作APIはParaBusと同じPCだけで使えます。接続先は<code>127.0.0.1</code>、既定ポートは<code>4175</code>です。他のPCやLANからは接続できません。</p>
+        <h3>有効化と機器登録</h3>
+        <ol>
+          <li>同じPCの操作画面を開き、SETUPの「接続する機器」で「機器名」を入力し、「機器を登録」を押します。参加者の表示名が必要な場合だけ「Discord表示名の読み取りを許可」を選びます。</li>
+          <li>「トークンはこの一度だけ表示します。機器側の秘密用設定に保存してください。」と表示されます。トークンを機器側に設定し、「表示を閉じる」を押します。トークンを他人に見せたり、スクリーンショットやIssueに載せたりしないでください。</li>
+          <li>「外部操作を有効にする」を押し、画面上部が「外部操作: 有効」になっていることを確認します。</li>
+        </ol>
+        <div class="callout warning"><strong>起動するたびに有効化が必要です</strong>ParaBusは毎回、外部操作が無効の状態から起動します。機器を登録済みでも、SETUPで「外部操作を有効にする」を押してください。画面上部の「外部操作を止める」で外部操作を停止できます。</div>
+        <h3>トークンの再発行・取り消し・機器の削除</h3>
+        <p>トークンは再表示できません。紛失した場合はSETUPの対象機器の「再発行」を押し、新しいトークンを機器側に設定し直します。旧トークンは使えなくなります。漏えいが疑われる場合も「取り消し」または「再発行」を使ってください。</p>
+        <p>利用をやめる場合は「取り消し」を押します。「取り消し済み」になった機器には「削除」が表示され、登録を削除できます。取り消し済みの機器を再び使う場合は、新たに機器を登録してください。</p>
+        <h3>使える操作と段階Bの許可</h3>
+        <p>フェーダーの通常調整、ミュート、緊急ミュートONなどの段階Aの操作は、追加の許可・確認なしで使えます。認証・有効化と既存のロック・安全条件は必要です。参加者の承認、ルーティング、機器設定などは外部から操作できません。</p>
+        <p>緊急ミュート解除、シーン呼び出し、録音開始・停止、フェーダーの大幅上昇などは段階Bです。SETUPの機器ごとの「段階Bの許可（操作ごとに確認が必要）」で、必要な操作だけを選びます。許可しても、機器側で操作内容を確認してから実行する2段階の確認が毎回必要です。詳しい条件は<a href="/EXTERNAL_CONTROL_API.md" data-file-href="EXTERNAL_CONTROL_API.md">docs/EXTERNAL_CONTROL_API.md</a>を参照してください。</p>
+        <h3>Stream Deck用プラグイン</h3>
+        <p>プラグインは<a href="https://github.com/adilazkahadiko/ParaBus-StreamDeck">ParaBus-StreamDeck</a>で別配布します。最初の版（v1）はStream Deckのボタン用で、Stream Deck+のダイヤルには未対応です。導入方法とボタンの設定はプラグイン側の説明書を参照してください。</p>
+        <p>プラグインv1で使えるのは段階Aの操作（ミュート切替、フェーダー上下、緊急ミュートON）だけです。段階Bの許可は不要です。緊急ミュートの解除などはParaBusの画面で行ってください。</p>
       </section>
 
       <section id="screen" data-search-section>

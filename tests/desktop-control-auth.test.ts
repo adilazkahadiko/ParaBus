@@ -332,6 +332,7 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
   for (const [path, method, status] of [
     ["/", "GET", 200], ["/app.js", "GET", 200], ["/styles.css", "GET", 200], ["/manual", "GET", 200],
     ["/checklist", "GET", 200], ["/api/state", "GET", 200], ["/api/settings", "GET", 200],
+    ["/EXTERNAL_CONTROL_API.md", "GET", 200],
     ["/index.html", "GET", 302], ["/favicon.ico", "GET", 204], ["/missing", "GET", 404],
     ["/", "PUT", 405], ["/api/command", "POST", 403],
   ] as const) {
@@ -339,7 +340,11 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
     assert.equal(response.status, status, path);
     assert.equal(response.headers.get("x-frame-options"), "DENY", path);
     assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'", path);
-    await response.arrayBuffer();
+    const body = await response.text();
+    if (path === "/EXTERNAL_CONTROL_API.md") {
+      assert.match(response.headers.get("content-type") ?? "", /^text\/plain; charset=utf-8$/);
+      assert.equal(body, readFileSync(new URL("../docs/EXTERNAL_CONTROL_API.md", import.meta.url), "utf8"));
+    }
   }
   const commandHeaders = { origin, "x-dbr-session-nonce": nonce, "content-type": "application/json" };
   for (const [body, status] of [["{", 400], ['{"type":"UNKNOWN"}', 409]] as const) {
