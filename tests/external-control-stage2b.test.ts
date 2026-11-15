@@ -260,7 +260,7 @@ test("meters enforce the 32-source limit, preserve requestIds on rate errors and
   ws.socket.write(clientFrame(JSON.stringify({ type: "meters.subscribe", requestId: randomUUID(), sources, hz: 10 }))); assert.equal((await ws.next()).payload.ok, true);
   const order: string[] = [], send = (f.api as any).send.bind(f.api);
   (f.api as any).send = (peer: any, message: any, droppable: boolean) => { order.push(message.type); return send(peer, message, droppable); };
-  f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: -1 }); f.advance(100); f.api.tick();
+  f.control.execute({ type: "SET_BUS_MASTER", busId: "bus", db: -1 }); f.advance(100); f.api.tick();
   assert.deepEqual(order, ["state", "meters"]); assert.equal((await ws.next()).type, "state"); const meters = await ws.next(); assert.equal(meters.values.length, 32);
   let limited = 0;
   for (let i = 0; i < 12; i++) {
@@ -279,13 +279,13 @@ test("TX meter disappears when Bot identity is replaced and retains null rms/cli
 });
 
 test("main-thread fader hook retains 2a ABA and avoids full observes for 60 commands; metering adds no DSP processing", async t => {
-  const f = await setup(t); grant(f, ["channel.fader.set"]); await f.action("channel.fader.set", { target, db: -40 });
-  const a = await arm(f, "channel.fader.set", { target, db: 0 });
+  const f = await setup(t); grant(f, ["send.fader.set"]); await f.action("send.fader.set", { busId: "bus", target, db: -40 });
+  const a = await arm(f, "send.fader.set", { busId: "bus", target, db: 0 });
   let full = 0; const observe = f.api.state.observe.bind(f.api.state); f.api.state.observe = () => { full++; observe(); };
   const revision = f.api.state.revision;
-  for (let i = 0; i < 60; i++) f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: i % 2 ? -40 : -41 });
+  for (let i = 0; i < 60; i++) f.control.execute({ type: "SET_VC_SEND", channelId: f.channel.id, busId: "bus", db: i % 2 ? -40 : -41 });
   assert.equal(full, 0); assert.ok(f.api.state.revision > revision);
-  const unchanged = f.api.state.revision; f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: -40 }); assert.equal(f.api.state.revision, unchanged);
+  const unchanged = f.api.state.revision; f.control.execute({ type: "SET_VC_SEND", channelId: f.channel.id, busId: "bus", db: -40 }); assert.equal(f.api.state.revision, unchanged);
   f.advance(1000); code(await execute(f, a.body.data.armId), "STALE_REVISION");
   const process = f.engine.processBlock; f.engine.processBlock = () => { throw new Error("No meter-triggered audio processing"); };
   const channelProcess = f.channel.outputMeter.process; f.channel.outputMeter.process = () => { throw new Error("No meter DSP"); };
@@ -305,11 +305,11 @@ test("preview IDs and recording paths never enter operational log or external st
 });
 
 test("a fader mutation followed by a rejected persistence callback still records ABA before the next projection", async t => {
-  const f = await setup(t); grant(f, ["channel.fader.set"]); await f.action("channel.fader.set", { target, db: -40 });
-  const a = await arm(f, "channel.fader.set", { target, db: 0 });
+  const f = await setup(t); grant(f, ["send.fader.set"]); await f.action("send.fader.set", { busId: "bus", target, db: -40 });
+  const a = await arm(f, "send.fader.set", { busId: "bus", target, db: 0 });
   const capture = f.sessions.captureChannel; f.sessions.captureChannel = () => { throw new Error("Injected persistence failure"); };
-  assert.equal(f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: -41 }).ok, false);
-  assert.equal(f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: -40 }).ok, false);
+  assert.equal(f.control.execute({ type: "SET_VC_SEND", channelId: f.channel.id, busId: "bus", db: -41 }).ok, false);
+  assert.equal(f.control.execute({ type: "SET_VC_SEND", channelId: f.channel.id, busId: "bus", db: -40 }).ok, false);
   f.sessions.captureChannel = capture; f.advance(1000); code(await execute(f, a.body.data.armId), "STALE_REVISION");
 });
 

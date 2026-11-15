@@ -6,6 +6,8 @@
 
 実装判断: メンテナーの決定により `tx.take` は集合の大きさ・選択方式によらず段階 A。機器名はローカル管理応答だけに含める。段階2aのメンテナー決定により operational log の外部操作行には deviceId を記録する（第12節）。機器登録は settings root の `external-control.json`（最大128件、取り消し済みを含む）へ原子的に保存する。POSIX は mode 0600、Windows は公開前に継承 ACL を外して実行ユーザーのみに Full Control を付与する。破損した登録ファイルは自動上書きせず外部操作を利用不可とする。
 
+参加者の音を Bus ごとに切る・下げるには `send.mute.*` / `send.fader.*` を使う。旧 POST の Direct Out / Matrix にだけ影響する `channel.fader.adjust` / `channel.fader.set` / `channel.mute.set` / `channel.mute.toggle` は外部 API v1 では提供せず、不明操作と同じ `INVALID` で拒否する。participants の状態にも旧 POST の `faderDb` / `mute` は含めない。シーンの preview / recall が扱う項目は変更しない。
+
 ## 目次
 
 1. [範囲と接続方式](#1-範囲と接続方式)
@@ -81,8 +83,8 @@ version 2 で鍵が欠落・不正・読み取り不能な場合や、登録フ�
 | 内部命令 | 段階 | 外部契約・条件 |
 | --- | --- | --- |
 | `SET_STATE` | A / B / C | `ON_AIR` への設定ロック ON は A。`ON_AIR` → `SETUP` のロック OFF は B。それ以外の状態遷移は C |
-| `SET_CHANNEL_FADER` | A / B | 参加者フェーダー。adjust は A、set は床適用後の上昇量が +6 dB 以下なら A、超過なら B（第 7 節） |
-| `SET_CHANNEL_MUTE` | A | 参加者ミュート |
+| `SET_CHANNEL_FADER` | C | 旧 POST の参加者フェーダー。外部から直接操作できない |
+| `SET_CHANNEL_MUTE` | C | 旧 POST の参加者ミュート。外部から直接操作できない |
 | `SET_USER_CHANNEL_COLOR` | C | 色 |
 | `SET_USER_STRIP_ORDER` | C | 並び順 |
 | `RESET_USER_STRIP_ORDER` | C | 並び順リセット |
@@ -166,8 +168,8 @@ HTTP は UTF-8 JSON、POST は `Content-Type: application/json` を必須とす�
 {
   "requestId": "9dc7c1f2-6419-4fa2-8e8e-c9627775d9d6",
   "instanceId": "30451aa1-9253-4af0-b4ce-cd82c3890392",
-  "operation": "channel.fader.adjust",
-  "args": { "target": { "kind": "user", "discordUserId": "100000000000000001" }, "deltaDb": -1 }
+  "operation": "send.fader.adjust",
+  "args": { "target": { "kind": "user", "discordUserId": "100000000000000001" }, "busId": "interview", "deltaDb": -1 }
 }
 ```
 
@@ -237,8 +239,6 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 
 | 外部操作 | 段階 | `args` | 対応する内部命令 |
 | --- | --- | --- | --- |
-| `channel.fader.adjust` / `channel.fader.set` | adjust は A、set は A / B（第 7 節） | `target`, `deltaDb` / `db` | `SET_CHANNEL_FADER` |
-| `channel.mute.set` / `channel.mute.toggle` | A | `target`, set は `mute:boolean`、toggle は `expectedMute:boolean` | `SET_CHANNEL_MUTE` |
 | `bus.fader.adjust` / `bus.fader.set` | adjust は A、set は A / B（第 7 節） | `busId`, `deltaDb` / `db` | `SET_BUS_MASTER` |
 | `bus.mute.set` / `bus.mute.toggle` | A | `busId`, set は `mute:boolean`、toggle は `expectedMute:boolean` | `SET_BUS_MUTE` |
 | `send.fader.adjust` / `send.fader.set` | adjust は A、set は A / B（第 7 節） | `target`, `busId`, `deltaDb` / `db` | `SET_VC_SEND` の `db` のみ |
@@ -282,7 +282,7 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 
 ## 7. フェーダーと連続操作
 
-参加者、Bus マスター、VC Send、TX マスターは同じ規則を使う。基本操作は `*.adjust` の `deltaDb` で、有限の非ゼロ数を受け付ける。目標値は `currentDb + deltaDb` を現行の -90〜+12 dB へ飽和させたものとする。`*.set` の `db` は有限の -90〜+12 dB を受け付ける。下げ幅には相対量の制限を設けず、下げる絶対値も範囲内なら許可する。
+Bus マスター、VC Send、TX マスターは同じ規則を使う。基本操作は `*.adjust` の `deltaDb` で、有限の非ゼロ数を受け付ける。目標値は `currentDb + deltaDb` を現行の -90〜+12 dB へ飽和させたものとする。`*.set` の `db` は有限の -90〜+12 dB を受け付ける。下げ幅には相対量の制限を設けず、下げる絶対値も範囲内なら許可する。
 
 上昇量は **-40 dB を床**として、`increaseDb = max(0, targetDb - max(currentDb, -40))` で数える。床以下の上昇は 0 と数え、1 要求の A 上限と連続操作の dB 枠には計上しない。-90 → -40 は 0、-90 → -34 は +6、-90 → 0 は +40、-20 → 0 は +20、-3 → 0 は +3 と数える。下げる操作の計上は常に 0 で、dB 枠を消費も回復もさせない。
 
@@ -293,7 +293,7 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 | `*.set`、`increaseDb <= 6`（下げる操作を含む） | A | adjust と同じ dB 枠を共有 |
 | `*.set`、`increaseDb > 6` | B。同じ操作名の権限と arm / execute を必須にする | 確認済みの単発絶対値変更として dB 枠の対象外。通常の POST 流量制限は適用 |
 
-`*.set` の段階は args の目標値と対象の現在値から ParaBus が判定する。大幅 set を `/actions` に送ったら、該当操作名の B 権限があれば `CONFIRMATION_REQUIRED`、なければ `TIER_FORBIDDEN` とし、上昇量の理由だけで `INVALID` にしない。例えば「0 dB に戻す」の長押しは `channel.fader.set` の `db:0` を arm して execute できる。B が例外となるのは A の 1 回 +6 dB と連続操作用 dB 枠だけで、-90〜+12 dB の範囲、対象世代・該当フェーダー値の依存関係、既存安全検査、確認の最短時間と期限は保持する。
+`*.set` の段階は args の目標値と対象の現在値から ParaBus が判定する。大幅 set を `/actions` に送ったら、該当操作名の B 権限があれば `CONFIRMATION_REQUIRED`、なければ `TIER_FORBIDDEN` とし、上昇量の理由だけで `INVALID` にしない。例えば「0 dB に戻す」の長押しは `send.fader.set` の `target`・`busId`・`db:0` を arm して execute できる。B が例外となるのは A の 1 回 +6 dB と連続操作用 dB 枠だけで、-90〜+12 dB の範囲、対象世代・該当フェーダー値の依存関係、既存安全検査、確認の最短時間と期限は保持する。
 
 B の arm 応答の summary は対象、現在値、目標値、床適用後の上昇量を含める。arm 後にそのフェーダーが変わったら `STALE_REVISION` とし、A へ自動降格して実行しない。別フェーダーの変更では失効させない。フェーダー以外のシーンリコールやコンプ変更にはこの量制限を適用せず、B の差分確認で扱う。
 
@@ -345,6 +345,8 @@ arm は 1 回限り。認証済みの正しい機器による execute の照合�
 
 ## 10. 状態配信とメーター
 
+外部操作のコマンドが成功して状態が変わった場合は、デスクトップ WS にも state を通知する。外部操作による通知は50ms単位でまとめ、連打のたびにデスクトップの全 snapshot を作らない。デスクトップからのコマンド後の即時送信は維持する。
+
 `GET /state` と WS の `state` は外部用の明示的な projection とし、操作画面の `desktopSnapshot` を転送しない。トークン、設定ファイル、デバイス列挙、ディスクパス、ギルド情報、内部エラー、生ログ、シーンの全保存値、Trusted 管理情報、受信オーナー管理情報は含めない。
 
 state の JSON 形は次のとおり。`?` は任意フィールドを表す説明用表記であり実際の JSON キーには付けない。配列内のオブジェクトもここに列挙したフィールドだけを公開する。
@@ -356,7 +358,7 @@ state の JSON 形は次のとおり。`?` は任意フィールドを表す説�
 | `state`, `settingsLocked` | `SETUP\|READY\|ON_AIR\|FAULT`、`state === "ON_AIR"` の boolean |
 | `emergencyMuted`, `emergencyEpoch` | boolean、現在の安全 epoch の整数 |
 | `outputCount` | 録音で選択できる Main 出力数、0〜64 |
-| `participants` | オンライン参加者の配列。`{discordUserId,faderDb,mute,sends:[{busId,db,mute}],displayName?}` |
+| `participants` | オンライン参加者の配列。`{discordUserId,sends:[{busId,db,mute}],displayName?}` |
 | `registeredUsers` | 固定指定の選択肢。`{discordUserId,online,displayName?}` の配列。オフラインのレベルは含めない |
 | `participantOrders` | `{scope,users:string[]}` の配列。all と VC Bus ごとの順序。各 users は Discord User ID |
 | `buses` | `{busId,kind:"vc"\|"group"\|"other",masterDb,mute,limiterEnabled,compressor:{enabled,thresholdDb,ratio,attackMs,releaseMs,makeupDb}}` の配列 |
@@ -465,8 +467,6 @@ HTTP のエラーボディは `{ "ok":false, "code":"STALE_REVISION", "message":
   "paraBusVersion": "0.1.0",
   "features": ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute", "scene.preview", "scene.recall", "recording.selection", "meters.ws"],
   "operations": [
-    { "name": "channel.fader.adjust", "tiers": ["A"] },
-    { "name": "channel.fader.set", "tiers": ["A", "B"] },
     { "name": "bus.fader.set", "tiers": ["A", "B"] },
     { "name": "send.fader.set", "tiers": ["A", "B"] },
     { "name": "tx.fader.set", "tiers": ["A", "B"] },

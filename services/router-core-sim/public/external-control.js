@@ -42,7 +42,7 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
         const savePermissions = () => operate({ action: "permissions", deviceId: device.deviceId, readDisplayNames: readNames.checked,
           allowedTierBOperations: choices.filter(c => c.input.checked).map(c => c.operation) });
         readNames.addEventListener("change", savePermissions);
-        for (const [operation, title] of [["channel.fader.set", "参加者フェーダーの大幅上昇"], ["bus.fader.set", "Busフェーダーの大幅上昇"],
+        for (const [operation, title] of [["bus.fader.set", "Busフェーダーの大幅上昇"],
           ["send.fader.set", "Sendフェーダーの大幅上昇"], ["tx.fader.set", "TXフェーダーの大幅上昇"], ["emergency.set", "緊急ミュート解除"],
           ["settings.lock.set", "設定ロック解除"], ["bus.limiter.set", "Busリミッター"], ["bus.compressor.set", "Busコンプレッサー"],
           ["scene.recall", "シーン呼び出し"], ["recording.start", "録音開始"], ["recording.stop", "録音停止"]]) {
