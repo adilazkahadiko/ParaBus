@@ -1,5 +1,8 @@
-ParaBus Windows x64 v0.1.0-beta.5（2026-11-03）
+ParaBus Windows x64 v0.1.0-beta.6（準備中・未公開）
+公開日: 公開時に確定
+リリースURL: 公開時に確定
 
+現在公開中の版: v0.1.0-beta.5
 公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.5
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
@@ -42,6 +45,20 @@ beta.3以降では、拒否を判定できた場合にアプリ制御による�
 設定ロックをOFFにし、表示中の障害を確認する必要があります。
 ブラウザーを閉じるだけではアプリは終了しません。
 
+beta.6の変更
+・Stream Deckなどから使う外部操作APIを実装しました。
+  同じPCの127.0.0.1だけで利用でき、既定ポートは4175です。他のPCやLANからは使えません。
+・SETUPの「接続する機器」で機器を登録し、一度だけ表示されるトークンを機器側に設定します。
+  トークンの取り消し・再発行と、取り消し済みの機器の削除ができます。
+  ParaBusを起動するたびに外部操作は無効から始まるため、SETUPで毎回有効にしてください。
+・フェーダーの通常調整、ミュート、緊急ミュートONなどは段階A（追加の許可・確認なし）です。
+  緊急ミュート解除、シーン呼び出し、録音開始・停止、フェーダーの大幅上昇などは、
+  機器ごとの段階Bの許可と、操作ごとの2段階確認が必要です。既存のロックや安全条件も適用されます。
+  参加者の承認、ルーティング、機器設定などは外部から操作できません。
+・Stream Deck用プラグインは別配布です: https://github.com/adilazkahadiko/ParaBus-StreamDeck
+  最初の版（v1）はStream Deckのボタン用で、Stream Deck+のダイヤルには未対応です。
+  設定手順はmanual.htmlの「外部操作（Stream Deckなど）」、詳しい仕様はEXTERNAL_CONTROL_API.mdを参照してください。
+
 beta.5の変更
 ・Discordからの受信音が途切れにくくなりました。
   受信の揺れやParaBus内部の処理のまとまりに合わせて、受信側の待ち量を自動で調整します。
@@ -64,7 +81,6 @@ beta.4の変更
   認証に失敗した要求のログは、連続した分をまとめて記録します。
 ・LAN公開時、LANから状態を読み取る場合にも、操作画面の認証を必要にしました。
 ・Stream Deckなどの外部操作向けAPIの設計書 docs/EXTERNAL_CONTROL_API.md を同梱しました。
-  機能はまだ実装していないため、外部操作には使えません。
 ・音声の信号処理、native部品、依存ライブラリ、Node.jsはbeta.3から変更していません。
 
 beta.3の変更

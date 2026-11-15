@@ -23,6 +23,14 @@ Fixes target the latest commit on `main`; update to the latest beta when a fix i
 ## サポート対象
 
 現在のWindowsベータ版はv0.1.0-beta.5です。修正はmainの最新コミットを対象とし、修正版のベータが公開されたら更新してください。
+v0.1.0-beta.6は準備中・未公開です。公開日とリリースURLは公開時に確定します。
+
+## 外部操作API
+
+外部操作APIは同じPCの`127.0.0.1`だけで受け付けます（既定ポート`4175`）。他のPCやLANからは使えません。
+ParaBus側に保存するトークンはSHA-256ハッシュだけで、平文は保存しません。
+登録ファイル`external-control.json`は配布ZIPにもSupport Bundleにも含めません。
+外部操作用トークンが漏れた可能性がある場合は、同じPCのSETUP →「接続する機器」で対象機器を「取り消し」、または「再発行」してください。再発行すると旧トークンは使えなくなります。
 
 ## 脆弱性の報告
 
