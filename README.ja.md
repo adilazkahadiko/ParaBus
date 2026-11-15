@@ -36,14 +36,12 @@ Botの準備は[Discord設定](docs/DISCORD_RX.md)を参照してください。
 
 ## ダウンロード
 
-v0.1.0-beta.6は準備中・未公開です。公開日とリリースURLは公開時に確定します。
 外部操作（Stream Deckなど）の使い方は[操作マニュアル](docs/manual.html#external-control)を参照してください。
-以下は現在公開中のbeta.5です。
 
-**Windows x64 ベータ版：[v0.1.0-beta.5](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.5)**
+**Windows x64 ベータ版：[v0.1.0-beta.6](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.6)**
 
-[ParaBus-windows-x64-v0.1.0-beta.5.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.5/ParaBus-windows-x64-v0.1.0-beta.5.zip) ／
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.5/SHA256SUMS.txt)
+[ParaBus-windows-x64-v0.1.0-beta.6.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.6/ParaBus-windows-x64-v0.1.0-beta.6.zip) ／
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.6/SHA256SUMS.txt)
 
 Node.js・対応ソース・第三者表記を同梱しています。新しい専用フォルダーへ展開してください。
 
