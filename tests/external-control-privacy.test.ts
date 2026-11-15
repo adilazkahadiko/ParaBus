@@ -93,7 +93,6 @@ test("complete HTTP and WS state/meters/result JSON and every B summary omit Dis
   const run = async (operation: string, args: unknown) => { const a = await f.post(operation, args, "/arm"); assert.equal(a.status, 200); assert.equal((await f.execute(a.body.data.armId)).status, 200); };
   await f.post("bus.fader.set", { busId: f.publicBusId, db: -40 }); await run("bus.fader.set", { busId: f.publicBusId, db: 0 });
   await f.post("send.fader.set", { target, busId: f.publicBusId, db: -40 }); await run("send.fader.set", { target, busId: f.publicBusId, db: 0 });
-  await f.post("channel.fader.set", { target, db: -40 }); await run("channel.fader.set", { target, db: 0 });
   await f.post("tx.fader.set", { profileId: "TX1", db: -40 }); await run("tx.fader.set", { profileId: "TX1", db: 0 });
   await run("settings.lock.set", { locked: false });
   await f.post("emergency.set", { active: true }); f.control.execute({ type: "SET_STATE", state: "READY" });
@@ -102,7 +101,7 @@ test("complete HTTP and WS state/meters/result JSON and every B summary omit Dis
   await run("recording.start", { selection: { outputs: [], busIds: [f.publicBusId], participants: [target] } }); await run("recording.stop", {}); await f.recorder.waitForIdle();
   await f.post("loudness.reset", { busId: f.publicBusId });
   const current = (await f.get("/state")).data;
-  assert.equal((await f.post("channel.mute.set", { target: { kind: "slot", scope: { kind: "bus", busId: f.publicBusId }, index: 1, expectedParticipantsRevision: current.participantsRevision }, mute: true })).status, 200);
+  assert.equal((await f.post("send.mute.set", { busId: f.publicBusId, target: { kind: "slot", scope: { kind: "bus", busId: f.publicBusId }, index: 1, expectedParticipantsRevision: current.participantsRevision }, mute: true })).status, 200);
   const p = await f.post("scene.preview", { sceneId: f.sceneId }); await run("scene.recall", { sceneId: f.sceneId, previewId: p.body.data.previewId });
   assert.ok(f.commands.some((c: any) => c.type === "SET_BUS_COMPRESSOR" && c.busId === f.bus.id));
   assert.ok(f.commands.some((c: any) => c.type === "START_RECORDING" && c.selection.busIds[0] === f.bus.id));

@@ -245,7 +245,7 @@ export class ExternalState {
       instanceId: this.instanceId, revision: this.revision, participantsRevision: this.participantsRevision, enabled,
       state: this.control.state, settingsLocked: this.control.state === "ON_AIR", emergencyMuted: engine.emergencyMuted, emergencyEpoch: this.control.emergencyEpoch,
       outputCount: Math.min(64, this.control.outputManager?.snapshot(false).activeChannelCount ?? engine.outputChannelCount),
-      participants: channels.map(c => ({ discordUserId: c.discordUserId!, faderDb: c.faderDb, mute: c.mute,
+      participants: channels.map(c => ({ discordUserId: c.discordUserId!,
         sends: [...c.vcSends].map(([busId, s]) => ({ busId: this.publicBusId(busId), db: s.gainDb, mute: s.mute })),
         ...(device.readDisplayNames ? { displayName: displayName(c.label) } : {}) })),
       registeredUsers: [...(this.control.userSessions?.profiles.profiles.values() ?? [])].map(p => ({ discordUserId: p.discordUserId,

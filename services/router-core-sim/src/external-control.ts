@@ -30,6 +30,7 @@ interface Peer {
 export interface ExternalOptions {
   control: ControlPlane; ingest: () => DiscordIngestSnapshot; store: ExternalDeviceStore;
   execute: (command: ControlCommand) => CommandResult; version: string; now?: () => number;
+  onChange?: () => void;
   txIdentities?: () => readonly object[];
   configuredTx?: readonly { profileId: string; destination: string | null }[];
   log: (message: string) => void;
@@ -291,7 +292,7 @@ export class ExternalControlServer {
     }
     const [family, kind, mode] = operation.split(".");
     if (kind === "fader" || kind === "mute") {
-      const selectors = family === "channel" ? ["target"] : family === "bus" ? ["busId"] : family === "send" ? ["target", "busId"] : ["profileId"];
+      const selectors = family === "bus" ? ["busId"] : family === "send" ? ["target", "busId"] : ["profileId"];
       const key = kind === "fader" ? mode === "adjust" ? "deltaDb" : "db" : mode === "toggle" ? "expectedMute" : "mute";
       fields(args, [...selectors, key]);
       const value = kind === "fader" ? finite(args[key], key === "db" ? -90 : -Number.MAX_VALUE, key === "db" ? 12 : Number.MAX_VALUE) : boolean(args[key]);
@@ -305,8 +306,7 @@ export class ExternalControlServer {
       if (profileId && !control.txController?.setTxMaster) fail("UNAVAILABLE");
       const bot = profileId ? this.state.project({ readDisplayNames: false, allowedTierBOperations: [] }, true).tx.bots.find(b => b.profileId === profileId) ?? fail("NOT_FOUND") : undefined;
       if (bot?.state === "NO_BOT") fail("UNAVAILABLE");
-      const current = family === "channel" ? kind === "fader" ? channel!.faderDb : channel!.mute
-        : family === "bus" ? kind === "fader" ? bus!.masterDb : bus!.mute
+      const current = family === "bus" ? kind === "fader" ? bus!.masterDb : bus!.mute
           : family === "send" ? kind === "fader" ? send!.gainDb : send!.mute : bot!.masterDb;
       let next: number | boolean, increase = 0;
       if (kind === "fader") {
@@ -317,14 +317,12 @@ export class ExternalControlServer {
         if (mode === "toggle" && current !== value) throw new ExternalError("STALE_REVISION", undefined, { mute: current as boolean });
         next = mode === "toggle" ? !current : value;
       }
-      const command: ControlCommand = family === "channel" ? kind === "fader" ? { type: "SET_CHANNEL_FADER", channelId: channel!.id, db: next as number } : { type: "SET_CHANNEL_MUTE", channelId: channel!.id, mute: next as boolean }
-        : family === "bus" ? kind === "fader" ? { type: "SET_BUS_MASTER", busId: busId!, db: next as number } : { type: "SET_BUS_MUTE", busId: busId!, mute: next as boolean }
+      const command: ControlCommand = family === "bus" ? kind === "fader" ? { type: "SET_BUS_MASTER", busId: busId!, db: next as number } : { type: "SET_BUS_MUTE", busId: busId!, mute: next as boolean }
           : family === "send" ? { type: "SET_VC_SEND", channelId: channel!.id, busId: busId!, ...(kind === "fader" ? { db: next as number } : { mute: next as boolean }) }
             : { type: "SET_TX_MASTER", profileId: profileId!, db: next as number };
       if (increase > 6) {
         this.#logTier = "B";
-        const keys = family === "channel" ? [dep("channel", channel!.id), dep("channel", channel!.id, "fader")]
-          : family === "bus" ? [dep("bus", busId!), dep("bus", busId!, "fader")]
+        const keys = family === "bus" ? [dep("bus", busId!), dep("bus", busId!, "fader")]
           : family === "send" ? [dep("channel", channel!.id), dep("bus", busId!), dep("send", channel!.id, busId!), dep("send", channel!.id, busId!, "fader")]
           : [dep("tx", profileId!), dep("tx", profileId!, "fader")];
         return this.handleB(operation, args, runtime, device, phase, { command, keys, increaseDb: increase,
@@ -524,6 +522,7 @@ export class ExternalControlServer {
   private commit(command: ControlCommand, increaseDb?: number, adjust = false, tier: "A" | "B" = "A") {
     if (classifyCommand(command, { state: this.options.control.state, increaseDb, adjust }) !== tier) fail("TIER_FORBIDDEN");
     let result: CommandResult;
+    const revision = this.state.revision;
     try { result = this.options.execute(command); } finally { this.observe(); }
     if (!result.ok) {
       if (result.code === "STALE_STATE") fail("STALE_REVISION");
@@ -532,6 +531,7 @@ export class ExternalControlServer {
       // All accepted commands are fully confirmed here. Remaining control-plane rejections are safety gates.
       fail("LOCKED");
     }
+    if (this.state.revision !== revision) this.options.onChange?.();
   }
   private success(requestId: string | undefined, data: unknown): Reply {
     this.observe();

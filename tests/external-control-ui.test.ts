@@ -34,11 +34,11 @@ test("desktop external UI displays token once, manages individual B grants and r
   const flush = () => new Promise(resolve => setImmediate(resolve)); await flush();
   assert.match($("external-control-status").textContent, /接続中 1 台/);
   const row = $("external-control-devices").children[0]; assert.equal(row.children[0].textContent.includes("<img onerror=alert(1)>"), true);
-  assert.equal(row.children[2].children.length, 12); // legend plus eleven independent permissions, no all-operations switch.
+  assert.equal(row.children[2].children.length, 11); // legend plus ten independent permissions, no all-operations switch.
   const check = row.children[2].children[1].children[0]; check.checked = true; check.emit("change"); await flush();
-  assert.deepEqual(permissions, ["channel.fader.set"]);
+  assert.deepEqual(permissions, ["bus.fader.set"]);
   const names = $("external-control-devices").children[0].children[1].children[0]; names.checked = true; names.emit("change"); await flush();
-  assert.deepEqual(permissions, ["channel.fader.set"]); assert.equal(readDisplayNames, true);
+  assert.deepEqual(permissions, ["bus.fader.set"]); assert.equal(readDisplayNames, true);
   const revokeCheck = $("external-control-devices").children[0].children[2].children[1].children[0]; revokeCheck.checked = false; revokeCheck.emit("change"); await flush();
   assert.deepEqual(permissions, []);
   $("external-control-name").value = "Device"; $("external-control-register").emit("submit"); await flush();

@@ -14,6 +14,7 @@ import { AudioOutputManager } from "./audio-output.ts";
 import { AudioSchedulerTiming, audioTimingSummary } from "./audio-timing.ts";
 import { AudioRuntimeTiming } from "./audio-runtime-timing.ts";
 import { broadcastWebSocket, MAX_WEBSOCKET_PENDING_BYTES } from "./snapshot-delivery.ts";
+import { stateBroadcastScheduler } from "./state-broadcast-scheduler.ts";
 import { acceptWebSocket, controlFrame, websocketReceiver } from "./websocket.ts";
 import { ExternalDeviceStore } from "./external-device-store.ts";
 import { ExternalControlServer } from "./external-control.ts";
@@ -132,6 +133,7 @@ const externalControl = new ExternalControlServer({
   txIdentities: () => [...discordIngest.bots.values()].filter(bot => bot.role === "TX" || bot.role === "DUPLEX"),
   configuredTx: startupSettings.bots.filter(bot => bot.role === "TX" || bot.role === "DUPLEX").map(bot => ({ profileId: bot.id, destination: bot.txDestination ?? null })),
   store: new ExternalDeviceStore(settingsRoot), execute: executeControlCommand,
+  onChange: () => externalStateBroadcast.schedule(),
   version: JSON.parse(readFileSync(join(projectDirectory, "package.json"), "utf8")).version,
   log: message => operationalLog.append({ at: new Date().toISOString(), level: "INFO", message }),
 });
@@ -194,6 +196,7 @@ inputManager.onFault = (deviceId, message, diagnostic) => {
   executeControlCommand({ type: "INPUT_DEVICE_LOST", deviceId, fault: { ...diagnostic, reason: localAudioFaultDetail(message) } });
 };
 const websocketClients = new Set<Duplex>();
+const externalStateBroadcast = stateBroadcastScheduler(() => broadcastState());
 // Tablet Control is a retained prototype, not a supported runtime feature.
 // Do not instantiate its listener, including when legacy settings enable it.
 
@@ -704,6 +707,7 @@ let shuttingDown = false;
 function shutdown(exitCode = 0): void {
   if (shuttingDown) return;
   shuttingDown = true;
+  externalStateBroadcast.cancel();
   clearInterval(desktopAuthLogTimer);
   desktopAuthFailures.flush(true);
   control.endParticipantSession();

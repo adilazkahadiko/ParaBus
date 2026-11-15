@@ -89,14 +89,14 @@ test("arm ownership, replacement, expiry tombstones, cross-path requestIds and e
   code(await f.raw(request), "INVALID"); code(await f.raw(execution(f, armed.body.data.armId, { requestId: request.requestId }), "/execute"), "INVALID");
 });
 
-for (const family of ["channel", "bus", "send", "tx"]) test(`${family} B fader returns to 0 dB outside A's burst, with scoped ABA dependencies`, async t => {
+for (const family of ["bus", "send", "tx"]) test(`${family} B fader returns to 0 dB outside A's burst, with scoped ABA dependencies`, async t => {
   const f = await fixture(t), operation = `${family}.fader.set`;
-  await ready(f, [operation]); const args = family === "channel" ? { target } : family === "bus" ? { busId: "bus" } : family === "send" ? { target, busId: "bus" } : { profileId: "TX1" };
+  await ready(f, [operation]); const args = family === "bus" ? { busId: "bus" } : family === "send" ? { busId: "bus", target } : { profileId: "TX1" };
   assert.equal((await f.action(operation, { ...args, db: -40 })).status, 200);
   code(await f.action(operation, { ...args, db: 0 }), "CONFIRMATION_REQUIRED", 409);
   const a = await arm(f, operation, { ...args, db: 0 }); assert.equal(a.status, 200);
   assert.equal(a.body.data.summary.currentDb, -40); assert.equal(a.body.data.summary.targetDb, 0); assert.equal(a.body.data.summary.increaseDb, 40);
-  await f.action(family === "bus" ? "channel.fader.adjust" : "bus.fader.adjust", family === "bus" ? { target, deltaDb: -1 } : { busId: "bus", deltaDb: -1 });
+  await f.action(family === "bus" ? "send.fader.adjust" : "bus.fader.adjust", family === "bus" ? { busId: "bus", target, deltaDb: -1 } : { busId: "bus", deltaDb: -1 });
   f.advance(1000); assert.equal((await execute(f, a.body.data.armId)).status, 200);
   assert.equal((await f.action(operation, { ...args, db: -40 })).status, 200);
   const b = await arm(f, operation, { ...args, db: 0 }); assert.equal(b.status, 200);
@@ -112,7 +112,7 @@ for (const family of ["channel", "bus", "send", "tx"]) test(`${family} B fader r
 test("A arm is INVALID; info/state disclose all supported tiers", async t => {
   const f = await fixture(t); await ready(f, [...ALLOWED_TIER_B_OPERATIONS]);
   code(await arm(f, "tx.clear", {}), "INVALID", 400);
-  code(await arm(f, "channel.fader.set", { target, db: -1 }), "INVALID", 400);
+  code(await arm(f, "send.fader.set", { busId: "bus", target, db: -21 }), "INVALID", 400);
   f.advance(); const response = await fetch(f.base + "/info", { headers: f.headers }), info = (await response.json() as any).data;
   assert.deepEqual(info.permissions.allowedTierBOperations, [...ALLOWED_TIER_B_OPERATIONS].sort());
   assert.deepEqual((await f.state()).permissions, info.permissions);
@@ -166,7 +166,7 @@ test("emergency release requires epoch and READY/recovered devices, ignores unre
   const args = { active: false, expectedEmergencyEpoch: f.control.emergencyEpoch };
   code(await arm(f, "emergency.set", args), "LOCKED", 409); f.control.state = "READY";
   const a = await arm(f, "emergency.set", args); assert.equal(a.status, 200); assert.equal(f.engine.emergencyMuted, true);
-  await f.action("channel.fader.adjust", { target, deltaDb: -1 }); f.advance(1000);
+  await f.action("send.fader.adjust", { busId: "bus", target, deltaDb: -1 }); f.advance(1000);
   const reply = await execute(f, a.body.data.armId); assert.equal(reply.status, 200); assert.equal(reply.body.data.value, false);
   assert.equal((f.commands.at(-1) as any).confirmed, true);
   await f.action("emergency.set", { active: true }); const nextArgs = { ...args, expectedEmergencyEpoch: f.control.emergencyEpoch };
@@ -190,21 +190,21 @@ test("settings unlock is B with state ABA protection, SETUP no-op, and no implic
 });
 
 test("fixed participant ignores unrelated joins; slot, participant reappearance, send replacement and TX metadata ABA invalidate arms", async t => {
-  const f = await fixture(t); await ready(f, ["channel.fader.set", "send.fader.set", "tx.fader.set"]);
-  await f.action("channel.fader.set", { target, db: -40 });
-  const a = await arm(f, "channel.fader.set", { target, db: 0 });
+  const f = await fixture(t); await ready(f, ["send.fader.set", "tx.fader.set"]);
+  await f.action("send.fader.set", { busId: "bus", target, db: -40 });
+  const a = await arm(f, "send.fader.set", { busId: "bus", target, db: 0 });
   const channel = new AudioChannel(`discord-user:${GUILD}:${VC}:100000000000000002`, "Another private guest", "DiscordUser", new SilenceSource(), 480, 48000);
   f.engine.addChannel(channel); f.sessions.join(channel, "100000000000000002", VC, channel.label); f.api.observe(); f.advance(1000);
   assert.equal((await execute(f, a.body.data.armId)).status, 200);
-  await f.action("channel.fader.set", { target, db: -40 });
-  const b = await arm(f, "channel.fader.set", { target, db: 0 });
+  await f.action("send.fader.set", { busId: "bus", target, db: -40 });
+  const b = await arm(f, "send.fader.set", { busId: "bus", target, db: 0 });
   f.sessions.leave(f.channel); f.sessions.join(f.channel, USER, VC, f.channel.label); f.api.observe(); f.advance(1000);
   code(await execute(f, b.body.data.armId), "STALE_REVISION");
   const slot = { kind: "slot", scope: { kind: "all" }, index: 1, expectedParticipantsRevision: f.api.state.participantsRevision };
-  const c = await arm(f, "channel.fader.set", { target: slot, db: 0 }); assert.equal(c.status, 200);
+  const c = await arm(f, "send.fader.set", { busId: "bus", target: slot, db: 0 }); assert.equal(c.status, 200);
   f.sessions.leave(channel); f.engine.channels.delete(channel.id); f.api.observe(); f.advance(1000); code(await execute(f, c.body.data.armId), "STALE_REVISION");
-  await f.action("send.fader.set", { target, busId: "bus", db: -40 });
-  const d = await arm(f, "send.fader.set", { target, busId: "bus", db: 0 });
+  await f.action("send.fader.set", { busId: "bus", target, db: -40 });
+  const d = await arm(f, "send.fader.set", { busId: "bus", target, db: 0 });
   f.channel.vcSends.set("bus", { ...f.channel.vcSends.get("bus")! }); f.api.observe(); f.advance(1000); code(await execute(f, d.body.data.armId), "STALE_REVISION");
   await f.action("tx.fader.set", { profileId: "TX1", db: -40 });
   const e = await arm(f, "tx.fader.set", { profileId: "TX1", db: 0 }); f.botState(0, { txDestination: "INTERVIEW" }); f.botState(0); f.advance(1000);
@@ -280,15 +280,15 @@ test("idle/disabled observation sleeps, resumes monotonically, rejects old slots
   f.api.state.observe = () => { observations++; observe(); };
   for (let i = 0; i < 10; i++) { f.api.tick(); f.api.observe(); } assert.equal(observations, 0);
   f.api.manage({ action: "enable" }); const state = await f.state(); assert.ok(observations > 0);
-  const committed = f.request("channel.fader.adjust", { target, deltaDb: -1 }); assert.equal((await f.raw(committed)).status, 200);
+  const committed = f.request("send.fader.adjust", { busId: "bus", target, deltaDb: -1 }); assert.equal((await f.raw(committed)).status, 200);
   f.advance(31000); f.api.tick(); const asleep = observations;
-  f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: -2 }); f.api.observe();
-  f.control.execute({ type: "SET_CHANNEL_FADER", channelId: f.channel.id, db: -1 }); f.api.observe();
+  f.control.execute({ type: "SET_VC_SEND", channelId: f.channel.id, busId: "bus", db: -2 }); f.api.observe();
+  f.control.execute({ type: "SET_VC_SEND", channelId: f.channel.id, busId: "bus", db: -1 }); f.api.observe();
   for (let i = 0; i < 10; i++) f.api.tick(); assert.equal(observations, asleep);
   const resumed = await f.state(); assert.ok(resumed.revision > state.revision); assert.ok(resumed.participantsRevision > state.participantsRevision); assert.ok(resumed.tx.targetsRevision > state.tx.targetsRevision);
   code(await f.action("tx.targets.set", { selection: { kind: "profiles", profileIds: ["TX1"] }, expectedTargetsRevision: state.tx.targetsRevision }), "STALE_REVISION");
-  code(await f.action("channel.mute.set", { target: { kind: "slot", scope: { kind: "all" }, index: 1, expectedParticipantsRevision: state.participantsRevision }, mute: true }), "STALE_REVISION");
-  assert.equal((await f.raw(committed)).status, 200); assert.equal(f.channel.faderDb, -1);
+  code(await f.action("send.mute.set", { busId: "bus", target: { kind: "slot", scope: { kind: "all" }, index: 1, expectedParticipantsRevision: state.participantsRevision }, mute: true }), "STALE_REVISION");
+  assert.equal((await f.raw(committed)).status, 200); assert.equal(f.channel.vcSends.get("bus")!.gainDb, -1);
 });
 
 test("external action log has deviceId, actual B tier and phase; no names/hash/token/arm/raw body in state/log", async t => {

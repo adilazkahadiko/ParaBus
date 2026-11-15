@@ -98,9 +98,9 @@ test("Node 22 fetch succeeds with Bearer while browser, Host and alternate authe
   assert.equal((f.api.server.address() as { address: string }).address, "127.0.0.1");
 });
 
-for (const family of ["channel", "bus", "send", "tx"]) test(`${family} faders enforce floor, A/B boundaries, shared dB bucket and saturation`, async t => {
+for (const family of ["bus", "send", "tx"]) test(`${family} faders enforce floor, A/B boundaries, shared dB bucket and saturation`, async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" });
-  const args = family === "channel" ? { target } : family === "bus" ? { busId: "bus" } : family === "send" ? { target, busId: "bus" } : { profileId: "TX1" };
+  const args = family === "bus" ? { busId: "bus" } : family === "send" ? { busId: "bus", target } : { profileId: "TX1" };
   assert.equal((await f.action(`${family}.fader.set`, { ...args, db: -90 })).status, 200);
   assert.equal((await f.action(`${family}.fader.set`, { ...args, db: -40 })).status, 200);
   assert.equal((await f.action(`${family}.fader.set`, { ...args, db: -90 })).status, 200);
@@ -127,13 +127,13 @@ for (const family of ["channel", "bus", "send", "tx"]) test(`${family} faders en
 
 test("all mute mappings use per-target expectedMute and idempotent set without global CAS", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" });
-  for (const [family, args, initial] of [["channel", { target }, false], ["bus", { busId: "bus" }, false], ["send", { target, busId: "bus" }, true]] as const) {
+  for (const [family, args, initial] of [["bus", { busId: "bus" }, false], ["send", { busId: "bus", target }, true]] as const) {
     code(await f.action(`${family}.mute.toggle`, args), "INVALID");
     assert.equal((await f.action(`${family}.mute.toggle`, { ...args, expectedMute: initial }, { expectedRevision: 999999 })).body.data.value, !initial);
     const stale = await f.action(`${family}.mute.toggle`, { ...args, expectedMute: initial }); code(stale, "STALE_REVISION", 409); assert.deepEqual(stale.body.current, { mute: !initial });
     const before = f.control.revision; await f.action(`${family}.mute.set`, { ...args, mute: !initial }); assert.equal(f.control.revision, before);
   }
-  f.channel.vcSends.delete("bus"); code(await f.action("send.mute.set", { target, busId: "bus", mute: false }), "NOT_FOUND");
+  f.channel.vcSends.delete("bus"); code(await f.action("send.mute.set", { busId: "bus", target, mute: false }), "NOT_FOUND");
   assert.equal(f.channel.vcSends.has("bus"), false);
 });
 
@@ -148,8 +148,8 @@ test("all remaining A mappings, external confirmed rejection and B/C default ref
   const before = f.control.revision; await f.action("settings.lock.set", { locked: true }); assert.equal(f.control.revision, before);
   for (const [operation, args] of [["settings.lock.set", { locked: false }], ["emergency.set", { active: false, expectedEmergencyEpoch: 1 }], ["bus.limiter.set", { busId: "bus", enabled: true }], ["bus.compressor.set", { busId: "bus", enabled: true }], ["scene.recall", {}], ["recording.start", {}], ["recording.stop", {}]] as const) code(await f.action(operation, args), "TIER_FORBIDDEN", 403);
   for (const operation of Object.keys(COMMAND_POLICIES)) code(await f.action(operation, {}), "TIER_FORBIDDEN", 403);
-  code(await f.action("channel.mute.set", { target, mute: true, confirmed: true }), "INVALID");
-  code(await f.action("channel.mute.set", { target, mute: true }, { confirmed: true }), "INVALID");
+  code(await f.action("send.mute.set", { busId: "bus", target, mute: true, confirmed: true }), "INVALID");
+  code(await f.action("send.mute.set", { busId: "bus", target, mute: true }, { confirmed: true }), "INVALID");
   assert.equal((await f.action("emergency.set", { active: true })).body.data.emergencyEpoch, 1);
   f.control.state = "FAULT"; code(await f.action("settings.lock.set", { locked: true }), "LOCKED", 409);
   assert.equal((await f.action("emergency.set", { active: true })).status, 200);
@@ -158,29 +158,29 @@ test("all remaining A mappings, external confirmed rejection and B/C default ref
 test("participants generations follow online appearances, order, VC and Bus identity; fixed target remains independent", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" }); const first = await f.state();
   const slot = { kind: "slot", scope: { kind: "all" }, index: 1, expectedParticipantsRevision: first.participantsRevision };
-  assert.equal((await f.action("channel.mute.set", { target: slot, mute: true })).status, 200);
+  assert.equal((await f.action("send.mute.set", { busId: "bus", target: slot, mute: true })).status, 200);
   const second = new AudioChannel(`discord-user:${GUILD}:${VC}:100000000000000002`, "Other guest", "DiscordUser", new SilenceSource(), 480, 48000);
   f.engine.addChannel(second); f.sessions.join(second, "100000000000000002", VC, second.label);
-  code(await f.action("channel.mute.set", { target: slot, mute: false }), "STALE_REVISION");
-  assert.equal((await f.action("channel.mute.toggle", { target, expectedMute: true })).status, 200);
+  code(await f.action("send.mute.set", { busId: "bus", target: slot, mute: false }), "STALE_REVISION");
+  assert.equal((await f.action("send.mute.toggle", { busId: "bus", target, expectedMute: true })).status, 200);
   const secondState = await f.state(); assert.ok(secondState.participantsRevision > first.participantsRevision);
   f.channel.preferredStripPosition = 10; f.api.state.observe(); const ordered = await f.state(); assert.equal(ordered.participantOrders[0].users[0], "100000000000000002");
   f.sessions.leave(f.channel); f.engine.channels.delete(f.channel.id); f.api.state.observe();
-  code(await f.action("channel.mute.set", { target, mute: true }), "NOT_FOUND");
+  code(await f.action("send.mute.set", { busId: "bus", target, mute: true }), "NOT_FOUND");
   f.engine.addChannel(f.channel); f.sessions.join(f.channel, USER, VC, "Returned"); f.api.state.observe(); assert.ok((await f.state()).participantsRevision > ordered.participantsRevision);
   const generation = f.api.state.participantsRevision; f.engine.buses.delete("bus"); f.api.state.observe(); f.engine.addBus(new VcBus("bus", "Replacement", 480, 48000)); f.api.state.observe();
   assert.ok(f.api.state.participantsRevision > generation);
-  code(await f.action("channel.mute.set", { target: { ...slot, scope: { kind: "bus", busId: "bus" }, expectedParticipantsRevision: f.api.state.participantsRevision }, mute: true }), "INVALID");
+  code(await f.action("send.mute.set", { busId: "bus", target: { ...slot, scope: { kind: "bus", busId: "bus" }, expectedParticipantsRevision: f.api.state.participantsRevision }, mute: true }), "INVALID");
 });
 
 test("public projection is exact, name opt-in, revisions exclude meters/time/internal no-ops and detect ABA", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" }); const state = await f.state();
   assert.deepEqual(Object.keys(state).sort(), ["instanceId", "revision", "participantsRevision", "enabled", "state", "settingsLocked", "emergencyMuted", "emergencyEpoch", "outputCount", "participants", "registeredUsers", "participantOrders", "buses", "pfl", "tx", "recorder", "scenes", "currentSceneId", "permissions"].sort());
   const serialized = JSON.stringify(state); for (const privateValue of [f.registration.token, f.registration.deviceId, "Private device", "Private guest", "Private bot", "Private bus label"]) assert.equal(serialized.includes(privateValue), false);
-  assert.deepEqual(Object.keys(state.participants[0]).sort(), ["discordUserId", "faderDb", "mute", "sends"].sort());
+  assert.deepEqual(Object.keys(state.participants[0]).sort(), ["discordUserId", "sends"].sort());
   assert.deepEqual(Object.keys(state.tx.bots[0]).sort(), ["profileId", "destination", "state", "active", "masterDb", "sourceInputChannelIds", "sourceMode"].sort());
   f.channel.outputMeter.process(new Float32Array(480), 48000); f.control.revision += 50; f.advance(500); assert.equal((await f.state()).revision, state.revision);
-  f.channel.faderDb = -40; f.api.state.observe(); f.channel.faderDb = 0; f.api.state.observe(); assert.ok((await f.state()).revision >= state.revision + 2);
+  f.channel.vcSends.get("bus")!.gainDb = -40; f.api.state.observe(); f.channel.vcSends.get("bus")!.gainDb = 0; f.api.state.observe(); assert.ok((await f.state()).revision >= state.revision + 2);
   f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true });
   assert.equal((await f.state()).participants[0].displayName, "Private guest");
 });
@@ -221,23 +221,23 @@ test("API group START failure preserves backend all-stop/flush behavior", async 
 
 test("dedup caches success and failure for 60s, canonical keys, content conflict and instance protection", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" });
-  const body = f.request("channel.fader.adjust", { target, deltaDb: -1 });
-  const first = await f.raw(body), again = await f.raw({ args: { deltaDb: -1, target }, operation: body.operation, instanceId: body.instanceId, requestId: body.requestId });
-  assert.deepEqual(again.body, first.body); assert.equal(f.channel.faderDb, -1); assert.equal(f.commands.length, 1);
-  code(await f.raw({ ...body, args: { target, deltaDb: -2 } }), "INVALID");
-  const failed = f.request("channel.mute.toggle", { target, expectedMute: true }); code(await f.raw(failed), "STALE_REVISION"); f.channel.mute = true;
-  code(await f.raw(failed), "STALE_REVISION"); assert.equal(f.channel.mute, true);
-  f.advance(60000); assert.equal((await f.raw(body)).status, 200); assert.equal(f.channel.faderDb, -2);
-  code(await f.action("channel.mute.set", { target, mute: true }, { instanceId: randomUUID() }), "STALE_REVISION");
+  const body = f.request("send.fader.adjust", { busId: "bus", target, deltaDb: -1 });
+  const first = await f.raw(body), again = await f.raw({ args: { deltaDb: -1, target, busId: "bus" }, operation: body.operation, instanceId: body.instanceId, requestId: body.requestId });
+  assert.deepEqual(again.body, first.body); assert.equal(f.channel.vcSends.get("bus")!.gainDb, -21); assert.equal(f.commands.length, 1);
+  code(await f.raw({ ...body, args: { busId: "bus", target, deltaDb: -2 } }), "INVALID");
+  const failed = f.request("send.mute.toggle", { busId: "bus", target, expectedMute: false }); code(await f.raw(failed), "STALE_REVISION"); f.channel.vcSends.get("bus")!.mute = false;
+  code(await f.raw(failed), "STALE_REVISION"); assert.equal(f.channel.vcSends.get("bus")!.mute, false);
+  f.advance(60000); assert.equal((await f.raw(body)).status, 200); assert.equal(f.channel.vcSends.get("bus")!.gainDb, -22);
+  code(await f.action("send.mute.set", { busId: "bus", target, mute: true }, { instanceId: randomUUID() }), "STALE_REVISION");
   f.api.manage({ action: "stop" }); code(await f.raw(body), "DISABLED"); assert.equal(new ExternalDeviceStore(f.root).enabled, false);
 });
 
 test("parallel requests serialize fader budgets and safe directions use finite reservation after normal exhaustion", async t => {
-  const f = await fixture(t); f.api.manage({ action: "enable" }); f.channel.faderDb = -40;
-  const results = await Promise.all(Array.from({ length: 12 }, () => f.raw(f.request("channel.fader.adjust", { target, deltaDb: 1 }))));
-  assert.equal(results.filter(r => r.status === 200).length, 10); assert.equal(f.channel.faderDb, -30);
+  const f = await fixture(t); f.api.manage({ action: "enable" }); f.channel.vcSends.get("bus")!.gainDb = -40;
+  const results = await Promise.all(Array.from({ length: 12 }, () => f.raw(f.request("send.fader.adjust", { busId: "bus", target, deltaDb: 1 }))));
+  assert.equal(results.filter(r => r.status === 200).length, 10); assert.equal(f.channel.vcSends.get("bus")!.gainDb, -30);
   f.advance();
-  for (let i = 0; i < 20; i++) assert.equal((await f.raw(f.request("channel.mute.set", { target, mute: true }))).status, 200);
+  for (let i = 0; i < 20; i++) assert.equal((await f.raw(f.request("send.mute.set", { busId: "bus", target, mute: true }))).status, 200);
   code(await f.raw(f.request("pfl.set", { source: null })), "RATE_LIMITED", 429);
   for (let i = 0; i < 5; i++) assert.equal((await f.raw(f.request("emergency.set", { active: true }))).status, 200);
   const exceeded = await f.raw(f.request("tx.clear", {})); code(exceeded, "RATE_LIMITED", 429); assert.equal(exceeded.headers.get("retry-after"), "1");
@@ -247,7 +247,7 @@ test("parallel requests serialize fader budgets and safe directions use finite r
 test("unauthenticated limiter is separate, aggregates secrets-free logs and device activity expires", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" });
   for (let i = 0; i < 22; i++) { const response = await fetch(f.base + "/info", { headers: { authorization: "Bearer invalid" } }); assert.equal(response.status, i < 20 ? 401 : 429); }
-  for (let i = 0; i < 20; i++) assert.equal((await f.raw(f.request("channel.mute.set", { target, mute: false }))).status, 200);
+  for (let i = 0; i < 20; i++) assert.equal((await f.raw(f.request("send.mute.set", { busId: "bus", target, mute: false }))).status, 200);
   assert.equal(f.api.managementSnapshot().activeDeviceCount, 1); assert.equal(f.logs.filter(s => s === "External control authentication rejected").length, 1);
   f.advance(60000); f.api.tick(); assert.ok(f.logs.some(s => s === "External control authentication suppressed=21")); assert.equal(f.api.managementSnapshot().activeDeviceCount, 0);
   const text = f.logs.join("\n"); for (const secret of [f.registration.token, "Private device"]) assert.equal(text.includes(secret), false);
@@ -256,7 +256,7 @@ test("unauthenticated limiter is separate, aggregates secrets-free logs and devi
 test("HTTP errors use fixed status/messages and reject management, unknown fields, malformed and oversized input", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" });
   for (const path of ["/execute", "/shutdown", "/settings", "/actions?token=x"]) code(await f.raw(f.request("tx.clear", {}), path), "INVALID", 400);
-  for (const body of ["{", '{"a":1,"a":2}', "[]", JSON.stringify(f.request("new.operation", {})), JSON.stringify(f.request("channel.fader.set", { target, db: null }))]) { f.advance(); code(await f.raw(body), "INVALID", 400); }
+  for (const body of ["{", '{"a":1,"a":2}', "[]", JSON.stringify(f.request("new.operation", {})), JSON.stringify(f.request("send.fader.set", { busId: "bus", target, db: null }))]) { f.advance(); code(await f.raw(body), "INVALID", 400); }
   f.advance(); code(await f.raw(" ".repeat(16385)), "INVALID", 413);
   f.advance(); code(await f.raw("{}", "/actions", { ...f.headers, "content-type": "text/plain" }), "INVALID", 415);
   f.advance(); code(await f.raw("{}", "/actions", { ...f.headers, "content-encoding": "gzip" } as any), "INVALID", 415);
@@ -327,8 +327,8 @@ test("global normal and safety limits apply across devices, and reads have a sep
   const f = await fixture(t); f.api.manage({ action: "enable" });
   const clients = [f.registration, ...Array.from({ length: 5 }, (_, i) => f.store.register(`Device ${i}`))];
   const send = (index: number, operation: string, args: unknown) => f.raw(f.request(operation, args), "/actions", { ...f.headers, authorization: `Bearer ${clients[index].token}` });
-  for (let device = 0; device < 5; device++) for (let i = 0; i < 20; i++) assert.equal((await send(device, "channel.mute.set", { target, mute: false })).status, 200);
-  code(await send(5, "channel.mute.set", { target, mute: false }), "RATE_LIMITED", 429);
+  for (let device = 0; device < 5; device++) for (let i = 0; i < 20; i++) assert.equal((await send(device, "send.mute.set", { busId: "bus", target, mute: false })).status, 200);
+  code(await send(5, "send.mute.set", { busId: "bus", target, mute: false }), "RATE_LIMITED", 429);
   for (let device = 0; device < 4; device++) for (let i = 0; i < 5; i++) assert.equal((await send(device, "emergency.set", { active: true })).status, 200);
   code(await send(4, "tx.clear", {}), "RATE_LIMITED", 429);
   for (let i = 0; i < 10; i++) assert.equal((await fetch(f.base + "/state", { headers: f.headers })).status, 200);
@@ -345,10 +345,10 @@ test("stop invalidates body-in-flight requests even after reenable and retains a
   const deadline = Date.now() + 3000;
   while (!f.api.managementSnapshot().activeDeviceCount) { assert.ok(Date.now() < deadline); await new Promise(resolve => setTimeout(resolve, 5)); }
   f.api.manage({ action: "stop" }); f.api.manage({ action: "enable" }); finish(); assert.equal(await response, 503); assert.equal(f.engine.emergencyMuted, false);
-  const committed = f.request("channel.fader.adjust", { target, deltaDb: -1 }); assert.equal((await f.raw(committed)).status, 200);
-  f.api.manage({ action: "stop" }); f.api.manage({ action: "enable" }); assert.equal((await f.raw(committed)).status, 200); assert.equal(f.channel.faderDb, -1);
+  const committed = f.request("send.fader.adjust", { busId: "bus", target, deltaDb: -1 }); assert.equal((await f.raw(committed)).status, 200);
+  f.api.manage({ action: "stop" }); f.api.manage({ action: "enable" }); assert.equal((await f.raw(committed)).status, 200); assert.equal(f.channel.vcSends.get("bus")!.gainDb, -21);
   f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true });
-  assert.equal((await f.raw(committed)).status, 200); assert.equal(f.channel.faderDb, -1);
+  assert.equal((await f.raw(committed)).status, 200); assert.equal(f.channel.vcSends.get("bus")!.gainDb, -21);
 });
 
 test("external source guard rejects IPv6 and non-loopback sockets and reports unavailable/internal errors safely", async t => {
@@ -379,7 +379,7 @@ test("WS total capacity, permission invalidation, bounded backpressure and state
     const ws = await connectWs(f.api.port, `Bearer ${clients[Math.floor(i / 2)].token}`); connections.push(ws); assert.equal(ws.status, 101); await ws.next();
   }
   assert.equal((await connectWs(f.api.port, `Bearer ${clients[8].token}`)).status, 429);
-  await f.action("channel.mute.set", { target, mute: true }); f.api.tick(); assert.equal((await connections[0].next()).payload.participants[0].mute, true);
+  await f.action("send.mute.set", { busId: "bus", target, mute: false }); f.api.tick(); assert.equal((await connections[0].next()).payload.participants[0].sends[0].mute, false);
   f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true }); assert.equal((await connections[0].next()).closeCode, 4001);
   let closeCode = 0;
   const socket = { destroyed: false, writableLength: 262144, end(frame: Buffer) { closeCode = frame.readUInt16BE(2); }, destroy() {}, once() {} };

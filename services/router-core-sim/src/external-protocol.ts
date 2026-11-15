@@ -3,7 +3,7 @@ import type { ControlCommand } from "../../../packages/shared-types/src/index.ts
 export type Tier = "A" | "B" | "C";
 // One entry per discriminant. Adding/removing an internal command breaks typecheck.
 export const COMMAND_POLICIES = {
-  SET_STATE: "state", SET_CHANNEL_FADER: "fader", SET_CHANNEL_MUTE: "A",
+  SET_STATE: "state", SET_CHANNEL_FADER: "C", SET_CHANNEL_MUTE: "C",
   SET_USER_CHANNEL_COLOR: "C", SET_USER_STRIP_ORDER: "C", RESET_USER_STRIP_ORDER: "C",
   SET_PARTICIPANT_APPROVAL: "C", SET_USER_TRUSTED: "C", SET_RECEIVER_OWNER: "C",
   SET_VC_SEND: "send", SET_BUS_MASTER: "fader", SET_BUS_MUTE: "A",
@@ -34,7 +34,6 @@ export function classifyCommand(command: ControlCommand, context: { state: strin
 }
 
 export const OPERATIONS = [
-  "channel.fader.adjust", "channel.fader.set", "channel.mute.set", "channel.mute.toggle",
   "bus.fader.adjust", "bus.fader.set", "bus.mute.set", "bus.mute.toggle",
   "send.fader.adjust", "send.fader.set", "send.mute.set", "send.mute.toggle",
   "tx.fader.adjust", "tx.fader.set", "pfl.set", "loudness.reset", "emergency.set",
@@ -42,7 +41,7 @@ export const OPERATIONS = [
 ] as const;
 export const TIER_B_OPERATIONS = ["bus.limiter.set", "bus.compressor.set", "scene.preview", "scene.recall", "recording.start", "recording.stop"];
 // Only operation names that can be B in §6 are valid persisted permissions.
-export const ALLOWED_TIER_B_OPERATIONS = ["channel.fader.set", "bus.fader.set", "send.fader.set", "tx.fader.set",
+export const ALLOWED_TIER_B_OPERATIONS = ["bus.fader.set", "send.fader.set", "tx.fader.set",
   "emergency.set", "settings.lock.set", "bus.limiter.set", "bus.compressor.set", "scene.recall", "recording.start", "recording.stop"];
 export function tierBPermissions(value: unknown): string[] {
   if (!Array.isArray(value) || value.some(v => typeof v !== "string" || !ALLOWED_TIER_B_OPERATIONS.includes(v))
