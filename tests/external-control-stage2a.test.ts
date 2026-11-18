@@ -216,7 +216,7 @@ for (const action of ["permissions", "reissue", "revoke"] as const) test(`${acti
   const a = await arm(f); f.control.state = "ON_AIR";
   const payload = { action, deviceId: f.registration.deviceId, ...(action === "permissions" ? { readDisplayNames: false, allowedTierBOperations: ["bus.limiter.set"] } : {}) };
   assert.throws(() => f.api.manage(payload), (e: any) => e.code === "LOCKED"); f.control.state = "SETUP";
-  const result = f.api.manage(payload) as any; assert.equal((await ws.next()).closeCode, 4001); f.advance(1000);
+  const result = f.api.manage(payload) as any; assert.equal((await ws.next()).closeCode, action === "permissions" ? 4005 : 4001); f.advance(1000);
   if (action === "permissions") code(await execute(f, a.body.data.armId), "ARM_INVALID");
   else code(await execute(f, a.body.data.armId), "UNAUTHORIZED", 401);
   if (action === "reissue") code(await f.raw(execution(f, a.body.data.armId), "/execute", { ...f.headers, authorization: `Bearer ${result.token}` }), "ARM_INVALID");

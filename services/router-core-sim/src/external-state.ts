@@ -3,8 +3,8 @@ import type { ControlCommand, DiscordIngestSnapshot } from "../../../packages/sh
 import type { ControlPlane } from "./control-plane.ts";
 import type { ExternalDevice, ExternalDeviceStore } from "./external-device-store.ts";
 import { canonical, dependencyKey as dep, fail, fields, revision, textId } from "./external-protocol.ts";
+import { externalDisplayName as displayName } from "./external-display-name.ts";
 
-const displayName = (name: string) => name.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 80);
 export class ExternalState {
   readonly instanceId = randomUUID();
   readonly control: ControlPlane;
@@ -253,6 +253,7 @@ export class ExternalState {
       participantOrders: this.orders().map(order => ({ ...order, scope: order.scope.kind === "bus"
         ? { kind: "bus" as const, busId: this.publicBusId(order.scope.busId) } : order.scope })),
       buses: [...engine.buses.values()].map(b => ({ busId: this.publicBusId(b.id), kind: b.groupSourceIds !== null ? "group" : b.linkedDiscordVoiceChannelId ? "vc" : "other",
+        ...(device.readDisplayNames ? { label: displayName(b.label) } : {}),
         masterDb: b.masterDb, mute: b.mute, limiterEnabled: b.limiter.enabled,
         compressor: { enabled: b.compressorEnabled, thresholdDb: b.compressor.thresholdDb, ratio: b.compressor.ratio,
           attackMs: b.compressor.attackMs, releaseMs: b.compressor.releaseMs, makeupDb: b.compressor.makeupDb } })),

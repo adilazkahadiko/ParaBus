@@ -361,7 +361,7 @@ state の JSON 形は次のとおり。`?` は任意フィールドを表す説�
 | `participants` | オンライン参加者の配列。`{discordUserId,sends:[{busId,db,mute}],displayName?}` |
 | `registeredUsers` | 固定指定の選択肢。`{discordUserId,online,displayName?}` の配列。オフラインのレベルは含めない |
 | `participantOrders` | `{scope,users:string[]}` の配列。all と VC Bus ごとの順序。各 users は Discord User ID |
-| `buses` | `{busId,kind:"vc"\|"group"\|"other",masterDb,mute,limiterEnabled,compressor:{enabled,thresholdDb,ratio,attackMs,releaseMs,makeupDb}}` の配列 |
+| `buses` | `{busId,kind:"vc"\|"group"\|"other",label?,masterDb,mute,limiterEnabled,compressor:{enabled,thresholdDb,ratio,attackMs,releaseMs,makeupDb}}` の配列。`label` は表示名の読み取りを許可した機器にだけ含めるBus表示名 |
 | `pfl` | 第 6 節 `pfl.set` と同じ `source` の値 |
 | `tx` | `{targetsRevision,armedProfileIds:string[],liveProfileIds:string[],selectionKind:"profiles"\|"destinations"\|"allTeams",allTeams:boolean,takeTier:"A"\|null,bots:[...]}` |
 | `tx.bots[]` | `{profileId,destination:string\|null,state:"NO_BOT"\|"NOT_READY"\|"READY"\|"SENDING"\|"FAULT",active,masterDb,sourceInputChannelIds:string[],sourceMode:"localInput"\|"legacyMatrix"\|"unassigned"}`。入力 ID は読み取り専用で保持・編集不要 |
@@ -369,11 +369,11 @@ state の JSON 形は次のとおり。`?` は任意フィールドを表す説�
 | `scenes`, `currentSceneId` | `{sceneId}` の配列、不透明なシーン ID 文字列または null |
 | `permissions` | この機器の `{allowedTierBOperations:string[],readDisplayNames:boolean}` |
 
-`takeTier:null` はアーム集合が空の場合。それ以外の takeTier は常に `"A"`。`selectionKind` は起動時 profiles とし、操作画面からアーム集合が変更されたら profiles に戻す。`allTeams` は現在の集合での判定を表す。Bus / シーン / Bot の自由なラベルは v1 state に含めず、ID と送り先区分で識別する。
+`takeTier:null` はアーム集合が空の場合。それ以外の takeTier は常に `"A"`。`selectionKind` は起動時 profiles とし、操作画面からアーム集合が変更されたら profiles に戻す。`allTeams` は現在の集合での判定を表す。シーン / Bot の自由なラベルは v1 state に含めず、ID と送り先区分で識別する。Bus の操作対象は名前の有無にかかわらず `busId` で指定する。
 
-toggle の `expectedMute` は対象の `participants[].mute`、`buses[].mute`、または `participants[].sends[].mute` から取得する。公開 state の revision が増えただけで未実行操作や arm を失効させない。B の依存関係の世代はサーバーが保持し、操作ごとの検査に使う。クライアントが全体 revision からそれを推測する必要はない。
+toggle の `expectedMute` は対象の `buses[].mute`、または `participants[].sends[].mute` から取得する。公開 state の revision が増えただけで未実行操作や arm を失効させない。B の依存関係の世代はサーバーが保持し、操作ごとの検査に使う。クライアントが全体 revision からそれを推測する必要はない。
 
-Discord の表示名は既定で含めない。ローカル SETUP でその機器に `readDisplayNames:true` を許可したときのみ、`participants` / `registeredUsers` の `displayName` に出す。制御文字を除去し最大 80 文字に制限する。プラグインは表示用の非信頼文字列としてエスケープし、ログ・共有設定・遠隔同期へ自動出力しない。ユーザー ID も個人に結び付く情報であり、名前を省いた state も公開情報とは扱わない。
+参加者と Bus の表示名は既定で含めない。ローカル SETUP でその機器に `readDisplayNames:true` を許可したときのみ、`participants` / `registeredUsers` の `displayName` と `buses[].label` に出す。false ならこれらのキー自体を含めない。いずれも制御文字を除去し最大 80 文字に制限する。scene.preview の名称フィールドも同じ許可・無害化方針とし、不許可時の `from` / `to` は null とする。プラグインは表示用の非信頼文字列としてエスケープし、ログ・共有設定・遠隔同期へ自動出力しない。ユーザー ID も個人に結び付く情報であり、名前を省いた state も公開情報とは扱わない。
 
 WS は認証成功後、ただちに `{type:"state",payload:<state>}` を送り、その後は変更があったとき最大 10 Hz で**完全な projection** を配信する。購読者は差分の取りこぼし処理を必要としない。通常の state にメーターは含めない。操作要求は WS では受け付けず、HTTP に統一する。
 
@@ -400,6 +400,15 @@ WS は機器あたり最大 2 接続、全体最大 16 接続。購読は切断�
 停止処理を外部操作のコミットと同じ制御列に載せ、無効化を確定してから後続の操作を拒否する。全 arm、プレビュー、未実行の要求を破棄し、認証済み HTTP には `503 {ok:false,code:"DISABLED",message:"External control is disabled"}` を返す。listener はループバックに残してこの応答を可能にする。既にコミット済みの操作は巻き戻さない。
 
 既存 WS には可能なら `{type:"error",payload:{ok:false,code:"DISABLED",message:"External control is disabled"}}` を送って close `4003`、新規 upgrade は 503。トークン取り消し時は該当 WS を close `4001` とし、新規 HTTP / upgrade は 401。close reason に機器名・トークン・引数は入れない。通知前に切断される場合もあるので、close code だけで結果を推測しない。
+
+| close code | 意味と再接続 |
+| --- | --- |
+| `4001` | トークンの取り消し・再発行。旧トークンでのHTTP / upgradeは401。beta.6は権限変更にもこのコードを使うため、互換クライアントは認証付きHTTPを一度確認し、200なら再接続、401なら認証停止できる。再接続直後にも4001が続く場合は確認を繰り返さず停止する |
+| `4003` | 外部操作の無効化、または利用不可。SETUPでの明示的な有効化など、原因の解消が必要 |
+| `4005` | 機器の権限変更。トークンは引き続き有効。新しい権限で状態を取得し直して再接続する |
+| `1013` | state送信待ちの超過。通常のバックオフで再接続する |
+
+権限変更時はその機器のarm / previewを失効させる。4005による再接続は操作の再実行を意味しない。
 
 再有効化はこの PC の SETUP で明示的に行う。停止後の自動復帰はない。有効化状態は保存し、通常のアプリ再起動だけでは停止状態を解除しない。トークンは停止だけでは取り消さない。
 
