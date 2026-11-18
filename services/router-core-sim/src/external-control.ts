@@ -120,7 +120,7 @@ export class ExternalControlServer {
       const result = this.store.change(input.deviceId, action, input.readDisplayNames, input.allowedTierBOperations);
       const runtime = this.#devices.get(input.deviceId as string);
       if (runtime?.arm && action === "permissions") runtime.deniedArms.set(runtime.arm.id, { operation: runtime.arm.operation, at: runtime.arm.at });
-      for (const peer of this.#peers) if (peer.device.deviceId === input.deviceId) this.closePeer(peer, 4001);
+      for (const peer of this.#peers) if (peer.device.deviceId === input.deviceId) this.closePeer(peer, action === "permissions" ? 4005 : 4001);
       if (runtime) { runtime.generation++; runtime.arm = undefined; runtime.previews.clear(); }
       return result;
     }

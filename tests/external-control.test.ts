@@ -380,7 +380,7 @@ test("WS total capacity, permission invalidation, bounded backpressure and state
   }
   assert.equal((await connectWs(f.api.port, `Bearer ${clients[8].token}`)).status, 429);
   await f.action("send.mute.set", { busId: "bus", target, mute: false }); f.api.tick(); assert.equal((await connections[0].next()).payload.participants[0].sends[0].mute, false);
-  f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true }); assert.equal((await connections[0].next()).closeCode, 4001);
+  f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: true }); assert.equal((await connections[0].next()).closeCode, 4005);
   let closeCode = 0;
   const socket = { destroyed: false, writableLength: 262144, end(frame: Buffer) { closeCode = frame.readUInt16BE(2); }, destroy() {}, once() {} };
   const peer = { socket, closing: false, device: { deviceId: f.registration.deviceId } }; (f.api as any).send(peer, { type: "state", payload: {} }); assert.equal(closeCode, 1013); assert.equal(peer.closing, true);

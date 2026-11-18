@@ -54,6 +54,31 @@ async function privateFixture(t: TestContext) {
   return { ...f, bus, participant, other, routeId, recorder, sceneId, publicBusId, post, execute, get };
 }
 
+test("Bus labels use the display-name permission and sanitization across HTTP, WS and scene previews", async t => {
+  const f = await privateFixture(t);
+  const raw = "\x00\nSynthetic Bus\t\x7f" + "名".repeat(90), expected = ("Synthetic Bus" + "名".repeat(90)).slice(0, 80);
+  f.bus.label = raw;
+  f.control.scenes.get(f.sceneId)!.values[`bus.${f.bus.id}.label`] = "Saved Bus";
+  const checkState = (state: any, names: boolean) => {
+    safe(state);
+    assert.equal(JSON.stringify(state).includes(f.bus.id), false);
+    for (const bus of state.buses) assert.equal(Object.hasOwn(bus, "label"), names);
+    if (names) assert.equal(state.buses.find((b: any) => b.busId === f.publicBusId).label, expected);
+  };
+  for (const names of [false, true, false]) {
+    f.api.manage({ action: "permissions", deviceId: f.registration.deviceId, readDisplayNames: names, allowedTierBOperations: ALLOWED_TIER_B_OPERATIONS });
+    checkState((await f.get("/state")).data, names);
+    const ws = await connectWs(f.api.port, f.headers.authorization);
+    try { checkState((await ws.next()).payload, names); } finally { ws.socket.destroy(); }
+    const preview = await f.post("scene.preview", { sceneId: f.sceneId });
+    assert.equal(preview.status, 200);
+    const label = preview.body.data.changes.find((c: any) => c.target.kind === "bus" && c.target.busId === f.publicBusId && c.field === "label");
+    assert.ok(label); safe(preview.body);
+    assert.equal(label.from, names ? expected : null);
+    assert.equal(label.to, names ? "Saved Bus" : null);
+  }
+});
+
 test("scene fields are target-relative, Send uses the public Bus ID, and other IDs are per-preview ordinals", async t => {
   const f = await privateFixture(t), p = await f.post("scene.preview", { sceneId: f.sceneId }); assert.equal(p.status, 200);
   const changes = p.body.data.changes;

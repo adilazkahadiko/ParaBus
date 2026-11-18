@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { SceneValue } from "../../../packages/shared-types/src/index.ts";
 import type { ExternalState } from "./external-state.ts";
 import { canonical, dependencyKey as dep, fail, fields, textId } from "./external-protocol.ts";
+import { externalDisplayName } from "./external-display-name.ts";
 
 export interface ScenePreview {
   id: string; at: number; sceneId: string; fingerprint: string; keys: string[]; dependencies: string;
@@ -71,7 +72,7 @@ export class ExternalScenes {
         : kind === "bus" ? { kind: "bus", busId: this.state.publicBusId(internalId) } : { kind: "other", id: otherIds.get(otherKey)! };
       if (relative[0] === "send") relative[1] = this.state.publicBusId(relative[1]);
       const value = (v: SceneValue | undefined) => !readDisplayNames && change.parameter.endsWith(".label") ? null
-        : typeof v === "string" ? v.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 80) : v ?? null;
+        : typeof v === "string" ? externalDisplayName(v) : v ?? null;
       return { target, field: relative.join("."), from: value(change.from), to: value(change.to), recallSafe: change.recallSafe, locked: change.locked };
     }), excludedParticipantCount: snapshot.excludedParticipantCount } };
   }
