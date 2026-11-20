@@ -28,16 +28,26 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
     const signature = JSON.stringify([setup, state.devices]);
     if (signature === devicesSignature) return;
     devicesSignature = signature;
-    const list = $("external-control-devices"); list.replaceChildren();
+    const list = $("external-control-devices");
+    const expanded = new Set([...list.children].filter(row => row.lastElementChild?.open).map(row => row.dataset.deviceId));
+    list.replaceChildren();
     for (const device of state.devices) {
-      const row = document.createElement("li"), name = document.createElement("span");
-      name.textContent = `${device.name}（${device.revoked ? "取り消し済み" : "登録済み"}） `; row.append(name);
+      const row = document.createElement("li"), controls = document.createElement("div"), name = document.createElement("span");
+      row.className = "external-device"; row.dataset.deviceId = device.deviceId;
+      controls.className = "external-device-controls"; row.append(controls);
+      name.textContent = `${device.name}（${device.revoked ? "取り消し済み" : "登録済み"}） `; controls.append(name);
       if (!device.revoked) {
         const label = document.createElement("label"), readNames = document.createElement("input");
         readNames.type = "checkbox"; readNames.checked = device.readDisplayNames; readNames.disabled = !setup;
-        label.append(readNames, document.createTextNode("表示名の読み取り")); row.append(label);
+        label.append(readNames, document.createTextNode("表示名の読み取り")); controls.append(label);
         const tierB = document.createElement("fieldset"), legend = document.createElement("legend");
         legend.textContent = "段階Bの許可（操作ごとに確認が必要）"; tierB.append(legend);
+        tierB.className = "external-tier-b-grid"; legend.className = "visually-hidden";
+        const details = document.createElement("details"), summary = document.createElement("summary"), help = document.createElement("p");
+        details.className = "external-tier-b"; details.open = expanded.has(device.deviceId);
+        summary.textContent = legend.textContent;
+        help.textContent = "Stream Deck プラグインでは使いません。Companion など、段階Bに対応した機器向けです。";
+        details.append(summary, help, tierB);
         const choices = [];
         const savePermissions = () => operate({ action: "permissions", deviceId: device.deviceId, readDisplayNames: readNames.checked,
           allowedTierBOperations: choices.filter(c => c.input.checked).map(c => c.operation) });
@@ -49,16 +59,21 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
           const label = document.createElement("label"), input = document.createElement("input");
           input.type = "checkbox"; input.checked = device.allowedTierBOperations.includes(operation); input.disabled = !setup;
           choices.push({ operation, input }); input.addEventListener("change", savePermissions);
-          label.append(input, document.createTextNode(title)); tierB.append(label);
+          const caption = document.createElement("span"); caption.textContent = title;
+          if (operation === "bus.limiter.set" || operation === "bus.compressor.set") {
+            const note = document.createElement("small");
+            note.textContent = "ParaBus の画面には操作がなく、シーンと外部操作からだけ変更できます"; caption.append(note);
+          }
+          label.append(input, caption); tierB.append(label);
         }
-        row.append(tierB);
+        row.append(details);
         for (const [action, title] of [["reissue", "再発行"], ["revoke", "取り消し"]]) {
           const button = document.createElement("button"); button.type = "button"; button.textContent = title; button.disabled = !setup;
-          button.addEventListener("click", () => operate({ action, deviceId: device.deviceId })); row.append(button);
+          button.addEventListener("click", () => operate({ action, deviceId: device.deviceId })); controls.append(button);
         }
       } else {
         const button = document.createElement("button"); button.type = "button"; button.textContent = "削除"; button.disabled = !setup;
-        button.addEventListener("click", () => operate({ action: "delete", deviceId: device.deviceId })); row.append(button);
+        button.addEventListener("click", () => operate({ action: "delete", deviceId: device.deviceId })); controls.append(button);
       }
       list.append(row);
     }

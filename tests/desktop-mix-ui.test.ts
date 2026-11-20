@@ -254,7 +254,7 @@ test("desktop operator surface separates MIX, ROUTE, STATUS, SESSION and Bot / I
   assert.ok(html.indexOf('id="control-state"') < html.indexOf('id="application-control"'), "read-only health precedes safety controls");
   assert.ok(html.indexOf('id="application-control"') < html.indexOf('id="emergency-state"'), "Emergency remains the final header action");
   assert.ok(html.indexOf('id="io-title"') < html.indexOf('id="bot-setup-form"'), "session Audio I/O precedes infrequent Bot settings");
-  assert.ok(html.indexOf('id="restart-router"') < html.indexOf('id="bot-setup-form"'), "restart stays with session setup controls");
+  assert.ok(html.indexOf('id="restart-router"') > html.indexOf('id="external-control-setup"'), "restart follows external control and infrequent settings");
   assert.match(script, /function showView\(view\) \{\s*window\.scrollTo\(0, 0\)/);
 });
 
