@@ -157,6 +157,7 @@
 
       <section id="settings" data-search-section>
         <h2>設定ページの使い方</h2>
+        <p>SETUPは上から、旧POST設定の確認（残っている場合だけ）、AUDIO DEVICES、BOTS、外部操作（Stream Deck など）、アプリ設定、ParaBus本体の順です。MAIN OUTPUT TESTはAUDIO DEVICESの一番下で折りたたんでいます。アプリ設定にはAPPLICATIONとACCESSをまとめ、本体の再起動・終了は一番下に置いています。</p>
         <table><thead><tr><th>項目</th><th>内容</th></tr></thead><tbody>
           <tr><td>PROFILE ID</td><td>ParaBus内でBotを識別する英数字・<code>_</code>・<code>-</code>の名前</td></tr>
           <tr><td>名前</td><td>MIXやROUTE、STATUSに表示する分かりやすい名前</td></tr>
@@ -189,9 +190,11 @@
         <h3>使える操作と段階Bの許可</h3>
         <p>Bus・Send・TXフェーダーの通常調整、Bus・Sendミュート、緊急ミュートONなどの段階Aの操作は、追加の許可・確認なしで使えます。認証・有効化と既存のロック・安全条件は必要です。参加者の承認、ルーティング、機器設定などは外部から操作できません。</p>
         <p>緊急ミュート解除、シーン呼び出し、録音開始・停止、フェーダーの大幅上昇などは段階Bです。SETUPの機器ごとの「段階Bの許可（操作ごとに確認が必要）」で、必要な操作だけを選びます。許可しても、機器側で操作内容を確認してから実行する2段階の確認が毎回必要です。詳しい条件は<a href="/EXTERNAL_CONTROL_API.md" data-file-href="EXTERNAL_CONTROL_API.md">docs/EXTERNAL_CONTROL_API.md</a>を参照してください。</p>
+        <p>段階Bの許可は機器ごとの折りたたみ欄を開いて選びます。Stream Deckプラグインでは使わず、Companionなど段階Bに対応した機器向けです。Busリミッター・BusコンプレッサーはParaBusの画面には操作がなく、シーンと外部操作からだけ変更できます。</p>
         <p>参加者の音をBusごとに切る・下げるには<code>send.mute.*</code> / <code>send.fader.*</code>を使います。旧POSTの参加者フェーダー・ミュート（<code>channel.*</code>）は外部APIでは提供しません。外部操作後は操作画面へ状態を通知し、フェーダー連打時はまとめて更新します。</p>
         <h3>Stream Deck用プラグイン</h3>
-        <p>プラグインは<a href="https://github.com/adilazkahadiko/ParaBus-StreamDeck">ParaBus-StreamDeck</a>で別配布します。<a href="https://github.com/adilazkahadiko/ParaBus-StreamDeck/releases/tag/v0.1.0">v0.1.0の配布ページ</a>から入手してください。最初の版（v1）はStream Deckのボタン用で、Stream Deck+のダイヤルには未対応です。導入方法とボタンの設定はプラグイン側の説明書を参照してください。</p>
+        <p>プラグインは<a href="https://github.com/adilazkahadiko/ParaBus-StreamDeck">ParaBus-StreamDeck</a>で別配布します。<a href="https://github.com/adilazkahadiko/ParaBus-StreamDeck/releases/tag/v0.1.3">v0.1.3の配布ページ</a>から入手してください。Stream Deckのボタン用で、Stream Deck+のダイヤルには未対応です。導入方法とボタンの設定はプラグイン側の説明書を参照してください。</p>
+        <p>ボタンのタイトルには、プラグインが操作の相手の名前と状態を表示します。名前はボタン設定の「ボタンの表示名（任意）」で変えられます。Stream Deck側のタイトル欄はプラグインが上書きします。</p>
         <p>プラグインv1で使えるのは段階Aの操作（ミュート切替、フェーダー上下、緊急ミュートON）だけです。段階Bの許可は不要です。緊急ミュートの解除などはParaBusの画面で行ってください。</p>
       </section>
 
@@ -203,11 +206,11 @@
           <tr><td>ROUTE</td><td>VC MIX・VC MIX BUS（グループ）・参加者Direct Out → Main OUTのマトリクス。Input Ch → TX Botのマトリクス（MONO / STEREO）。送信音量・ON/OFFはMIXのTX MASTERSで操作します。送信先VCはSETUPのBot設定で指定します。</td></tr>
           <tr><td>STATUS</td><td>Main/Cue・Bot/User・録音状態、イベントのlevel/text検索と確認付き消去、Support Bundle。<strong>詳細診断</strong>でCPU・メモリ・ネットワーク・RX/TX・Rust Shadow情報。</td></tr>
           <tr><td>SESSION</td><td>録音対象選択・開始/停止、Scene保存/上書き/削除、変更を確認して適用、検索付き<strong>Recall Safe</strong>。</td></tr>
-          <tr><td>SETUP</td><td>Main/Cue/Input機器、必要時のWindows endpoint手動指定、テストトーン、LAN公開、共通Server ID、Bot設定の読み書き、一括Token追加、本体再起動。</td></tr>
+          <tr><td>SETUP</td><td>旧POST確認（必要時だけ）、AUDIO DEVICES（Main/Cue/Input・折りたたみのMAIN OUTPUT TEST）、BOTS（共通Server ID・設定の読み書き・一括Token追加）、外部操作、アプリ設定（APPLICATION / ACCESS）、本体再起動・終了の順。</td></tr>
         </tbody></table>
         <details class="callout"><summary>別PCからメインUIを操作する · LAN公開（任意）</summary>
           <ol>
-            <li>実行PCの<strong>SETUP → LAN公開</strong>を有効にして保存します。従来どおり実行フォルダの<code>.env</code>へ<code>DBR_LAN_ACCESS=1</code>を記入する方法も使えます。</li>
+            <li>実行PCの<strong>SETUP → アプリ設定 → APPLICATION</strong>で「メインUIをLAN公開する」を有効にし、同じアプリ設定欄の「設定を保存」を押します。従来どおり実行フォルダの<code>.env</code>へ<code>DBR_LAN_ACCESS=1</code>を記入する方法も使えます。</li>
             <li>ParaBusを再起動し、SETUPに表示された<code>LAN公開中: http://&lt;IP&gt;:4173</code>を確認します。PORTを変更した場合はその番号になります。</li>
             <li>Windowsファイアウォールで、ParaBusのNodeを<strong>プライベートネットワークのみ</strong>許可します。ファイアウォールを無効化したり、パブリックネットワークを許可したりしないでください。</li>
             <li>同じLANの別PCのブラウザーから、表示されたURLを開きます。</li>
@@ -249,9 +252,11 @@
           <tr><td>SCENE（SESSION）</td><td>現在のMIXの新規保存、保存済みSceneの選択、変更を確認、適用、上書き・削除</td></tr>
           <tr><td>RECALL SAFE（SESSION）</td><td>Scene適用時に現在値を維持するパラメーターの保護設定・検索絞り込み</td></tr>
           <tr><td>AUDIO DEVICES（SETUP）</td><td>MAIN / CUE / INPUTの機器選択、Windows照合、共有Cue設定、デバイスの開始・停止</td></tr>
-          <tr><td>ACCESS / APPLICATION（SETUP）</td><td>PORT変更、メインUIのLAN公開設定（ログイン認証なし）</td></tr>
-          <tr><td>MAIN OUTPUT TEST（SETUP）</td><td>出力chごとのテストトーン送出（1 kHz / −24 dBFS）</td></tr>
+          <tr><td>MAIN OUTPUT TEST（SETUP · AUDIO DEVICES内の一番下）</td><td>折りたたみを開いて出力chごとのテストトーン送出（1 kHz / −24 dBFS）</td></tr>
           <tr><td>BOTS（SETUP）</td><td>＋ RX / ＋ TX / ＋ RX+TX、共通Server ID、Bot設定の書き出し・読み込み、Token一括追加、各Botの接続・切断</td></tr>
+          <tr><td>外部操作（SETUP）</td><td>状態・接続先・有効化、ポート、機器登録、表示名の読み取り、機器ごとの段階Bの許可</td></tr>
+          <tr><td>アプリ設定 · APPLICATION / ACCESS（SETUP）</td><td>外部操作の下。PORT変更、メインUIのLAN公開設定（ログイン認証なし）。変更後はこの欄の「設定を保存」を押す</td></tr>
+          <tr><td>ParaBus本体（SETUPの一番下）</td><td>確認付きの本体再起動・終了</td></tr>
         </tbody></table>
       </section>
 
@@ -331,7 +336,7 @@
           <tr><td>DEFAULT</td><td>deviceが報告するdefault sample rate。Routerのproject rateは48 kHz固定</td></tr>
         </tbody></table>
         <h3>メイン出力のテストトーン（MAIN OUTPUT TEST）</h3>
-        <p><code>OUT 1</code>〜のボタンで、そのchだけへ1 kHz / −24 dBFSを送ります。もう一度押すと停止します。SoundGridとLV1のpatch順確認に使用します。</p>
+        <p>AUDIO DEVICESの一番下にあるMAIN OUTPUT TESTの折りたたみを開きます。<code>OUT 1</code>〜のボタンで、そのchだけへ1 kHz / −24 dBFSを送ります。もう一度押すと停止します。SoundGridとLV1のpatch順確認に使用します。</p>
         <div class="callout warning"><strong>実deviceでは実際にtoneが出ます</strong>モニター音量を下げ、SETUP中に1chずつ確認してください。ON AIR中とFAULT中はtest toneを開始できません。</div>
       </section>
 
@@ -452,7 +457,7 @@
 
       <section id="shutdown" data-search-section>
         <h2>終了・ログ・保守</h2>
-        <h3>再起動と終了</h3><p>Windows・Macとも、実行PCの<strong>SETUP → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
+        <h3>再起動と終了</h3><p>Windows・Macとも、実行PCのSETUPの一番下にある<strong>ParaBus本体 → ParaBus を終了</strong>を押して確認します。設定ロック（ON_AIR）中、FAULT中、録音・保存処理中は拒否されます。CoreのAudio I/Oを閉じ、Adapter・ランチャーが正常終了します。Windowsのトレイも消えます。LAN接続した別PCからは終了できません。</p>
         <p><strong>SETUP → ParaBus本体を再起動</strong>は、BotとAudio I/Oを停止して本体を起動し直します。再起動後、Botは未接続で待機し、CUEと物理I/Oは自動では開始しません。拒否される条件は終了と同じです。</p>
         <p>本体の再起動後、開いたままのタブには「ParaBus が再起動されました。ページを再読み込みしてください」と案内します。再起動を操作したタブ自身は、本体の応答が戻ると自動で再読み込みします。本体が止まっている間は、再接続の間隔を最大10秒まで徐々に伸ばします。終了を操作したタブは自動で再接続しません。</p>
         <p>Windowsではトレイの<strong>終了</strong>も同じ条件で停止します。ブラウザーのタブを閉じただけではアプリは停止しません。強制終了時の子プロセス監視もありますが、通常は終了ボタンを使ってください。録音中の強制終了はファイルを損なうおそれがあります。</p>

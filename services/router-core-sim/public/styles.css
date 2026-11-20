@@ -696,6 +696,61 @@ input[type="range"] {
 .application-settings input:focus { border-color: var(--blue); outline: 1px solid var(--blue); }
 .restart-settings { margin: 0; padding: 14px; border: 1px solid var(--line); background: var(--panel); }
 
+/* Keep Bot and application controls in their original shared save form. */
+.setup-content > #legacy-post-recovery { order: 0; margin: 0; padding: 16px; border: 1px solid #80611c; background: #251e11; display: grid; gap: 10px; }
+.setup-content > .io-panel { order: 1; }
+.setup-content > #bot-setup-form { display: contents; }
+.setup-bots { order: 2; }
+#external-control-setup { order: 3; }
+.setup-app-settings { order: 4; }
+.setup-content > .restart-settings { order: 5; }
+.setup-view .setup-panel { min-width: 0; padding: 16px; border: 1px solid var(--line); background: var(--panel); }
+.setup-view .setup-panel > h3 { margin-bottom: 12px; }
+.setup-app-settings > .application-settings { margin-bottom: 12px; padding-bottom: 12px; flex-wrap: wrap; }
+.setup-app-settings > .application-settings:last-of-type { margin: 0; padding: 0; border: 0; }
+.setup-app-settings > .setup-runtime { justify-content: flex-end; }
+.setup-view #output-test-panel { margin: 14px 0 0; background: #0b151d; }
+.setup-view .restart-settings { align-items: center; flex-wrap: wrap; border-color: #803c46; border-left: 4px solid var(--red); background: #26171d; }
+.setup-view .restart-settings > div { flex: 1; min-width: 260px; gap: 8px; }
+.setup-view .restart-settings h3 { color: #ff9ca5; }
+.setup-view .restart-settings small { font-size: 12px; }
+
+/* Checkboxes are inline controls, not full-width text inputs. Scope to desktop SETUP. */
+.setup-view label:has(> input[type="checkbox"]) { width: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.setup-view input[type="checkbox"] { width: 17px; height: 17px; min-width: 17px; min-height: 0; padding: 0; margin: 0; flex: 0 0 17px; accent-color: var(--green); }
+.setup-view .application-settings label:has(> input[type="checkbox"]) > span { color: inherit; font-size: 12px; font-weight: 400; letter-spacing: normal; }
+.setup-view .application-settings .enabled-check { margin: 0; }
+
+#external-control-setup { margin: 0; display: block; }
+#external-control-setup .external-control-connection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+#external-control-setup .external-control-connection .status { font-size: 12px; white-space: normal; }
+#external-control-url { min-width: 0; margin: 0; color: var(--muted); font: 12px ui-monospace, monospace; overflow-wrap: anywhere; }
+#external-control-setup .external-control-port { margin: 10px 0 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+#external-control-setup .external-control-port label { width: auto; display: flex; align-items: center; gap: 8px; }
+#external-control-setup .external-control-port input { width: 88px; min-height: 30px; padding: 4px 6px; }
+#external-control-setup .external-control-port button { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+#external-control-setup h4 { margin: 0 0 10px; }
+#external-control-register { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+#external-control-register > label:first-child { width: auto; min-width: 190px; flex: 1; }
+#external-control-register > label:has(> input[type="checkbox"]) { min-height: 38px; }
+#external-control-message { min-height: 16px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+#external-control-devices { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.external-device { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 4px; background: #0b151d; }
+.external-device-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.external-device-controls > span { min-width: 180px; flex: 1; overflow-wrap: anywhere; font-size: 13px; }
+.external-device-controls > button { min-height: 32px; padding: 5px 12px; font-size: 12px; }
+.external-tier-b { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.external-tier-b > summary { cursor: pointer; color: #b9d6e7; font-size: 12px; }
+.external-tier-b > p { margin: 10px 0; color: var(--muted); font-size: 12px; }
+.setup-view .external-tier-b-grid { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.setup-view .external-tier-b-grid label:has(> input[type="checkbox"]) { min-width: 0; display: grid; grid-template-columns: 17px minmax(0, 1fr); align-items: start; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 3px; background: #101c26; }
+.setup-view .external-tier-b-grid label > span { color: inherit; font-size: 12px; font-weight: 400; letter-spacing: normal; }
+.setup-view .external-tier-b-grid input { margin-top: 1px; }
+.setup-view .external-tier-b-grid small { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+@media (max-width: 1400px) {
+  .setup-view .external-tier-b-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .bot-profile-toolbar {
   display: flex;
   align-items: center;
@@ -831,7 +886,7 @@ input[type="range"] {
 }
 .bot-profile-advanced label { max-width: 360px; margin-top: 10px; }
 .bot-profile-advanced small { display: block; margin-top: 5px; }
-#save-bot-profiles.attention { border-color: var(--amber); color: #fff; box-shadow: 0 0 0 1px #8b6520 inset; }
+#save-bot-profiles.attention, #save-application-settings.attention { border-color: var(--amber); color: #fff; box-shadow: 0 0 0 1px #8b6520 inset; }
 
 .setup-grid {
   display: grid;
@@ -1113,7 +1168,7 @@ input[type="range"] {
 .safety-binding { display: grid; gap: 6px; }
 .endpoint-help { font-size: 11px; color: var(--muted); }
 
-@media (max-width: 1250px) {
+@media (max-width: 1400px) {
   .topbar {
     display: grid;
     grid-template-columns: minmax(180px, auto) 1fr;
@@ -1449,8 +1504,8 @@ input[type="range"] {
 .tx-mix-strip > button { min-height: 44px; }
 .tx-mix-help { margin: 0; padding: 0 14px 12px; color: var(--muted); font-size: 11px; }
 /* External management stays available in the local desktop independently of audio controls. */
-#external-control-status { max-width: 32rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#external-control-setup > div { width: 100%; }
-#external-control-setup form, #external-control-devices li { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-block: .75rem; }
+.top-status { min-width: 0; }
+#external-control-status { min-width: 0; max-width: 32rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#external-control-setup-status { white-space: normal; overflow-wrap: anywhere; }
 #external-control-token-dialog { max-width: calc(100vw - 3rem); }
 #external-control-token { display: block; overflow-wrap: anywhere; user-select: all; margin-block: 1rem; }

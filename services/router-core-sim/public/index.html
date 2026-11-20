@@ -332,6 +332,11 @@
         </div>
 
         <div class="setup-content">
+          <section id="legacy-post-recovery" class="application-settings" data-local-only hidden>
+            <h3>旧POST設定の確認</h3>
+            <p>旧版のレベル・ミュートが残っています。POSTのDirect Out / Matrixだけに影響します。必要な場合のみSETUP / READYで解除してください。</p>
+            <div id="legacy-post-list"></div>
+          </section>
           <section class="io-panel" aria-labelledby="io-title">
             <header>
               <div>
@@ -407,40 +412,76 @@
               </section>
 
             </div>
+            <details class="migration-controls" id="output-test-panel">
+              <summary>MAIN OUTPUT TEST</summary>
+              <p>音量を下げてから</p>
+              <div id="output-test-tones" class="output-test-tones" aria-label="出力chごとのテストトーン"></div>
+            </details>
           </section>
 
-          <section id="external-control-setup" class="application-settings" aria-labelledby="external-control-title" data-local-only>
-            <div>
-              <h3 id="external-control-title">接続する機器</h3>
-              <p id="external-control-url"></p>
-              <p>外部操作はこのPCの機器で利用できます。段階Bは機器ごとの「段階Bの許可（操作ごとに確認が必要）」で選んだ操作だけ使えます。</p>
-              <button id="external-control-enable" type="button">外部操作を有効にする</button>
-              <form id="external-control-port-form">
-                <label>ポート（再起動後に反映）<input id="external-control-port" type="number" min="1" max="65535" required /></label>
-                <button type="submit">ポートを保存</button>
-              </form>
-              <form id="external-control-register" autocomplete="off">
-                <label>機器名<input id="external-control-name" maxlength="80" required /></label>
-                <label><input id="external-control-names" type="checkbox" />Discord表示名の読み取りを許可</label>
-                <button type="submit">機器を登録</button>
-              </form>
-              <p id="external-control-message" role="status"></p>
-              <ul id="external-control-devices"></ul>
+          <form id="bot-setup-form" class="bot-profile-panel" autocomplete="off" data-local-only>
+            <div class="setup-bots setup-panel">
+              <p data-local-access-note hidden>このPCからのみ設定できます</p>
+              <header class="bot-profile-toolbar">
+                <div>
+                  <h3>BOTS</h3>
+                  <small id="bot-profile-count">0 profiles</small>
+                </div>
+                <div class="bot-add-actions"><button id="add-bot-profile" type="button">＋ RX</button><button id="add-tx-profile" type="button">＋ TX</button><button id="add-duplex-profile" type="button">＋ RX+TX</button></div>
+              </header>
+              <label class="shared-guild-setting">共通Server ID<input id="shared-guild-id" type="text" inputmode="numeric" maxlength="20" spellcheck="false" placeholder="新しいBotにも自動入力"></label>
+              <div class="bot-add-actions"><button id="export-bot-profiles" type="button">Bot設定を書き出し（Tokenなし）</button><label>Bot設定を読み込み<input id="import-bot-profiles" type="file" accept="application/json,.json"></label></div>
+              <p class="security-note">Tokenは保存後に再表示されません</p>
+              <div class="bulk-bot-tokens">
+                <label for="bulk-bot-tokens">Bot Token をまとめて追加</label>
+                <textarea id="bulk-bot-tokens" rows="3" autocomplete="off" spellcheck="false" placeholder="Tokenを1行に1つずつ貼り付け"></textarea>
+                <button id="add-bot-tokens" type="button" disabled>まとめて追加</button>
+              </div>
+              <div id="bot-profile-list" class="bot-profile-list"></div>
+              <div class="setup-runtime">
+                <small id="setup-status">読込中</small>
+                <button id="save-bot-profiles" class="primary-action" type="submit">設定を保存</button>
+              </div>
             </div>
+            <div class="setup-app-settings setup-panel">
+              <h3>アプリ設定</h3>
+              <section class="application-settings" aria-labelledby="application-settings-title">
+                <div>
+                  <h3 id="application-settings-title">APPLICATION</h3>
+                  <small>次回起動から反映されます</small>
+                </div>
+                <label>
+                  <span>PORT</span>
+                  <input id="application-port" type="number" min="1024" max="65535" step="1" required>
+                </label>
+                <label class="enabled-check"><input id="lan-access-enabled" type="checkbox"><span>メインUIをLAN公開する（認証なし）</span></label>
+              </section>
+              <section class="application-settings" aria-label="メインUIのLAN公開">
+                <div><h3>ACCESS</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
+              </section>
+              <div class="setup-runtime"><button id="save-application-settings" class="primary-action" type="submit">設定を保存</button></div>
+            </div>
+          </form>
+          <section id="external-control-setup" class="application-settings setup-panel" aria-labelledby="external-control-title" data-local-only>
+            <h3 id="external-control-title">外部操作（Stream Deck など）</h3>
+            <div class="external-control-connection">
+              <span id="external-control-setup-status" class="status" data-local-only>外部操作: 確認中</span>
+              <p id="external-control-url"></p>
+              <button id="external-control-enable" class="primary-action" type="button">外部操作を有効にする</button>
+            </div>
+            <form id="external-control-port-form" class="external-control-port">
+              <label>ポート（再起動後に反映）<input id="external-control-port" type="number" min="1" max="65535" required /></label>
+              <button type="submit">ポートを保存</button>
+            </form>
+            <h4>接続する機器</h4>
+            <form id="external-control-register" autocomplete="off">
+              <label>機器名<input id="external-control-name" maxlength="80" required /></label>
+              <label><input id="external-control-names" type="checkbox" />Discord表示名の読み取りを許可</label>
+              <button type="submit">機器を登録</button>
+            </form>
+            <p id="external-control-message" role="status"></p>
+            <ul id="external-control-devices"></ul>
           </section>
-          <section class="application-settings" aria-label="メインUIのLAN公開">
-            <div><h3>ACCESS</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
-          </section>
-          <section id="legacy-post-recovery" class="application-settings" data-local-only hidden>
-            <h3>旧POST設定の確認</h3>
-            <p>旧版のレベル・ミュートが残っています。POSTのDirect Out / Matrixだけに影響します。必要な場合のみSETUP / READYで解除してください。</p>
-            <div id="legacy-post-list"></div>
-          </section>
-          <details class="migration-controls" id="output-test-panel">
-            <summary>MAIN OUTPUT TEST</summary>
-            <p>音量を下げてから</p>
-            <div id="output-test-tones" class="output-test-tones" aria-label="出力chごとのテストトーン"></div>
-          </details>
           <section class="application-settings restart-settings" aria-labelledby="restart-title" data-local-only>
             <div>
               <h3 id="restart-title">ParaBus本体</h3>
@@ -449,41 +490,6 @@
             <button id="restart-router" class="danger-action" type="button" disabled>ParaBus本体を再起動</button>
             <button id="shutdown-router" class="danger-action" type="button" disabled>ParaBus を終了</button>
           </section>
-
-          <form id="bot-setup-form" class="bot-profile-panel" autocomplete="off" data-local-only>
-            <p data-local-access-note hidden>このPCからのみ設定できます</p>
-            <section class="application-settings" aria-labelledby="application-settings-title">
-              <div>
-                <h3 id="application-settings-title">APPLICATION</h3>
-                <small>次回起動から反映されます</small>
-              </div>
-              <label>
-                <span>PORT</span>
-                <input id="application-port" type="number" min="1024" max="65535" step="1" required>
-              </label>
-              <label class="enabled-check"><input id="lan-access-enabled" type="checkbox"><span>メインUIをLAN公開する（認証なし）</span></label>
-            </section>
-            <header class="bot-profile-toolbar">
-              <div>
-                <h3>BOTS</h3>
-                <small id="bot-profile-count">0 profiles</small>
-              </div>
-              <div class="bot-add-actions"><button id="add-bot-profile" type="button">＋ RX</button><button id="add-tx-profile" type="button">＋ TX</button><button id="add-duplex-profile" type="button">＋ RX+TX</button></div>
-            </header>
-            <label class="shared-guild-setting">共通Server ID<input id="shared-guild-id" type="text" inputmode="numeric" maxlength="20" spellcheck="false" placeholder="新しいBotにも自動入力"></label>
-            <div class="bot-add-actions"><button id="export-bot-profiles" type="button">Bot設定を書き出し（Tokenなし）</button><label>Bot設定を読み込み<input id="import-bot-profiles" type="file" accept="application/json,.json"></label></div>
-            <p class="security-note">Tokenは保存後に再表示されません</p>
-            <div class="bulk-bot-tokens">
-              <label for="bulk-bot-tokens">Bot Token をまとめて追加</label>
-              <textarea id="bulk-bot-tokens" rows="3" autocomplete="off" spellcheck="false" placeholder="Tokenを1行に1つずつ貼り付け"></textarea>
-              <button id="add-bot-tokens" type="button" disabled>まとめて追加</button>
-            </div>
-            <div id="bot-profile-list" class="bot-profile-list"></div>
-            <div class="setup-runtime">
-              <small id="setup-status">読込中</small>
-              <button id="save-bot-profiles" class="primary-action" type="submit">設定を保存</button>
-            </div>
-          </form>
 
         </div>
       </section>

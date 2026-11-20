@@ -12,7 +12,7 @@ The control UI is in Japanese, with some headings in English.
 > Read the [known issues and field checklist](docs/BETA.txt) first,
 > and always keep a backup audio path. Do not use ParaBus as your only, untested broadcast path.
 >
-> - Long-running hardware tests after the diagnostic hook removal, UI cleanup, suspension of tablet support and dependency updates have not been performed.
+> - In a real event on 2026-11-19, beta.6 (BUILD 7608a91) ran for about 8 hours with about 60 participants and 20 bots, including Stream Deck control and recording, without the application stopping; recording drops were 0 (user report). beta.7 changes only the UI and external control API; beta.7 itself has not undergone a long-running test.
 > - The maintainer confirmed live Discord connection and audio send/receive with the beta.2 Windows ZIP, but only in a short test.
 > - On Windows 11 PCs with Smart App Control on, the bundled unsigned audio DLLs may be blocked from loading, preventing startup. The maintainer confirmed this with beta.2 on 2026-10-27.
 > - Check the status in **Windows Security → App & browser control → Smart App Control settings** ([Microsoft instructions](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)). ParaBus currently has no workaround. Keep OS protection settings unchanged.

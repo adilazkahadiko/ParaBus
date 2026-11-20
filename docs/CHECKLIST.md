@@ -82,6 +82,10 @@
 - [ ] KPTの新しいProblemをchecklistまたは自動testへ反映した。
 - [ ] READMEとHTML manualの起動方法が一致する。
 
+### 実機運用の記録
+
+- [x] 2026-11-19、beta.6（BUILD 7608a91）を実イベントで約7.9時間（28,414秒）、約62人・Bot 20台で使用。Stream Deck操作・録音を行い、本体停止なし、xruns 77、録音の取りこぼし 0、Botの再接続は自動で復帰（利用者報告）。beta.7で変更したのは画面と外部操作APIだけだが、beta.7自体の長時間試験は未実施。
+
 ## H. Phase 2 SoundGrid実機
 
 - [ ] SoundGrid DriverがPortAudio一覧へ表示される。

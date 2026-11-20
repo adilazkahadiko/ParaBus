@@ -18,7 +18,7 @@ class Element {
   dataset: Record<string, string> = {}; style: Record<string, string> = {};
   children: Element[] = []; fields = new Map<string, Element>();
   listeners = new Map<string, Array<(event: any) => void>>();
-  classList = { add() {}, remove() {}, toggle() {}, contains: () => false };
+  classList = { add(_name: string) {}, remove(_name: string) {}, toggle(_name: string, _force?: boolean) {}, contains: (_name: string) => false };
   append(...children: Element[]) { this.children.push(...children); }
   replaceChildren(...children: Element[]) { this.children = children; this.textContent = ""; }
   setAttribute() {}
@@ -35,7 +35,7 @@ function ui(names: string[], overrides: any = {}) {
   const commands: any[] = [], notices: string[] = [];
   const elements: Record<string, Element> = new Proxy({} as Record<string, Element>, { get: (target, key: string) => target[key] ??= new Element() });
   const context: any = { elements, snapshot: { state: "SETUP", channels: [], buses: [], discord: { bots: [], txStems: [], availableVoiceChannels: [] } }, settingsSnapshot: { bots: [], tablet: { enabled: false, port: 4174 }, limits: { total: 24 } },
-    settingsDirty: false, settingsLoading: false, localSettingsAvailable: true, rustWasapiBusy: false, windowsEndpointInventory: [], setupTestedOutputs: new Set(), botRecoveries: new Map(), document: { createElement: () => new Element(), activeElement: null },
+    settingsDirty: false, settingsLoading: false, settingsSaving: false, localSettingsAvailable: true, rustWasapiBusy: false, windowsEndpointInventory: [], setupTestedOutputs: new Set(), botRecoveries: new Map(), document: { createElement: () => new Element(), activeElement: null },
     Option: class extends Element { constructor(text: string, value: string) { super(); this.textContent = text; this.value = value; } }, Event,
     sendCommand: (command: any) => { commands.push(JSON.parse(JSON.stringify(command))); return true; },
     showNotice: (message: string) => notices.push(message), confirm: () => true, desktopJsonHeaders: { "x-dbr-session-nonce": "test" },
@@ -208,6 +208,45 @@ test("desktop settings save main settings without editing deferred Tablet prefer
     await context.saveBotProfiles({ preventDefault() {} });
     assert.equal(request, null);
   }
+});
+
+test("application and Bot save buttons share attention, locking, loading and save completion", async () => {
+  let request: any, requestCount = 0, finish: (response: any) => void = () => {};
+  const { context, elements } = ui(["markSettingsDirty", "renderDesktopSettings", "renderSetupRuntime", "saveBotProfiles"], {
+    updateBotProfileCount() {}, updateBotProfileTxFields() {}, refreshBotProfileLocationOptions() {}, renderRouteOverview() {}, renderReceiverOwners() {}, botSettingsFromCard() {},
+    fetch: (path: string, options: any) => { requestCount++; request = { path, ...options }; return new Promise(resolve => { finish = resolve; }); },
+  });
+  const buttons = [elements.saveBotProfiles, elements.saveApplicationSettings];
+  elements.botProfileList.querySelectorAll = () => [];
+  for (const button of buttons) {
+    const classes = new Set<string>();
+    button.classList = { add: (name: string) => { classes.add(name); }, remove: (name: string) => { classes.delete(name); },
+      toggle() {}, contains: (name: string) => classes.has(name) };
+  }
+  const check = (disabled: boolean, attention: boolean) => {
+    for (const button of buttons) { assert.equal(button.disabled, disabled); assert.equal(button.classList.contains("attention"), attention); }
+  };
+  const settings = { operator: { port: 4173, lanAccess: false }, bots: [] };
+  context.renderDesktopSettings(settings); check(true, false);
+  elements.appPort.value = "4180"; context.markSettingsDirty(); context.renderSetupRuntime(context.snapshot); check(false, true);
+  for (const state of ["ON_AIR", "FAULT"]) { context.snapshot.state = state; context.renderSetupRuntime(context.snapshot); check(true, true); }
+  context.snapshot.state = "SETUP"; context.settingsLoading = true; context.renderSetupRuntime(context.snapshot); check(true, true);
+  context.settingsLoading = false; context.renderSetupRuntime(context.snapshot); check(false, true);
+  const binding = script.match(/elements\.setupForm\.addEventListener\("submit", saveBotProfiles\);/);
+  assert.ok(binding); runInNewContext(binding[0], context);
+  let prevented = false;
+  elements.setupForm.dispatchEvent({ type: "submit", submitter: elements.saveApplicationSettings, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true); check(true, true);
+  context.renderSetupRuntime(context.snapshot); check(true, true);
+  await context.saveBotProfiles({ preventDefault() {} }); assert.equal(requestCount, 1);
+  assert.equal(request.path, "/api/settings"); assert.equal(request.method, "POST");
+  assert.deepEqual(JSON.parse(request.body), { bots: [], operator: { port: 4180, lanAccess: false } });
+  finish({ ok: true, json: async () => ({ ok: true, settings: { ...settings, operator: { port: 4180, lanAccess: false } } }) });
+  await new Promise(resolve => setImmediate(resolve));
+  check(true, false); context.renderSetupRuntime(context.snapshot); check(true, false);
+  context.markSettingsDirty(); context.renderSetupRuntime(context.snapshot); check(false, true);
+  const saving = context.saveBotProfiles({ preventDefault() {} }); check(true, true);
+  finish({ ok: false, json: async () => ({ error: "Synthetic save failure" }) }); await saving; check(false, true);
 });
 
 test("desktop application settings are locked during ON_AIR and FAULT", () => {
