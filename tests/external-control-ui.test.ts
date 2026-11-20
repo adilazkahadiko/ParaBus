@@ -19,22 +19,25 @@ const script = readFileSync(new URL("../services/router-core-sim/public/external
 test("desktop external UI displays token once, manages individual B grants and revoked deletion only in SETUP", async () => {
   const elements = new Map<string, Element>(), $ = (id: string) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id)!; };
   const requests: any[] = [], documentEvents = new Map<string, () => void>(), timers: Array<() => void> = [];
-  let state = "SETUP", permissions: string[] = [], readDisplayNames = false, revoked = false, stopSaveFailed = false;
+  let state = "SETUP", permissions: string[] = [], readDisplayNames = false, revoked = false, stopSaveFailed = false, enabled = false, statusFails = false;
   const document: any = { hidden: false, activeElement: null, getElementById: $, querySelector: () => ({ content: "fake-desktop-nonce" }),
     addEventListener: (name: string, callback: () => void) => documentEvents.set(name, callback), createElement: () => new Element(), createTextNode: (text: string) => ({ textContent: text }) };
   const context: any = { document, window: { addEventListener() {} }, setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; }, clearTimeout() {},
     fetch: async (_url: string, options: any) => {
       const input = JSON.parse(options.body); requests.push({ input, headers: options.headers });
+      if (input.action === "status" && statusFails) throw new Error("Synthetic status failure");
+      if (input.action === "enable") enabled = true;
       if (input.action === "permissions") { permissions = input.allowedTierBOperations; readDisplayNames = input.readDisplayNames; }
       if (input.action === "revoke") revoked = true;
       if (input.action === "stop") stopSaveFailed = true;
       return { ok: true, json: async () => ({ ok: true, data: ["register", "reissue"].includes(input.action) ? { token: "SYNTHETIC_ISSUANCE_ONLY" } : input.action === "status" ? {
-        enabled: false, stopSaveFailed, available: true, state, port: 4175, activePort: 4175, url: "http://127.0.0.1:4175/external/v1", activeDeviceCount: 1, activeDeviceNames: ["<img>"],
+        enabled, stopSaveFailed, available: true, state, port: 4175, activePort: 4175, url: "http://127.0.0.1:4175/external/v1", activeDeviceCount: 1, activeDeviceNames: ["<img>"],
         devices: [{ deviceId: "fake-id", name: "<img onerror=alert(1)>", revoked, readDisplayNames, allowedTierBOperations: permissions }] } : {} }) };
     } };
   runInNewContext(script + "\nmountExternalControl(true);", context);
   const flush = () => new Promise(resolve => setImmediate(resolve)); await flush();
   assert.match($("external-control-status").textContent, /接続中 1 台/);
+  assert.equal($("external-control-setup-status").textContent, $("external-control-status").textContent);
   const row = $("external-control-devices").children[0]; assert.equal(row.children[0].children[0].textContent.includes("<img onerror=alert(1)>"), true);
   const details = row.children[1]; assert.equal(details.open, false);
   assert.equal(details.children[0].textContent, "段階Bの許可（操作ごとに確認が必要）");
@@ -50,6 +53,8 @@ test("desktop external UI displays token once, manages individual B grants and r
   const revokeCheck = $("external-control-devices").children[0].children[1].children[2].children[1].children[0]; revokeCheck.checked = false; revokeCheck.emit("change"); await flush();
   assert.deepEqual(permissions, []);
   $("external-control-enable").emit("click"); await flush(); assert.ok(requests.some(r => r.input.action === "enable"));
+  assert.match($("external-control-status").textContent, /有効 \/ 接続中 1 台/);
+  assert.equal($("external-control-setup-status").textContent, $("external-control-status").textContent);
   $("external-control-port").value = "4180"; $("external-control-port-form").emit("submit"); await flush();
   assert.ok(requests.some(r => r.input.action === "port" && r.input.port === 4180));
   $("external-control-name").value = "Device"; $("external-control-register").emit("submit"); await flush();
@@ -64,12 +69,19 @@ test("desktop external UI displays token once, manages individual B grants and r
   assert.ok($("external-control-devices").children[0].children[1].children[2].children.slice(1).every((label: any) => label.children[0].disabled));
   $("external-control-stop").emit("click"); await flush(); assert.ok(requests.some(r => r.input.action === "stop"));
   assert.match($("external-control-status").textContent, /停止済み（保存に失敗）/);
+  assert.equal($("external-control-setup-status").textContent, $("external-control-status").textContent);
   state = "SETUP"; timers.at(-1)!(); await flush();
   const revoke = $("external-control-devices").children[0].children[0].children[3];
   assert.equal(revoke.textContent, "取り消し"); revoke.emit("click"); await flush();
   assert.ok(requests.some(r => r.input.action === "revoke" && r.input.deviceId === "fake-id"));
   const remove = $("external-control-devices").children[0].children[0].children[1]; assert.equal(remove.textContent, "削除"); assert.equal(remove.disabled, false);
   remove.emit("click"); await flush(); assert.ok(requests.some(r => r.input.action === "delete" && r.input.deviceId === "fake-id"));
+  statusFails = true; timers.at(-1)!(); await flush();
+  assert.equal($("external-control-status").textContent, "外部操作: 接続を確認してください");
+  assert.equal($("external-control-setup-status").textContent, $("external-control-status").textContent);
+  statusFails = false; timers.at(-1)!(); await flush();
+  assert.match($("external-control-status").textContent, /接続中 1 台/);
+  assert.equal($("external-control-setup-status").textContent, $("external-control-status").textContent);
 });
 
 test("remote desktop does not request external management or mount token controls", () => {

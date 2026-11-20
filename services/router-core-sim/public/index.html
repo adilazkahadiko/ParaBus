@@ -27,6 +27,7 @@
         <button id="application-control" class="status safety-control warning" type="button">設定ロック: 確認中</button>
         <button id="emergency-state" class="status safety-control emergency" type="button">緊急停止</button>
         <button id="external-control-stop" class="status safety-control warning" type="button" data-local-only>外部操作を止める</button>
+        <span id="external-control-status" class="status" data-local-only>外部操作: 確認中</span>
       </div>
     </header>
 
@@ -458,13 +459,13 @@
               <section class="application-settings" aria-label="メインUIのLAN公開">
                 <div><h3>ACCESS</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
               </section>
-              <p class="setup-save-help">変更後はBOTSの「設定を保存」を押してください。</p>
+              <div class="setup-runtime"><button id="save-application-settings" class="primary-action" type="submit">設定を保存</button></div>
             </div>
           </form>
           <section id="external-control-setup" class="application-settings setup-panel" aria-labelledby="external-control-title" data-local-only>
             <h3 id="external-control-title">外部操作（Stream Deck など）</h3>
             <div class="external-control-connection">
-              <span id="external-control-status" class="status" data-local-only>外部操作: 確認中</span>
+              <span id="external-control-setup-status" class="status" data-local-only>外部操作: 確認中</span>
               <p id="external-control-url"></p>
               <button id="external-control-enable" class="primary-action" type="button">外部操作を有効にする</button>
             </div>

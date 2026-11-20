@@ -206,7 +206,7 @@ test("physical I/O guidance distinguishes device readiness from valid Main routi
 });
 
 test("desktop operator surface separates MIX, ROUTE, STATUS, SESSION and Bot / I/O SETUP", () => {
-  assert.match(styles, /@media \(max-width: 1250px\)[^{]*\{[\s\S]*?grid-template-areas: "brand status" "nav nav"/);
+  assert.match(styles, /@media \(max-width: 1400px\)[^{]*\{[\s\S]*?grid-template-areas: "brand status" "nav nav"/);
   assert.match(styles, /\.status\s*\{[^}]*white-space: nowrap/s);
   for (const id of [
     "application-state",
@@ -704,8 +704,8 @@ test("compact Bot rows show configuration and live state without changing connec
   const cards = [makeCard("rx1"), makeCard("rx2"), makeCard("rx3")];
   const state = { state: "SETUP", discord: { bots: [{ profileId: "rx1", health: "READY", guildName: "Server", voiceChannelName: "Team 1" }, { profileId: "rx2", health: "FAULT" }], availableVoiceChannels: [] } };
   const context: any = {
-    elements: { appPort: {}, lanAccessEnabled: {}, sharedGuildId: {}, importBotProfiles: {}, exportBotProfiles: {}, tabletEnabled: {}, tabletPort: {}, saveBotProfiles: {}, botProfileList: { querySelectorAll: () => cards } },
-    botRecoveries: new Map(), settingsDirty: false, settingsLoading: false, localSettingsAvailable: true, settingsSnapshot: {},
+    elements: { appPort: {}, lanAccessEnabled: {}, sharedGuildId: {}, importBotProfiles: {}, exportBotProfiles: {}, tabletEnabled: {}, tabletPort: {}, saveBotProfiles: {}, saveApplicationSettings: {}, botProfileList: { querySelectorAll: () => cards } },
+    botRecoveries: new Map(), settingsDirty: false, settingsLoading: false, settingsSaving: false, localSettingsAvailable: true, settingsSnapshot: {},
     updateBotProfileCount() {}, updateBotProfileTxFields() {}, refreshBotProfileLocationOptions() {}, sendCommand() { assert.fail("display-only update must not send a command"); },
   };
   const start = script.indexOf("function renderSetupRuntime(");

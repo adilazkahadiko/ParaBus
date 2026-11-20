@@ -156,6 +156,7 @@ const elements = {
   addBotTokens: document.querySelector("#add-bot-tokens"),
   setupStatus: document.querySelector("#setup-status"),
   saveBotProfiles: document.querySelector("#save-bot-profiles"),
+  saveApplicationSettings: document.querySelector("#save-application-settings"),
   restartRouter: document.querySelector("#restart-router"),
   shutdownRouter: document.querySelector("#shutdown-router"),
   restartDetail: document.querySelector("#restart-detail"),
@@ -221,6 +222,7 @@ let mixBankIndex = 0;
 let noticeTimer = null;
 let settingsSnapshot = null;
 let settingsLoading = false;
+let settingsSaving = false;
 let settingsDirty = false;
 let receiverOwnerSignature = "";
 let routeOverviewSignature = "";
@@ -395,7 +397,7 @@ function showView(view) {
 function markSettingsDirty() {
   settingsDirty = true;
   elements.setupStatus.textContent = "未保存";
-  elements.saveBotProfiles.classList.add("attention");
+  for (const button of [elements.saveBotProfiles, elements.saveApplicationSettings]) button.classList.add("attention");
 }
 
 function nextBotProfileId(prefix = "BOT") {
@@ -721,7 +723,7 @@ function renderDesktopSettings(settings) {
     elements.botProfileList.append(empty);
   }
   settingsDirty = false;
-  elements.saveBotProfiles.classList.remove("attention");
+  for (const button of [elements.saveBotProfiles, elements.saveApplicationSettings]) button.classList.remove("attention");
   elements.setupStatus.textContent = "保存済み";
   updateBotProfileCount();
   routeOverviewSignature = "";
@@ -1387,7 +1389,7 @@ function applyRouteOutput(busIds, output, mode, team = false) {
 
 async function saveBotProfiles(event) {
   event.preventDefault();
-  if (!localSettingsAvailable) return;
+  if (!localSettingsAvailable || settingsSaving) return;
   if (!settingsSnapshot || snapshot?.state === "ON_AIR" || snapshot?.state === "FAULT") {
     showNotice("ON AIR / FAULT中はBot設定を変更できません", true);
     return;
@@ -1402,7 +1404,8 @@ async function saveBotProfiles(event) {
   const lanWarning = elements.lanAccessEnabled.checked && !settingsSnapshot.operator?.lanAccess ? "\n\nLAN公開を有効にします。同じLANの誰でも認証なしで操作できます。共有LANでは使用しないでください。" : "";
   if (!confirm(prompt + lanWarning)) return;
 
-  elements.saveBotProfiles.disabled = true;
+  settingsSaving = true;
+  for (const button of [elements.saveBotProfiles, elements.saveApplicationSettings]) button.disabled = true;
   elements.setupStatus.textContent = "保存中です";
   try {
     const response = await fetch("/api/settings", {
@@ -1421,7 +1424,9 @@ async function saveBotProfiles(event) {
     elements.setupStatus.textContent = message;
     showNotice(message, true);
   } finally {
-    elements.saveBotProfiles.disabled = false;
+    settingsSaving = false;
+    const locked = snapshot?.state === "ON_AIR" || snapshot?.state === "FAULT";
+    for (const button of [elements.saveBotProfiles, elements.saveApplicationSettings]) button.disabled = locked || settingsLoading || !settingsDirty;
   }
 }
 
@@ -1504,7 +1509,7 @@ function renderSetupRuntime(currentSnapshot) {
     remove.disabled = locked || runtimeConnected;
     remove.title = runtimeConnected ? "先にこのBotを切断してください" : "";
   }
-  elements.saveBotProfiles.disabled = locked || settingsLoading || !settingsDirty;
+  for (const button of [elements.saveBotProfiles, elements.saveApplicationSettings]) button.disabled = locked || settingsLoading || settingsSaving || !settingsDirty;
   for (const field of [elements.lanAccessEnabled, elements.sharedGuildId, elements.importBotProfiles]) field.disabled = locked || !localSettingsAvailable || settingsLoading;
   elements.exportBotProfiles.disabled = !localSettingsAvailable || settingsLoading || !settingsSnapshot;
   updateBotProfileCount();

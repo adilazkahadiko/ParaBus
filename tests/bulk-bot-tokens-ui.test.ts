@@ -30,7 +30,7 @@ class Element {
 
 test("canonical bulk import fills an empty rack up to the actual 24-Bot cap", () => {
   const script = readFileSync(new URL("../services/router-core-sim/public/app.js", import.meta.url), "utf8");
-  const elements = Object.fromEntries(["botProfileList", "botProfileCount", "addBotProfile", "addTxProfile", "addDuplexProfile", "addSpareProfile", "bulkBotTokens", "addBotTokens", "setupStatus", "saveBotProfiles"].map(name => [name, new Element()]));
+  const elements = Object.fromEntries(["botProfileList", "botProfileCount", "addBotProfile", "addTxProfile", "addDuplexProfile", "addSpareProfile", "bulkBotTokens", "addBotTokens", "setupStatus", "saveBotProfiles", "saveApplicationSettings"].map(name => [name, new Element()]));
   const notices: string[] = [];
   const context: any = { elements, Event, settingsDirty: false, settingsSnapshot: { limits: { total: 24, rx: 24, tx: 22 } }, snapshot: { state: "SETUP" },
     document: { createElement: () => new Element() }, Option: class extends Element { constructor(text: string, value: string) { super(); this.textContent = text; this.value = value; } },
@@ -57,7 +57,7 @@ test("desktop settings bulk-add RX cards with inherited Guild only, limits, lock
   const html = readFileSync(new URL("../services/router-core-sim/public/index.html", import.meta.url), "utf8");
   assert.match(html, /<textarea id="bulk-bot-tokens"[^>]*autocomplete="off"[^>]*spellcheck="false"/);
   assert.ok(html.indexOf('id="bulk-bot-tokens"') < html.indexOf('id="bot-profile-list"'));
-  const elements = Object.fromEntries(["botProfileList", "botProfileCount", "addBotProfile", "addTxProfile", "addDuplexProfile", "addSpareProfile", "bulkBotTokens", "addBotTokens", "setupStatus", "saveBotProfiles"].map((name) => [name, new Element()]));
+  const elements = Object.fromEntries(["botProfileList", "botProfileCount", "addBotProfile", "addTxProfile", "addDuplexProfile", "addSpareProfile", "bulkBotTokens", "addBotTokens", "setupStatus", "saveBotProfiles", "saveApplicationSettings"].map((name) => [name, new Element()]));
   const notices: string[] = [];
   const context: any = { elements, Event, settingsDirty: false, settingsSnapshot: { limits: { total: 24, rx: 24, tx: 22 } }, snapshot: { state: "SETUP" },
     document: { createElement: () => new Element() }, Option: class extends Element { constructor(name: string, value: string) { super(); this.textContent = name; this.value = value; } },

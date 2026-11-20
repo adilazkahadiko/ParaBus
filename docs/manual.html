@@ -210,7 +210,7 @@
         </tbody></table>
         <details class="callout"><summary>別PCからメインUIを操作する · LAN公開（任意）</summary>
           <ol>
-            <li>実行PCの<strong>SETUP → アプリ設定 → APPLICATION</strong>で「メインUIをLAN公開する」を有効にし、BOTSの「設定を保存」を押します。従来どおり実行フォルダの<code>.env</code>へ<code>DBR_LAN_ACCESS=1</code>を記入する方法も使えます。</li>
+            <li>実行PCの<strong>SETUP → アプリ設定 → APPLICATION</strong>で「メインUIをLAN公開する」を有効にし、同じアプリ設定欄の「設定を保存」を押します。従来どおり実行フォルダの<code>.env</code>へ<code>DBR_LAN_ACCESS=1</code>を記入する方法も使えます。</li>
             <li>ParaBusを再起動し、SETUPに表示された<code>LAN公開中: http://&lt;IP&gt;:4173</code>を確認します。PORTを変更した場合はその番号になります。</li>
             <li>Windowsファイアウォールで、ParaBusのNodeを<strong>プライベートネットワークのみ</strong>許可します。ファイアウォールを無効化したり、パブリックネットワークを許可したりしないでください。</li>
             <li>同じLANの別PCのブラウザーから、表示されたURLを開きます。</li>
@@ -255,7 +255,7 @@
           <tr><td>MAIN OUTPUT TEST（SETUP · AUDIO DEVICES内の一番下）</td><td>折りたたみを開いて出力chごとのテストトーン送出（1 kHz / −24 dBFS）</td></tr>
           <tr><td>BOTS（SETUP）</td><td>＋ RX / ＋ TX / ＋ RX+TX、共通Server ID、Bot設定の書き出し・読み込み、Token一括追加、各Botの接続・切断</td></tr>
           <tr><td>外部操作（SETUP）</td><td>状態・接続先・有効化、ポート、機器登録、表示名の読み取り、機器ごとの段階Bの許可</td></tr>
-          <tr><td>アプリ設定 · APPLICATION / ACCESS（SETUP）</td><td>外部操作の下。PORT変更、メインUIのLAN公開設定（ログイン認証なし）。変更後はBOTSの「設定を保存」を押す</td></tr>
+          <tr><td>アプリ設定 · APPLICATION / ACCESS（SETUP）</td><td>外部操作の下。PORT変更、メインUIのLAN公開設定（ログイン認証なし）。変更後はこの欄の「設定を保存」を押す</td></tr>
           <tr><td>ParaBus本体（SETUPの一番下）</td><td>確認付きの本体再起動・終了</td></tr>
         </tbody></table>
       </section>

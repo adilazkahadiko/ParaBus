@@ -5,6 +5,9 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
   const nonce = document.querySelector('meta[name="dbr-session-nonce"]')?.content ?? "";
   const dialog = $("external-control-token-dialog"), tokenNode = $("external-control-token");
   let tokenTimer, busy = false, devicesSignature = "";
+  const setStatus = text => {
+    for (const id of ["external-control-status", "external-control-setup-status"]) $(id).textContent = text;
+  };
   const clearToken = () => { clearTimeout(tokenTimer); tokenNode.textContent = ""; if (dialog.open) dialog.close(); };
   dialog.addEventListener("close", clearToken);
   $("external-control-token-close").addEventListener("click", clearToken);
@@ -19,7 +22,7 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
   }
   async function refresh() {
     const state = await post({ action: "status" });
-    $("external-control-status").textContent = `外部操作: ${state.stopSaveFailed ? "停止済み（保存に失敗）" : state.enabled ? "有効" : "無効"} / 接続中 ${state.activeDeviceCount} 台${state.activeDeviceNames.length ? ` (${state.activeDeviceNames.join("、")})` : ""}`;
+    setStatus(`外部操作: ${state.stopSaveFailed ? "停止済み（保存に失敗）" : state.enabled ? "有効" : "無効"} / 接続中 ${state.activeDeviceCount} 台${state.activeDeviceNames.length ? ` (${state.activeDeviceNames.join("、")})` : ""}`);
     $("external-control-url").textContent = `${state.url}${state.available ? "" : " — 利用不可（ポートの競合・登録ファイルを確認）"}${state.port !== state.activePort ? ` / 再起動後のポート: ${state.port}` : ""}`;
     const setup = state.state === "SETUP";
     $("external-control-enable").disabled = !setup || state.enabled || !state.available;
@@ -94,7 +97,7 @@ export function mountExternalControl(localSettingsAvailable, fetchRequest = fetc
   $("external-control-port-form").addEventListener("submit", event => { event.preventDefault(); void operate({ action: "port", port: Number($("external-control-port").value) }); });
   const poll = async () => {
     try { if (!busy && !document.hidden) await refresh(); }
-    catch { $("external-control-status").textContent = "外部操作: 接続を確認してください"; }
+    catch { setStatus("外部操作: 接続を確認してください"); }
     setTimeout(poll, 2000);
   };
   void poll();
