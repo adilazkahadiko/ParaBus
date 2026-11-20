@@ -1,6 +1,6 @@
-ParaBus Windows x64 v0.1.0-beta.6（2026-11-16）
+ParaBus v0.1.0-beta.7（2026-11-21）
 
-公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.6
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.7
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 
 使い始める
@@ -42,7 +42,7 @@ beta.3以降では、拒否を判定できた場合にアプリ制御による�
 設定ロックをOFFにし、表示中の障害を確認する必要があります。
 ブラウザーを閉じるだけではアプリは終了しません。
 
-beta.7の変更（準備中・未公開）
+beta.7の変更
 ・SETUPを音声機器、Bot、外部操作、アプリ設定、本体操作の順に整理しました。
   MAIN OUTPUT TESTと機器ごとの段階Bの許可は折りたたみ、チェックボックスの配置を直しました。
 ・外部操作の状態に、表示名の読み取りを許可した機器だけが読めるBus名を追加しました。
