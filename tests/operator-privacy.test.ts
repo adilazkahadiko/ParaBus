@@ -22,7 +22,7 @@ test("operator notices describe actual deletion and ID disclosure limits", () =>
   const guide = read("docs/OPERATOR_PRIVACY.ja.md");
   for (const item of ["Developer Portal", "［運用者名］", "［連絡先］", "［保存期間］", "user-profiles.json", "discordUserId", "BitLocker", "Reset Token", "バックアップ", "法律上の助言"]) assert.ok(guide.includes(item));
   assert.match(guide, /必ずParaBusを停止してから/);
-  assert.match(read("docs/manual.html"), /手作りのBusのID.*名前の一部.*DiscordのユーザーID/);
+  assert.match(read("docs/manual.html"), /画面で作成したVC BusのID.*名前の一部.*DiscordのユーザーID/);
 });
 
 test("runtime ZIP and corresponding-source stage include the real guide and its integrity lock", t => {
