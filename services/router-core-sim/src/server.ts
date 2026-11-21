@@ -33,6 +33,8 @@ import { safeOperatorSummary, sanitizeOperatorMessage } from "./operator-sanitiz
 import { OperationalHealthTracker, OperationalLog } from "./operational-log.ts";
 import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 import { SceneStore } from "./scene-store.ts";
+import { ParticipantDataManager } from "./participant-data.ts";
+import { createParticipantDataHandler } from "./participant-data-api.ts";
 import { runtimeInfo } from "./runtime-info.ts";
 import { createSupportBundle, openSupportDirectory, supportDiagnostics } from "./support-bundle.ts";
 import { loadBotRackConfig, loadBotRackEnvironment } from "../../discord-adapter/src/bot-config.ts";
@@ -152,6 +154,9 @@ discordIngest.onControlStateChange(() => externalControl.noteChange());
 discordIngest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
 const systemMonitor = new SystemMonitor();
 let supportBundleBusy = false;
+const participantData = new ParticipantDataManager({ root: settingsRoot, profiles: userProfileStore, sessions: userSessions, scenes: sceneStore,
+  control, ingest: discordIngest, log: operationalLog, bundleBusy: () => supportBundleBusy });
+const participantDataRequest = createParticipantDataHandler(participantData, request => { requireLocalSettingsRequest(request); requireDesktopControlRequest(request); }, () => broadcastState());
 function executeExternalControlCommand(command: ControlCommand): CommandResult {
   if (command?.type === "DEVICE_LOST" || command?.type === "INPUT_DEVICE_LOST") {
     return { ok: false, revision: control.revision, error: "Internal command is unavailable" };
@@ -361,6 +366,7 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       response.writeContinue();
     }
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+    if (await participantDataRequest(request, response, url.pathname)) return;
     if (url.pathname === "/api/external-control") {
       requireLocalSettingsRequest(request);
       requireDesktopControlRequest(request);
@@ -409,7 +415,7 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       if (payload?.days !== undefined && (typeof payload.days !== "number" || !Number.isInteger(payload.days) || payload.days < 1 || payload.days > 30)) {
         return writeJson(response, 400, { ok: false, error: "ログ日数は1〜30日を指定してください" });
       }
-      if (supportBundleBusy) return writeJson(response, 409, { ok: false, error: "Support Bundleを作成中です" });
+      if (supportBundleBusy || participantData.diagnosticsBusy) return writeJson(response, 409, { ok: false, error: "Support Bundleを作成中または削除中です" });
       supportBundleBusy = true;
       try {
         const result = await createSupportBundle({

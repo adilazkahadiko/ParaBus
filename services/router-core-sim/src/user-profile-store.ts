@@ -212,6 +212,20 @@ export class UserProfileStore {
     return this.profiles.get(discordUserId)?.trusted === true;
   }
 
+  async deleteConfirmed(discordUserId: string): Promise<void> {
+    if (!DISCORD_USER_ID.test(discordUserId)) throw new Error("Discord IDの形式が不正です");
+    const previous = this.profiles.get(discordUserId);
+    this.profiles.delete(discordUserId);
+    this.queueFlush();
+    await this.flush();
+    if (this.#dirty || this.profiles.has(discordUserId)) {
+      // Keep the row available for an explicit retry. Other participants' concurrent
+      // changes remain intact; a partial scene deletion is never reported as success.
+      if (previous && !this.profiles.has(discordUserId)) this.profiles.set(discordUserId, previous);
+      throw new Error("参加者設定のディスク保存を確認できませんでした");
+    }
+  }
+
   setStripOrder(discordUserIds: readonly string[]): void {
     const seen = new Set<string>();
     for (const id of discordUserIds) {

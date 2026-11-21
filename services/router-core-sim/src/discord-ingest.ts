@@ -1507,6 +1507,14 @@ export class DiscordIngestServer {
     return true;
   }
 
+  forgetOfflineParticipant(discordUserId: string): void {
+    if ([...this.runtimes.values()].some(runtime => runtime.userId === discordUserId)) throw new Error("参加者が接続中です");
+    const matches = (id: string) => /^discord-user:[^:]+:[^:]+:(\d{17,20})$/.exec(id)?.[1] === discordUserId;
+    for (const id of this.#capacityRejectedSources) if (matches(id)) this.#capacityRejectedSources.delete(id);
+    for (const id of this.#sourceSockets.keys()) if (matches(id)) this.#sourceSockets.delete(id);
+    for (const sources of this.#socketSources.values()) for (const id of sources.keys()) if (matches(id)) sources.delete(id);
+  }
+
   /** Test-only bounded ownership projection; it contains no Discord identities. */
   ownershipTrackingCounts(): { sockets: number; sources: number } {
     let sources = 0;

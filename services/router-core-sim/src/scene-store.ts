@@ -67,4 +67,8 @@ export class SceneStore {
     return this.#saveQueue.save(JSON.stringify({ version: 1, scenes: nextScenes, currentSceneId: nextCurrent }, null, 2) + "\n");
   }
   flush(): Promise<void> { return this.#saveQueue.flush(); }
+  async saveConfirmed(scenes: readonly SceneSnapshot[], currentSceneId: string | null): Promise<void> {
+    await this.save(scenes, currentSceneId);
+    await this.#saveQueue.confirmSaved();
+  }
 }

@@ -285,6 +285,10 @@
         <div class="callout warning"><strong>障害時は実行フォルダではなくSupport Bundleを共有する</strong>実行フォルダ全体、.env、Bot設定原本、録音ファイルをZIPにして共有しないでください。Support BundleはON AIR中も作成できます。</div>
         <ol><li><strong>STATUS → Support Bundle · 診断</strong>を開きます。</li><li>ログ日数（既定7日、1〜30日）を選び、<strong>Support Bundleを作成</strong>を押します。ON AIR中・録音中も使用でき、音声・TX状態は変更しません。</li><li><strong>出力先を開く</strong>から<code>settingsRoot/support/</code>の生成ZIPを確認し、その<strong>1ファイルだけ</strong>を調査担当へ共有します。フォルダを開けない環境では、作成結果に表示されたパスを使ってください。</li></ol>
         <p>ZIPには最近の運用ログ、存在するトレイconsoleログ、build commit・起動時PC role・UTC起動時刻、Bot/TX/RX・drop・xrun・録音Queueの診断統計、Bot role・送信先区分・有効状態・台数、Node/OS/CPU/メモリ・native依存状態を含めます。Token・.env・Bot設定原本・録音・Scene・参加者profile原本は含めません。Discord ID・参加者表示名・Guild名・VC名はBundleごとに匿名化し、対応表は付けません。</p>
+        <h3>参加者の保存データを削除する</h3>
+        <p>このPCの<strong>SETUP → 参加者データ</strong>で、表示名またはDiscord IDを検索し、本人のIDを全桁で照合して「この参加者のデータを削除」を押します。参加者設定全体と、全シーン内のその人のチャンネル値を削除します。接続中は拒否します。staleストリップが残る場合は案内に従い、通常終了・起動後にBotを接続せず削除してください。ON AIR・FAULT中も削除できません。保存完了後に成功を表示します。</p>
+        <p>「運用ログと診断ZIPをすべて削除」は全員分をまとめて消します。診断ZIP作成中は拒否し、対象はlogs直下の運用ログとsupport直下のParaBus生成ZIPだけです。削除後も新しいログの記録は続きます。STATUSの「ログを消去」は画面上のEvent Logのみで、ディスク上のファイルは消しません。</p>
+        <p>録音ファイル（ファイル名に表示名やIDの一部を含む場合があります）、トレイの<code>logs/router.log</code>、バックアップ、ほかのPCや受け渡したコピーは対象外です。運用者が確認して削除してください。手で編集する場合は<strong>ParaBusを停止してから</strong>、<code>user-profiles.json</code>だけでなく<code>scenes.json</code>の全シーン内の該当値も削除します。詳しい手順は<a href="OPERATOR_PRIVACY.ja.md">運用者向けの案内</a>を参照してください。</p>
         <p>Bot profileIdと運用者設定labelは残ります。機密の名称を付けないでください。未知のログ自由文は匿名イベントIDになり、原文の復元はできません。consoleログは更新日で選択され、末尾最大5MiBだけを収集します。途中から始まる最初の行は捨て、切り詰めと元サイズをbundle-info.jsonへ記録します。</p>
       </section>
 

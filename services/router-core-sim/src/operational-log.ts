@@ -5,6 +5,7 @@ import type { LogLevel, RouterSnapshot, RuntimeInfoSnapshot } from "../../../pac
 import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
 import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 import { OPERATIONS, TIER_B_OPERATIONS, STATUS } from "./external-protocol.ts";
+import { deleteDirectFiles, OPERATIONAL_FILE } from "./data-file-deletion.ts";
 
 export type OperationalEvent = RouterSnapshot["alerts"][number] & { runtimeInfo?: RuntimeInfoSnapshot; localDetail?: string };
 
@@ -39,6 +40,9 @@ export class OperationalLog {
   #closed = false;
   #droppedEvents = 0;
   #prunedDate: string;
+  #clearing: Promise<number> | null = null;
+  #duringClear: OperationalEvent[] = [];
+  #duringClearBytes = 0;
 
   constructor(settingsRoot: string, retentionDays = 7, now: () => Date = () => new Date()) {
     this.directory = join(settingsRoot, "logs");
@@ -58,6 +62,12 @@ export class OperationalLog {
       ...(event.runtimeInfo ? { runtimeInfo: { ...event.runtimeInfo } } : {}),
       ...(event.localDetail ? { localDetail: localAudioFaultDetail(event.localDetail) } : {}),
     };
+    if (this.#clearing) {
+      const bytes = Buffer.byteLength(JSON.stringify(safe));
+      if (this.#duringClearBytes + bytes <= MAX_PENDING_LOG_BYTES) { this.#duringClear.push(safe); this.#duringClearBytes += bytes; }
+      else this.#droppedEvents++;
+      return;
+    }
     try {
       const line = `${JSON.stringify(safe)}\n`;
       const dropped = this.#droppedEvents ? `${JSON.stringify({ at: this.now().toISOString(), level: "WARNING", message: `Operational log queue recovered: ${this.#droppedEvents} events dropped` })}\n` : "";
@@ -98,11 +108,28 @@ export class OperationalLog {
 
   async close(): Promise<void> {
     this.#closed = true;
+    if (this.#clearing) await this.#clearing.catch(() => {});
     await Promise.all([...this.#streams].map((stream) => {
       const done = finished(stream, { cleanup: true }).catch(() => this.warnOnce());
       stream.end();
       return done;
     }));
+  }
+
+  clearFiles(): Promise<number> {
+    if (this.#clearing) return this.#clearing;
+    this.#clearing = (async () => {
+      await Promise.resolve();
+      const streams = [...this.#streams];
+      this.#stream = null; this.#path = "";
+      await Promise.all(streams.map(stream => { const done = finished(stream, { cleanup: true }); stream.end(); return done; }));
+      return deleteDirectFiles(this.directory, OPERATIONAL_FILE);
+    })().finally(() => {
+      this.#clearing = null;
+      const pending = this.#duringClear; this.#duringClear = []; this.#duringClearBytes = 0;
+      for (const event of pending) this.append(event);
+    });
+    return this.#clearing;
   }
 
   private warnOnce(): void {

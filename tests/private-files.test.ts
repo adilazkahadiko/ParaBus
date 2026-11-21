@@ -88,6 +88,7 @@ test("custom recording folders and existing files retain their exact ACLs and on
   await protectSettingsLocations(root, custom, message => warnings.push(message));
   assert.deepEqual([custom, file].map(acl), before);
   assert.deepEqual(warnings, [RECORDING_FOLDER_WARNING]);
+  assert.equal(existsSync(join(root, "recordings")), false, "inactive default recording folder must not be created or permission-modified");
 });
 
 test("custom recordings nested in a managed folder are not changed through inheritance", { skip: !windows }, async t => {

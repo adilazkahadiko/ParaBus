@@ -83,6 +83,12 @@ export class UserSessionRegistry {
     this.profiles.captureChannel(channel);
   }
 
+  forgetOffline(discordUserId: string): void {
+    if (this.sessions.get(discordUserId)?.online) throw new Error("参加者が接続中です");
+    this.sessions.delete(discordUserId);
+    this.#activeChannels.delete(discordUserId);
+  }
+
   setChannelColor(channel: AudioChannel, color: string): void {
     this.profiles.setChannelColor(channel, color);
   }
