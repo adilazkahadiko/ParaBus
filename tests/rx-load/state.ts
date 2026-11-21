@@ -41,6 +41,6 @@ export function offlineState(factory: OpusDecoderFactory, sourceFactory?: Constr
   }) };
   return { engine, ingest, runtime, scheduler, sources,
     state: (details = false) => ({ type: "state", payload: desktopState(sources, true, details) }),
-    async close() { runtime.close(); await ingest.close(); await recorder.close(); profiles.flush(); output.stop(); cue.stop(); input.stop(); },
+    async close() { runtime.close(); await ingest.close(); await recorder.close(); await profiles.flush(); output.stop(); cue.stop(); input.stop(); },
   };
 }

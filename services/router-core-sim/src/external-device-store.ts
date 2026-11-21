@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { writePrivateFileSync } from "./private-files.ts";
 import { join } from "node:path";
 import { boolean, fields, fail, revision, strictJson, textId, tierBPermissions, uuid } from "./external-protocol.ts";
 
@@ -101,17 +101,9 @@ export class ExternalDeviceStore {
   }
   private save(next: Registration) {
     if (!this.available) fail("UNAVAILABLE");
-    const temporary = `${this.path}.${randomUUID()}.tmp`;
     try {
-      mkdirSync(join(this.path, ".."), { recursive: true });
-      writeFileSync(temporary, JSON.stringify(next, null, 2) + "\n", { encoding: "utf8", mode: 0o600, flag: "wx" });
-      if (process.platform === "win32") {
-        // Restrict before publishing the file; do not put hashes in process arguments.
-        const identity = `${process.env.USERDOMAIN}\\${process.env.USERNAME}`;
-        execFileSync("icacls.exe", [temporary, "/inheritance:r", "/grant:r", `${identity}:F`], { windowsHide: true, stdio: "ignore" });
-      }
-      renameSync(temporary, this.path); this.#value = next;
+      writePrivateFileSync(this.path, JSON.stringify(next, null, 2) + "\n");
+      this.#value = next;
     } catch { fail("UNAVAILABLE"); }
-    finally { rmSync(temporary, { force: true }); }
   }
 }

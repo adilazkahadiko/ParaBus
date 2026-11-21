@@ -16,6 +16,7 @@
     "docs/DISCORD_RX.md",
     "docs/EXTERNAL_CONTROL_API.md",
     "docs/manual.html",
+    "docs/OPERATOR_PRIVACY.ja.md",
     "scripts/opus-native-check.ts",
     "scripts/audio-native-check.ts",
     "scripts/native-check-result.ts",
@@ -25,6 +26,7 @@
     "scripts/patch-discord-voice.ts",
     "scripts/release-stage.ts",
     "scripts/router-tray.ps1",
+    "scripts/restrict-private-path.ts",
     "scripts/start-router.ts",
     "scripts/start-router-macos.sh",
     "tsconfig.json"
@@ -58,6 +60,7 @@
       "docs/RX_MEASUREMENT.md",
       "docs/RX_PLAYOUT.md",
       "docs/manual.html",
+      "docs/OPERATOR_PRIVACY.ja.md",
       "docs/CHECKLIST.md",
       "docs/LINUX_DEV.md",
       "docs/ASIO_BUILD.md",

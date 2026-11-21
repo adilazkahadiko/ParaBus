@@ -1,5 +1,8 @@
 ParaBus Windows x64 v0.1.0-beta.7（2026-11-21）
 
+ParaBusはDiscord、Elgato（Stream Deck）、Steinberg（ASIO）と提携しておらず、各社の承認を受けていない非公式ソフトウェアです。各名称は各社の商標または登録商標です。
+Botの運用・録音前に docs/OPERATOR_PRIVACY.ja.md（プライバシーポリシー、同意、削除、暗号化の案内）を確認してください。
+
 公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.7
 脆弱性の非公開報告: https://github.com/adilazkahadiko/ParaBus/security/advisories/new
 

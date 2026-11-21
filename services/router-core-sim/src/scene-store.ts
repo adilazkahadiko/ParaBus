@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { writePrivateFileSync } from "./private-files.ts";
 import { join } from "node:path";
 import type { SceneSnapshot, SceneValue } from "../../../packages/shared-types/src/index.ts";
 
@@ -59,14 +60,7 @@ export class SceneStore {
     if (validated.some((scene) => scene === null)) throw new Error("Sceneデータが不正です");
     const nextScenes = validated as SceneSnapshot[];
     const nextCurrent = currentSceneId && nextScenes.some((scene) => scene.id === currentSceneId) ? currentSceneId : null;
-    const temporary = this.path + ".tmp-" + process.pid + "-" + Date.now();
-    try {
-      writeFileSync(temporary, JSON.stringify({ version: 1, scenes: nextScenes, currentSceneId: nextCurrent }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
-      renameSync(temporary, this.path);
-      this.#state = { scenes: nextScenes.map(clone), currentSceneId: nextCurrent };
-    } catch (error) {
-      rmSync(temporary, { force: true });
-      throw error;
-    }
+    writePrivateFileSync(this.path, JSON.stringify({ version: 1, scenes: nextScenes, currentSceneId: nextCurrent }, null, 2) + "\n");
+    this.#state = { scenes: nextScenes.map(clone), currentSceneId: nextCurrent };
   }
 }

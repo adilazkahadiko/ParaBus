@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { writePrivateFileSync } from "./private-files.ts";
 import { join } from "node:path";
 
 export interface ReceiverOwnerRecord {
@@ -55,13 +56,6 @@ export class ReceiverOwnershipStore {
   }
 
   private flush(): void {
-    const temporary = `${this.path}.tmp-${process.pid}-${Date.now()}`;
-    try {
-      writeFileSync(temporary, `${JSON.stringify({ version: 1, owners: this.snapshot() }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      renameSync(temporary, this.path);
-    } catch (error) {
-      rmSync(temporary, { force: true });
-      throw error;
-    }
+    writePrivateFileSync(this.path, `${JSON.stringify({ version: 1, owners: this.snapshot() }, null, 2)}\n`);
   }
 }

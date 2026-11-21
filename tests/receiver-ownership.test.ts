@@ -60,7 +60,7 @@ function runtime(t: test.TestContext) {
   const ingest = new DiscordIngestServer(engine, "test-only", null, decoderFactory, sessions, owners);
   const control = new ControlPlane(engine, undefined, ingest, undefined, undefined, sessions);
   ingest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
-  t.after(() => { profiles.flush(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await profiles.flush(); rmSync(root, { recursive: true, force: true }); });
   return { root, engine, profiles, sessions, owners, ingest, control };
 }
 

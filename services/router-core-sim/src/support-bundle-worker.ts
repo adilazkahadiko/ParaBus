@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { parseEnv, promisify } from "node:util";
 import { parentPort, workerData } from "node:worker_threads";
 import { crc32 } from "node:zlib";
+import { restrictPrivatePath } from "./private-files.ts";
 import { isTxDestination } from "../../../packages/shared-types/src/index.ts";
 import type { SupportBundleRequest } from "./support-bundle.ts";
 
@@ -208,6 +209,8 @@ async function main() {
   const fileName = `ParaBus-support-${runtime.pcRole}-${runtime.buildCommit?.slice(0, 12) ?? "unknown"}-${now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}-${randomBytes(4).toString("hex")}.zip`;
   const path = join(directory, fileName), pendingPath = `${path}.pending`;
   const archive = await open(pendingPath, "wx", 0o600);
+  try { await restrictPrivatePath(pendingPath); }
+  catch { await archive.close(); await rm(pendingPath, { force: true }); throw new Error("診断ZIPのアクセス権を保護できないため、作成を中止しました"); }
   const central: Buffer[] = [];
   let offset = 0, count = 0;
   async function write(bytes: Uint8Array) { await archive.writeFile(bytes); offset += bytes.length; if (offset > 0xffffffff) throw new Error("Bundle exceeds ZIP capacity"); }

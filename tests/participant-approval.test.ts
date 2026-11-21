@@ -14,15 +14,22 @@ const userB = "910000000000000002";
 const vcA = "920000000000000001";
 const vcB = "920000000000000002";
 
+const pendingProfiles = new Map<string, Set<UserProfileStore>>();
 function temporaryRoot(t: test.TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "dbr-approval-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(async () => {
+    for (const store of pendingProfiles.get(root) ?? []) await store.flush();
+    pendingProfiles.delete(root);
+    rmSync(root, { recursive: true, force: true });
+  });
   return root;
 }
 
 function runtime(root: string, outputs = 4) {
   const engine = new AudioEngine(48_000, 480, outputs);
   const profiles = new UserProfileStore(root);
+  if (!pendingProfiles.has(root)) pendingProfiles.set(root, new Set());
+  pendingProfiles.get(root)!.add(profiles);
   const sessions = new UserSessionRegistry(profiles);
   const control = new ControlPlane(engine, undefined, undefined, undefined, undefined, sessions);
   return { engine, profiles, sessions, control };
@@ -67,7 +74,7 @@ function peak(samples: Float32Array): number {
   return result;
 }
 
-test("PENDING gate meters Discord RX but blocks MAIN, VC BUS, Direct Out, and TX Return paths", (t) => {
+test("PENDING gate meters Discord RX but blocks MAIN, VC BUS, Direct Out, and TX Return paths", async (t) => {
   const target = runtime(temporaryRoot(t));
   const main = new VcBus("main", "MAIN", target.engine.blockSize, target.engine.sampleRate);
   const interview = new VcBus("interview", "INTERVIEW", target.engine.blockSize, target.engine.sampleRate);
@@ -111,7 +118,7 @@ test("PENDING gate meters Discord RX but blocks MAIN, VC BUS, Direct Out, and TX
   assert.ok(target.control.alerts.some((entry) => entry.message === "pending created: Guest"));
   assert.ok(target.control.alerts.some((entry) => entry.message === "approved: Guest"));
   assert.ok(target.control.alerts.some((entry) => entry.message === "approval revoked: Guest"));
-  target.profiles.flush();
+  await target.profiles.flush();
 });
 
 test("PENDING participant records silence on program, BUS, and user tracks", async (t) => {
@@ -138,11 +145,11 @@ test("PENDING participant records silence on program, BUS, and user tracks", asy
     }
   } finally {
     await recorder.close();
-    target.profiles.flush();
+    await target.profiles.flush();
   }
 });
 
-test("session approval survives rejoin and VC move while identity and Trusted remain ID-only", (t) => {
+test("session approval survives rejoin and VC move while identity and Trusted remain ID-only", async (t) => {
   const root = temporaryRoot(t);
   const first = runtime(root);
   const original = joinParticipant(first, userA, "Same Name", vcA);
@@ -168,7 +175,7 @@ test("session approval survives rejoin and VC move while identity and Trusted re
   assert.ok(first.control.alerts.some((entry) => entry.message === "rejoin restored: Same Name (APPROVED)"));
   assert.ok(first.control.alerts.some((entry) => entry.message === "trusted enabled: Same Name"));
   assert.ok(first.control.alerts.some((entry) => entry.message === "session approval reset: Same Name"));
-  first.profiles.flush();
+  await first.profiles.flush();
 
   const second = runtime(root);
   const ordinaryNextSession = joinParticipant(second, userA, "Same Name", vcA);
@@ -181,10 +188,10 @@ test("session approval survives rejoin and VC move while identity and Trusted re
   assert.equal(second.control.execute({ type: "SET_USER_TRUSTED", channelId: trustedNextSession.id, trusted: false }).ok, true);
   assert.equal(trustedNextSession.approvalGateOpen, true, "removing Trusted does not silently revoke current approval");
   assert.ok(second.control.alerts.some((entry) => entry.message === "trusted disabled: Same Name"));
-  second.profiles.flush();
+  await second.profiles.flush();
 });
 
-test("Emergency Mute and FAULT remain authoritative after participant approval", (t) => {
+test("Emergency Mute and FAULT remain authoritative after participant approval", async (t) => {
   const target = runtime(temporaryRoot(t), 1);
   const channel = joinParticipant(target, userA);
   channel.directOutput = { output: 0, tap: "PRE", gainDb: 0, mute: false };
@@ -201,10 +208,10 @@ test("Emergency Mute and FAULT remain authoritative after participant approval",
   assert.equal(channel.approvalGateOpen, true);
   target.engine.processBlock();
   assert.equal(peak(target.engine.outputs[0]), 0, "FAULT emergency silence has priority over approval");
-  target.profiles.flush();
+  await target.profiles.flush();
 });
 
-test("approval and revoke remain available ON AIR without bypassing structural locks", (t) => {
+test("approval and revoke remain available ON AIR without bypassing structural locks", async (t) => {
   const target = runtime(temporaryRoot(t));
   const first = joinParticipant(target, userA, "One");
   joinParticipant(target, userB, "Two");
@@ -216,10 +223,10 @@ test("approval and revoke remain available ON AIR without bypassing structural l
   assert.equal(target.control.execute({ type: "CREATE_VC_BUS", name: "Bypass" }).ok, false);
   assert.equal(setApproval(target, first, false).ok, true);
   assert.equal(first.approvalGateOpen, false);
-  target.profiles.flush();
+  await target.profiles.flush();
 });
 
-test("Production Lock ON then OFF preserves approval, gate and approval lifetime in SETUP and READY", t => {
+test("Production Lock ON then OFF preserves approval, gate and approval lifetime in SETUP and READY", async t => {
   for (const next of ["SETUP", "READY"] as const) {
     const target = runtime(temporaryRoot(t));
     const guest = joinParticipant(target, userA, "Approved Guest");
@@ -237,11 +244,11 @@ test("Production Lock ON then OFF preserves approval, gate and approval lifetime
     assert.equal(trusted.approvalGateOpen, true);
     assert.equal(target.control.alerts.some(event => event.message.startsWith("session approval reset:")), false);
     assert.equal(target.control.execute({ type: "SET_USER_STRIP_ORDER", discordUserIds: [userB, userA] }).ok, true);
-    target.profiles.flush();
+    await target.profiles.flush();
   }
 });
 
-test("acknowledging FAULT still resets ordinary approvals and preserves Trusted approval", t => {
+test("acknowledging FAULT still resets ordinary approvals and preserves Trusted approval", async t => {
   const target = runtime(temporaryRoot(t));
   const guest = joinParticipant(target, userA, "Approved Guest");
   const trusted = joinParticipant(target, userB, "Trusted Guest");
@@ -261,10 +268,10 @@ test("acknowledging FAULT still resets ordinary approvals and preserves Trusted 
   assert.equal(target.sessions.sessions.get(userB)!.sessionApproval, "APPROVED");
   assert.equal(trusted.approvalGateOpen, true);
   assert.equal(target.engine.emergencyMuted, true, "acknowledgement still does not release Emergency Mute");
-  target.profiles.flush();
+  await target.profiles.flush();
 });
 
-test("approval commands use per-session generation and revision CAS", (t) => {
+test("approval commands use per-session generation and revision CAS", async (t) => {
   const root = temporaryRoot(t);
   const target = runtime(root);
   const channel = joinParticipant(target, userA, "CAS Guest");
@@ -309,15 +316,15 @@ test("approval commands use per-session generation and revision CAS", (t) => {
   assert.equal(other.approvalGateOpen, false, "same display name has an independent safety resource");
   assert.equal(target.sessions.sessions.get(userB)?.approvalRevision, 1);
   assert.equal(target.control.alerts.some((entry) => entry.message.includes(userA)), false, "stale rejection log does not expose Discord User ID");
-  target.profiles.flush();
+  await target.profiles.flush();
 
   const restarted = runtime(root);
   joinParticipant(restarted, userA, "CAS Guest");
   assert.notEqual(restarted.sessions.sessions.get(userA)?.sessionGeneration, afterReset.sessionGeneration, "application restart creates a new approval lifetime");
-  restarted.profiles.flush();
+  await restarted.profiles.flush();
 });
 
-test("short rejoin and VC move preserve approval generation and revision", (t) => {
+test("short rejoin and VC move preserve approval generation and revision", async (t) => {
   const target = runtime(temporaryRoot(t));
   const first = joinParticipant(target, userA, "Moving Guest", vcA);
   assert.equal(setApproval(target, first, true).ok, true);
@@ -330,5 +337,5 @@ test("short rejoin and VC move preserve approval generation and revision", (t) =
   assert.equal(after.approvalRevision, before.approvalRevision);
   assert.equal(after.sessionApproval, "APPROVED");
   assert.equal(moved.approvalGateOpen, true);
-  target.profiles.flush();
+  await target.profiles.flush();
 });

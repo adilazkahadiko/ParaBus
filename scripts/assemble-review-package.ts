@@ -96,6 +96,8 @@ cpSync(join(sources, "THIRD_PARTY_ARCHIVE_NOTICES.txt"), join(app, "THIRD_PARTY_
 cpSync(join(sources, "DEPENDENCY_LICENSE_INVENTORY.json"), join(app, "DEPENDENCY_LICENSE_INVENTORY.json"));
 cpSync(join(repo, "docs/WINDOWS_BETA.txt"), join(handoff, "README-FIRST.txt"));
 cpSync(join(repo, "docs/WINDOWS_BETA.txt"), join(app, "README-FIRST.txt"));
+// Keep the operator notice in both runtime docs and the corresponding-source inventory.
+cpSync(join(repo, "docs/OPERATOR_PRIVACY.ja.md"), join(app, "docs/OPERATOR_PRIVACY.ja.md"));
 const appSource = stageRelease(repo, { sourceOnly: true });
 cpSync(appSource.stageDirectory, join(source, "app"), { recursive: true });
 cpSync(sources, source, { recursive: true });
@@ -111,6 +113,7 @@ execFileSync("git", ["archive", "--format=zip", `--output=${join(source, "binary
 writeFileSync(join(source, "binary-origin/native-input-lock.json"), execFileSync("git", ["show", `${nativeSourceCommit}:release/native-input-lock.json`], { cwd: repo }));
 writeFileSync(join(source, "binary-origin/README.txt"), "Legacy private native artifact commit: " + baseCommit + "\nThe archive contains build inputs from the public baseline 28d27a491d21eee718237af1bcbf7c334ed9447f verified against the original CI sources. Current application dependencies and packaging documentation are supplied separately in app/. Normalize CRLF line endings to LF before computing source text SHA-256 values in native-input-lock.json; Windows script entries may be archived with CRLF. The archived CI URL requires private-repository access; all required source inputs are supplied here without that access. The original private Git history is not required or supplied. This is source correspondence, not an independent native rebuild.\n");
 cpSync(join(repo, "docs/CORRESPONDING_SOURCE.txt"), join(source, "README.txt"));
+assert.ok(existsSync(join(source, "app/docs/OPERATOR_PRIVACY.ja.md")), "Operator privacy guide missing from corresponding source");
 json(join(source, "SOURCE_INVENTORY.json"), { applicationSourceCommit: commit, binaryOriginCommit: baseCommit, files: files(source).map(path => ({ path, sha256: hash(join(source, path)) })) });
 const forbidden = /(^|\/)(?:\.env|discord-bots\.json|user-profiles\.json|receiver-owners\.json|scenes\.json|tokens\.json|secrets\.json|credentials\.json|\.git|logs|recordings|support|segfault-handler)(\/|$)/i;
 for (const path of [...files(app), ...files(source)]) assert.ok(!forbidden.test(path), `Private/omitted runtime data in artifact: ${path}`);

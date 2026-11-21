@@ -80,6 +80,19 @@ function Open-Manual {
     }
 }
 
+function Protect-SettingsFile([string]$Path) {
+    try {
+        if (-not $script:NodeExecutable) { $script:NodeExecutable = Resolve-NodeExecutable }
+        & $script:NodeExecutable (Join-Path $PSScriptRoot 'restrict-private-path.ts') $Path 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Permission protection failed' }
+        return $true
+    }
+    catch {
+        Show-Notification 'アクセス権の警告' '設定ファイルのアクセス権を保護できませんでした。保存先の権限を確認してください。' ([System.Windows.Forms.ToolTipIcon]::Warning)
+        return $false
+    }
+}
+
 function Open-Settings {
     if (Test-CoreReady) {
         Start-Process ($script:UiUrl + "/?view=setup")
@@ -87,6 +100,7 @@ function Open-Settings {
     }
     if (-not (Test-Path -LiteralPath $script:EnvironmentPath)) {
         Copy-Item -LiteralPath $script:EnvironmentExamplePath -Destination $script:EnvironmentPath
+        if (-not (Protect-SettingsFile $script:EnvironmentPath)) { return }
     }
     Start-Process notepad.exe -ArgumentList ('"' + $script:EnvironmentPath + '"')
 }
@@ -94,6 +108,7 @@ function Open-Settings {
 function Open-BotRackSettings {
     if (-not (Test-Path -LiteralPath $script:BotRackPath)) {
         Copy-Item -LiteralPath $script:BotRackExamplePath -Destination $script:BotRackPath
+        if (-not (Protect-SettingsFile $script:BotRackPath)) { return }
     }
     Start-Process notepad.exe -ArgumentList ('"' + $script:BotRackPath + '"')
 }
@@ -327,6 +342,7 @@ $script:Tray.ContextMenuStrip = $menu
 
 if (-not $TestMode -and -not (Test-Path -LiteralPath $script:EnvironmentPath)) {
     Copy-Item -LiteralPath $script:EnvironmentExamplePath -Destination $script:EnvironmentPath
+    $null = Protect-SettingsFile $script:EnvironmentPath
     $script:FirstLaunch = $true
 }
 
