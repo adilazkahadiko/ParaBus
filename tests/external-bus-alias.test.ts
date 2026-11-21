@@ -27,9 +27,15 @@ test("Bus alias uses full domain-separated HMAC-SHA256, a protected 32-byte key 
   assert.equal(Buffer.from(digest, "base64url").includes(Buffer.from(FIRST)), false);
   assert.equal(readdirSync(root).some(name => name.endsWith(".tmp")), false);
   if (process.platform === "win32") {
-    const acl = execFileSync("icacls.exe", [store.path], { encoding: "utf8", windowsHide: true });
-    assert.equal(acl.includes("(I)"), false); assert.equal(acl.includes(`${process.env.USERDOMAIN}\\${process.env.USERNAME}:(F)`), true);
-    assert.equal((acl.match(/\([A-Z,]+\)/g) ?? []).length, 1);
+    const script = "$a=Get-Acl -LiteralPath $env:ACL_TEST_PATH; "
+      + "@{ owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; protected=$a.AreAccessRulesProtected; rules=@($a.Access | Where-Object { $_.AccessControlType -eq 'Allow' } | ForEach-Object { @{ sid=$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; rights=[int]$_.FileSystemRights } }) } | ConvertTo-Json -Depth 5 -Compress";
+    const executable = join(process.env.SystemRoot ?? "C:\\Windows", "System32/WindowsPowerShell/v1.0/powershell.exe");
+    const acl = JSON.parse(execFileSync(executable, ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
+      { encoding: "utf8", windowsHide: true, env: { SystemRoot: process.env.SystemRoot, ACL_TEST_PATH: store.path }, stdio: ["ignore", "pipe", "ignore"] }));
+    const expected = new Set([acl.owner, "S-1-5-18", "S-1-5-32-544"]);
+    assert.equal(acl.protected, true);
+    assert.equal(acl.rules.length, expected.size);
+    for (const sid of expected) assert.equal(acl.rules.some((r: { sid: string; rights: number }) => r.sid === sid && (r.rights & 2032127) === 2032127), true);
   } else assert.equal(statSync(store.path).mode & 0o077, 0);
 });
 

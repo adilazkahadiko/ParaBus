@@ -8,6 +8,9 @@ Main (program) and Cue (monitoring) can go to separate devices, and physical inp
 
 The control UI is in Japanese, with some headings in English.
 
+ParaBus is unofficial software, unaffiliated with and not endorsed by Discord, Elgato (Stream Deck), or Steinberg (ASIO). These names are trademarks or registered trademarks of their respective owners.
+Before operating a Bot or recording, read the [operator privacy and data handling guide (Japanese)](docs/OPERATOR_PRIVACY.ja.md).
+
 > **Beta.** This is not a stable release and has not been proven in production.
 > Read the [known issues and field checklist](docs/BETA.txt) first,
 > and always keep a backup audio path. Do not use ParaBus as your only, untested broadcast path.

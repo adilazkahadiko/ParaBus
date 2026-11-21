@@ -21,9 +21,14 @@ class SilentDecoderFactory implements OpusDecoderFactory {
   create48kMono(): OpusDecoder { return new SilentDecoder(); }
 }
 
+const pendingProfiles = new Map<string, Set<UserProfileStore>>();
 function temporaryRoot(t: test.TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "dbr-user-profiles-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(async () => {
+    for (const store of pendingProfiles.get(root) ?? []) await store.flush();
+    pendingProfiles.delete(root);
+    rmSync(root, { recursive: true, force: true });
+  });
   return root;
 }
 
@@ -43,6 +48,8 @@ function channelId(userId: string, voiceChannelId: string): string {
 function createRuntime(root: string) {
   const engine = new AudioEngine(48_000, 480, 8);
   const profiles = new UserProfileStore(root);
+  if (!pendingProfiles.has(root)) pendingProfiles.set(root, new Set());
+  pendingProfiles.get(root)!.add(profiles);
   const sessions = new UserSessionRegistry(profiles);
   const ingest = new DiscordIngestServer(engine, "test-only", null, new SilentDecoderFactory(), sessions);
   const control = new ControlPlane(engine, undefined, undefined, undefined, undefined, sessions);
@@ -59,7 +66,7 @@ function receiverReady(runtime: ReturnType<typeof createRuntime>, voiceChannelId
   });
 }
 
-test("participant strip ordering admits all 112 users and rejects a 113th ID atomically", (t) => {
+test("participant strip ordering admits all 112 users and rejects a 113th ID atomically", async (t) => {
   const runtime = createRuntime(temporaryRoot(t));
   receiverReady(runtime, vcA);
   const ids = Array.from({ length: 112 }, (_, index) => String(730000000000010000n + BigInt(index)));
@@ -70,10 +77,10 @@ test("participant strip ordering admits all 112 users and rejects a 113th ID ato
   const before = runtime.profiles.snapshot();
   assert.equal(runtime.control.execute({ type: "SET_USER_STRIP_ORDER", discordUserIds: [...ids, "730000000000020000"] }).ok, false);
   assert.deepEqual(runtime.profiles.snapshot(), before);
-  runtime.profiles.flush();
+  await runtime.profiles.flush();
 });
 
-test("Discord User profile keeps routes scoped to each VC across moves, rejoin, and process restart", (t) => {
+test("Discord User profile keeps routes scoped to each VC across moves, rejoin, and process restart", async (t) => {
   const root = temporaryRoot(t);
   const runtime = createRuntime(root);
   receiverReady(runtime, vcA);
@@ -131,7 +138,7 @@ test("Discord User profile keeps routes scoped to each VC across moves, rejoin, 
   assert.equal(runtime.profiles.snapshot().length, 2);
 
   assert.equal(runtime.control.execute({ type: "SET_USER_STRIP_ORDER", discordUserIds: [otherUserId, identity.userId] }).ok, true);
-  runtime.profiles.flush();
+  await runtime.profiles.flush();
   const persisted = new UserProfileStore(root).snapshot();
   assert.deepEqual(persisted.map((profile) => profile.discordUserId), [otherUserId, identity.userId]);
   assert.equal(persisted[1].mainFaderDb, -6);
@@ -152,10 +159,10 @@ test("Discord User profile keeps routes scoped to each VC across moves, rejoin, 
   assert.deepEqual(afterRestart.directOutput, { output: 3, tap: "PRE", gainDb: -2, mute: false });
   assert.deepEqual(afterRestart.vcSends.get(firstBusId), { gainDb: -4, mute: false });
   assert.equal(afterRestart.vcSends.has(secondBusId), false);
-  restarted.profiles.flush();
+  await restarted.profiles.flush();
 });
 
-test("old POST mute persists until explicit recovery, which restores audio without changing PRE or VC send", (t) => {
+test("old POST mute persists until explicit recovery, which restores audio without changing PRE or VC send", async (t) => {
   const root = temporaryRoot(t);
   writeFileSync(join(root, "user-profiles.json"), JSON.stringify({ profiles: [{
     discordUserId: identity.userId, channelName: "Legacy", mainFaderDb: -18, mainMute: true,
@@ -176,7 +183,7 @@ test("old POST mute persists until explicit recovery, which restores audio witho
   assert.equal(control.execute({ type: "SET_CHANNEL_MUTE", channelId: channel.id, mute: false }).ok, true);
   engine.processBlock(); assert.ok(engine.outputs[0].some(value => value !== 0));
   assert.deepEqual([...channel.vcSends], sends); assert.deepEqual(channel.directOutput, route);
-  store.captureChannel(channel); store.flush();
+  store.captureChannel(channel); await store.flush();
   const saved = new UserProfileStore(root).snapshot()[0];
   assert.equal(saved.mainFaderDb, 0); assert.equal(saved.mainMute, false);
 });

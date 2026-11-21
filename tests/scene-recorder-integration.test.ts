@@ -9,11 +9,11 @@ import { RecorderManager } from "../services/router-core-sim/src/recorder.ts";
 import { UserProfileStore } from "../services/router-core-sim/src/user-profile-store.ts";
 import { UserSessionRegistry } from "../services/router-core-sim/src/user-session-registry.ts";
 
-test("ON AIR Scene recall keeps approval, Trusted, receiver ownership, and structural locks", (t) => {
+test("ON AIR Scene recall keeps approval, Trusted, receiver ownership, and structural locks", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "dbr-scene-header-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const engine = AudioEngine.createDemo(1);
   const profiles = new UserProfileStore(root);
+  t.after(async () => { await profiles.flush(); rmSync(root, { recursive: true, force: true }); });
   const sessions = new UserSessionRegistry(profiles);
   let receiverChanges = 0;
   const receiver: DiscordTxController = {
@@ -54,7 +54,7 @@ test("ON AIR Scene recall keeps approval, Trusted, receiver ownership, and struc
   assert.equal(profiles.snapshot().find((profile) => profile.discordUserId === "910000000000000001")?.trusted, true);
   assert.equal(receiverChanges, 1, "Scene recall never changes Receiver Owner");
   assert.ok(control.alerts.some((event) => event.message === "Scene Interview recalled"));
-  profiles.flush();
+  await profiles.flush();
 });
 
 test("Recorder Start and Stop remain available ON AIR and are logged", async (t) => {

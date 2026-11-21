@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { writePrivateFileSync } from "./private-files.ts";
 import { join } from "node:path";
 import type { BotRole, TxAudioMode, TxSubtype } from "../../../packages/shared-types/src/index.ts";
 import { isTxDestination } from "../../../packages/shared-types/src/index.ts";
@@ -109,14 +110,7 @@ function updateEnvironment(text: string, updates: Map<string, string>): string {
 }
 
 function atomicWrite(path: string, content: string): void {
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  try {
-    writeFileSync(temporary, content, { encoding: "utf8", mode: 0o600 });
-    renameSync(temporary, path);
-  } catch (error) {
-    rmSync(temporary, { force: true });
-    throw error;
-  }
+  writePrivateFileSync(path, content);
 }
 
 function tokenEnvironmentName(id: string): string {

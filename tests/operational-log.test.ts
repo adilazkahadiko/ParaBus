@@ -27,6 +27,25 @@ test("operational log writes sanitized daily JSONL and prunes expired files", as
   }
 });
 
+test("operational log prunes at midnight during continuous operation and retains seven calendar days", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "parabus-log-midnight-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  let now = new Date(2026, 10, 20, 23, 59);
+  const log = new OperationalLog(root, 7, () => now);
+  const expiredNextDay = join(root, "logs", "operational-2026-11-14.jsonl");
+  const retained = join(root, "logs", "operational-2026-11-15.jsonl");
+  writeFileSync(expiredNextDay, "old fixture\n");
+  writeFileSync(retained, "retained fixture\n");
+  log.append({ at: now.toISOString(), level: "INFO", message: "before midnight" });
+  assert.ok(existsSync(expiredNextDay));
+  now = new Date(2026, 10, 21, 0, 1);
+  log.append({ at: now.toISOString(), level: "INFO", message: "after midnight" });
+  await log.close();
+  assert.equal(existsSync(expiredNextDay), false);
+  assert.equal(existsSync(retained), true);
+  assert.equal(log.retentionDays, 7);
+});
+
 test("operational log rotates asynchronous appends by date and warns once on write failure", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "dbr-operational-log-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

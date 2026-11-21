@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { PrivateFileSaveQueue, writePrivateFile } from "./private-files.ts";
 import { join } from "node:path";
 
 export interface ReceiverOwnerRecord {
@@ -9,6 +10,7 @@ export interface ReceiverOwnerRecord {
 
 const SNOWFLAKE = /^\d{17,20}$/;
 const PROFILE_ID = /^[A-Za-z0-9_-]{1,32}$/;
+export const RECEIVER_SAVE_WARNING = "受信担当のディスク保存に失敗しました。現在の受信担当は維持していますが、再起動すると失われる場合があります。保存先の権限を確認してください。音声と運用は継続します。";
 
 function key(guildId: string, voiceChannelId: string): string {
   return `${guildId}:${voiceChannelId}`;
@@ -17,9 +19,11 @@ function key(guildId: string, voiceChannelId: string): string {
 export class ReceiverOwnershipStore {
   readonly path: string;
   readonly #owners = new Map<string, ReceiverOwnerRecord>();
+  readonly #saveQueue: PrivateFileSaveQueue;
 
-  constructor(root: string) {
+  constructor(root: string, warn: (message: string) => void = message => console.warn(message), write = writePrivateFile) {
     this.path = join(root, "receiver-owners.json");
+    this.#saveQueue = new PrivateFileSaveQueue(this.path, warn, RECEIVER_SAVE_WARNING, write);
     this.load();
   }
 
@@ -32,7 +36,7 @@ export class ReceiverOwnershipStore {
       throw new Error("Receiver Owner identity is invalid");
     }
     this.#owners.set(key(guildId, voiceChannelId), { guildId, voiceChannelId, profileId });
-    this.flush();
+    void this.#saveQueue.save(`${JSON.stringify({ version: 1, owners: this.snapshot() }, null, 2)}\n`);
   }
 
   snapshot(): ReceiverOwnerRecord[] {
@@ -54,14 +58,5 @@ export class ReceiverOwnershipStore {
     }
   }
 
-  private flush(): void {
-    const temporary = `${this.path}.tmp-${process.pid}-${Date.now()}`;
-    try {
-      writeFileSync(temporary, `${JSON.stringify({ version: 1, owners: this.snapshot() }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      renameSync(temporary, this.path);
-    } catch (error) {
-      rmSync(temporary, { force: true });
-      throw error;
-    }
-  }
+  flush(): Promise<void> { return this.#saveQueue.flush(); }
 }

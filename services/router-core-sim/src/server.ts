@@ -54,9 +54,15 @@ import {
   RustManagementUnavailableError,
 } from "./rust-management.ts";
 
+import { PrivateFileError, protectSettingsLocations } from "./private-files.ts";
+
+const permissionWarnings = new Set<string>();
+let reportPermissionWarning = (message: string) => { permissionWarnings.add(message); };
 const startedAt = new Date();
 const projectDirectory = join(import.meta.dirname, "../../..");
 const settingsRoot = process.env.DBR_SETTINGS_ROOT ? resolve(process.env.DBR_SETTINGS_ROOT) : projectDirectory;
+const defaultRecordingFolder = join(projectDirectory, "recordings");
+const recordingFolder = process.env.RECORDER_FOLDER ? resolve(process.env.RECORDER_FOLDER) : defaultRecordingFolder;
 const startupEnvironment = loadBotRackEnvironment(process.env, join(settingsRoot, ".env"));
 const port = Number(process.env.PORT ?? 4173);
 const desktopAccess = resolveDesktopAccess(port, process.env.DBR_OPERATOR_ORIGIN ?? startupEnvironment.DBR_OPERATOR_ORIGIN, startupEnvironment.DBR_LAN_ACCESS === "1");
@@ -72,7 +78,7 @@ const desktopSessionNonce = createDesktopSessionNonce();
 const publicDirectory = join(import.meta.dirname, "../public");
 const manualFile = join(import.meta.dirname, "../../../docs/manual.html");
 const documentationDirectory = join(import.meta.dirname, "../../../docs");
-const documentationFiles = new Set(["CHECKLIST.md", "DISCORD_RX.md", "EXTERNAL_CONTROL_API.md"]);
+const documentationFiles = new Set(["CHECKLIST.md", "DISCORD_RX.md", "EXTERNAL_CONTROL_API.md", "OPERATOR_PRIVACY.ja.md"]);
 const documentationRoutes = new Map([
   ["/checklist", "CHECKLIST.md"],
   ["/startup-guide", "DISCORD_RX.md"],
@@ -95,13 +101,13 @@ const audioSchedulerTiming = new AudioSchedulerTiming();
 const audioRuntimeTiming = new AudioRuntimeTiming();
 const cueOutputManager = new AudioOutputManager(engine.sampleRate, engine.blockSize, 2, undefined, undefined, rustManagement);
 const inputManager = new AudioInputManager(engine, undefined, undefined, rustManagement, undefined, asioDuplex);
-const recorder = new RecorderManager(engine, process.env.RECORDER_FOLDER ? resolve(process.env.RECORDER_FOLDER) : join(projectDirectory, "recordings"));
+const recorder = new RecorderManager(engine, recordingFolder);
 const settingsStore = new SettingsStore(settingsRoot);
-const userProfileStore = new UserProfileStore(settingsRoot);
+const userProfileStore = new UserProfileStore(settingsRoot, message => reportPermissionWarning(message));
 const userSessions = new UserSessionRegistry(userProfileStore);
-const receiverOwnershipStore = new ReceiverOwnershipStore(settingsRoot);
+const receiverOwnershipStore = new ReceiverOwnershipStore(settingsRoot, message => reportPermissionWarning(message));
 const operationalLog = new OperationalLog(settingsRoot);
-const sceneStore = new SceneStore(settingsRoot);
+const sceneStore = new SceneStore(settingsRoot, message => reportPermissionWarning(message));
 const operationalHealth = new OperationalHealthTracker();
 const startupSettings = settingsStore.snapshot();
 let startupBotConfig: unknown = [];
@@ -125,6 +131,9 @@ const discordIngest = new DiscordIngestServer(
   receiverOwnershipStore,
 );
 const control = new ControlPlane(engine, outputManager, discordIngest, inputManager, recorder, userSessions, (event) => operationalLog.append(event), cueOutputManager);
+reportPermissionWarning = message => control.recordExternalEvent("WARNING", message);
+for (const message of permissionWarnings) reportPermissionWarning(message);
+permissionWarnings.clear();
 const storedScenes = sceneStore.snapshot();
 for (const scene of storedScenes.scenes) control.scenes.set(scene.id, scene);
 control.currentSceneId = storedScenes.currentSceneId;
@@ -169,7 +178,8 @@ function executeControlCommand(command: ControlCommand): CommandResult {
     });
   }
   if (result.ok && (command.type === "SAVE_SCENE" || command.type === "RECALL_SCENE" || command.type === "DELETE_SCENE")) {
-    sceneStore.save([...control.scenes.values()], control.currentSceneId);
+    // The command applies in memory immediately; disk failures become visible WARNING events.
+    void sceneStore.save([...control.scenes.values()], control.currentSceneId);
   }
   return result;
 }
@@ -535,8 +545,8 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
     response.writeHead(405, { allow: "GET, POST" });
     response.end();
   } catch (error) {
-    const status = error instanceof DesktopControlAuthError ? 403 : error instanceof RustManagementUnavailableError ? 409 : 400;
-    const summary = error instanceof RustManagementUnavailableError ? safeOperatorSummary("audio-output") : safeOperatorSummary("control");
+    const status = error instanceof PrivateFileError ? 500 : error instanceof DesktopControlAuthError ? 403 : error instanceof RustManagementUnavailableError ? 409 : 400;
+    const summary = error instanceof PrivateFileError ? error.message : error instanceof RustManagementUnavailableError ? safeOperatorSummary("audio-output") : safeOperatorSummary("control");
     writeJson(response, status, { ok: false, error: summary });
   }
 }
@@ -692,6 +702,9 @@ if (rustManagement.isAvailable()) {
   }
 }
 server.listen(port, host, () => {
+  // UI readiness never waits for ACL subprocesses. Do not inspect the application tree.
+  void protectSettingsLocations(settingsRoot, recordingFolder, message => reportPermissionWarning(message), defaultRecordingFolder)
+    .catch(() => reportPermissionWarning("保存先のアクセス権を確認できませんでした。権限を確認してください。音声と運用は継続します。"));
   console.log(`ParaBus Phase 10 listening on http://${host}:${port}`);
   console.log(`Core ownership: ${coreOwnership.snapshot.effectiveOwner} (${coreOwnership.snapshot.requestedMode})`);
   console.log(`${engine.channels.size} synthetic RX channels, ${engine.outputs.length} outputs, ${engine.sampleRate} Hz`);
@@ -711,7 +724,7 @@ function shutdown(exitCode = 0): void {
   clearInterval(desktopAuthLogTimer);
   desktopAuthFailures.flush(true);
   control.endParticipantSession();
-  userProfileStore.flush();
+  const profileFlush = userProfileStore.flush();
   for (const socket of websocketClients) socket.destroy();
   outputManager.stop();
   cueOutputManager.stop();
@@ -719,6 +732,9 @@ function shutdown(exitCode = 0): void {
   inputManager.stop();
   programAudioShadow.close();
   const cleanup = Promise.all([
+    profileFlush,
+    sceneStore.flush(),
+    receiverOwnershipStore.flush(),
     externalControl.close(),
     rustManagement.close(),
     discordIngest.close(),

@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { PRIVATE_FILE_WARNING, writePrivateFile } from "./private-files.ts";
 import { join } from "node:path";
 import type { PersistentUserProfileSnapshot, TapPoint } from "../../../packages/shared-types/src/index.ts";
 import type { AudioChannel } from "./audio-engine.ts";
@@ -134,9 +135,15 @@ export class UserProfileStore {
   readonly profiles = new Map<string, PersistentUserProfileSnapshot>();
   #dirty = false;
   #flushTimer: NodeJS.Timeout | null = null;
+  #flushInFlight: Promise<void> | null = null;
+  #writeWarningShown = false;
+  readonly #warn: (message: string) => void;
+  readonly #write: typeof writePrivateFile;
 
-  constructor(root: string) {
+  constructor(root: string, warn: (message: string) => void = () => console.warn(PRIVATE_FILE_WARNING), write = writePrivateFile) {
     this.path = join(root, "user-profiles.json");
+    this.#warn = warn;
+    this.#write = write;
     this.load();
   }
 
@@ -241,19 +248,27 @@ export class UserProfileStore {
     if (changed) this.queueFlush();
   }
 
-  flush(): void {
+  async flush(): Promise<void> {
     if (this.#flushTimer) clearTimeout(this.#flushTimer);
     this.#flushTimer = null;
+    if (this.#flushInFlight) { await this.#flushInFlight; return; }
     if (!this.#dirty) return;
-    const temporary = `${this.path}.tmp-${process.pid}-${Date.now()}`;
-    try {
-      writeFileSync(temporary, `${JSON.stringify({ version: PROFILE_VERSION, users: this.snapshot() }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      renameSync(temporary, this.path);
-      this.#dirty = false;
-    } catch (error) {
-      rmSync(temporary, { force: true });
-      throw error;
-    }
+    this.#flushInFlight = (async () => {
+      do {
+        const content = `${JSON.stringify({ version: PROFILE_VERSION, users: this.snapshot() }, null, 2)}\n`;
+        this.#dirty = false;
+        try { await this.#write(this.path, content); this.#writeWarningShown = false; }
+        catch {
+          this.#dirty = true; // Keep the last disk version and retry on the next requested flush.
+          if (!this.#writeWarningShown) {
+            this.#writeWarningShown = true;
+            try { this.#warn(PRIVATE_FILE_WARNING); } catch { /* Reporting must not stop audio. */ }
+          }
+          break;
+        }
+      } while (this.#dirty);
+    })();
+    try { await this.#flushInFlight; } finally { this.#flushInFlight = null; }
   }
 
   private load(): void {
@@ -341,7 +356,7 @@ export class UserProfileStore {
   private queueFlush(): void {
     this.#dirty = true;
     if (this.#flushTimer) return;
-    this.#flushTimer = setTimeout(() => this.flush(), 50);
+    this.#flushTimer = setTimeout(() => { void this.flush(); }, 50);
     this.#flushTimer.unref();
   }
 }

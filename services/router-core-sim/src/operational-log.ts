@@ -38,13 +38,15 @@ export class OperationalLog {
   #streams = new Set<WriteStream>();
   #closed = false;
   #droppedEvents = 0;
+  #prunedDate: string;
 
   constructor(settingsRoot: string, retentionDays = 7, now: () => Date = () => new Date()) {
     this.directory = join(settingsRoot, "logs");
     this.retentionDays = Math.max(1, Math.floor(retentionDays));
     this.now = now;
-    mkdirSync(this.directory, { recursive: true });
-    this.prune();
+    this.#prunedDate = dateKey(this.now());
+    try { mkdirSync(this.directory, { recursive: true }); this.prune(); }
+    catch { this.warnOnce(); }
   }
 
   append(event: OperationalEvent): void {
@@ -65,10 +67,16 @@ export class OperationalLog {
         this.warnOnce();
         return;
       }
-      const path = this.pathFor();
+      const date = this.now();
+      const today = dateKey(date);
+      if (today !== this.#prunedDate) {
+        try { this.prune(); this.#prunedDate = today; }
+        catch { this.warnOnce(); }
+      }
+      const path = this.pathFor(date);
       if (!this.#stream || path !== this.#path) {
         this.#stream?.end();
-        const stream = createWriteStream(path, { flags: "a", encoding: "utf8" });
+        const stream = createWriteStream(path, { flags: "a", encoding: "utf8", mode: 0o600 });
         this.#stream = stream;
         this.#path = path;
         this.#streams.add(stream);

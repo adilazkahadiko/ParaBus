@@ -71,7 +71,7 @@ class WavFloatWriter {
   constructor(path: string, sampleRate: number, onError: (error: Error) => void) {
     this.path = path;
     this.sampleRate = sampleRate;
-    this.stream = createWriteStream(path, { flags: "w" });
+    this.stream = createWriteStream(path, { flags: "w", mode: 0o600 });
     this.stream.on("error", onError);
     this.stream.write(wavHeader(sampleRate, 0));
   }
