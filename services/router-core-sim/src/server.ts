@@ -61,8 +61,8 @@ let reportPermissionWarning = (message: string) => { permissionWarnings.add(mess
 const startedAt = new Date();
 const projectDirectory = join(import.meta.dirname, "../../..");
 const settingsRoot = process.env.DBR_SETTINGS_ROOT ? resolve(process.env.DBR_SETTINGS_ROOT) : projectDirectory;
-const recordingFolder = process.env.RECORDER_FOLDER ? resolve(process.env.RECORDER_FOLDER) : join(projectDirectory, "recordings");
-await protectSettingsLocations(settingsRoot, recordingFolder, message => reportPermissionWarning(message));
+const defaultRecordingFolder = join(projectDirectory, "recordings");
+const recordingFolder = process.env.RECORDER_FOLDER ? resolve(process.env.RECORDER_FOLDER) : defaultRecordingFolder;
 const startupEnvironment = loadBotRackEnvironment(process.env, join(settingsRoot, ".env"));
 const port = Number(process.env.PORT ?? 4173);
 const desktopAccess = resolveDesktopAccess(port, process.env.DBR_OPERATOR_ORIGIN ?? startupEnvironment.DBR_OPERATOR_ORIGIN, startupEnvironment.DBR_LAN_ACCESS === "1");
@@ -105,9 +105,9 @@ const recorder = new RecorderManager(engine, recordingFolder);
 const settingsStore = new SettingsStore(settingsRoot);
 const userProfileStore = new UserProfileStore(settingsRoot, message => reportPermissionWarning(message));
 const userSessions = new UserSessionRegistry(userProfileStore);
-const receiverOwnershipStore = new ReceiverOwnershipStore(settingsRoot);
+const receiverOwnershipStore = new ReceiverOwnershipStore(settingsRoot, message => reportPermissionWarning(message));
 const operationalLog = new OperationalLog(settingsRoot);
-const sceneStore = new SceneStore(settingsRoot);
+const sceneStore = new SceneStore(settingsRoot, message => reportPermissionWarning(message));
 const operationalHealth = new OperationalHealthTracker();
 const startupSettings = settingsStore.snapshot();
 let startupBotConfig: unknown = [];
@@ -178,7 +178,8 @@ function executeControlCommand(command: ControlCommand): CommandResult {
     });
   }
   if (result.ok && (command.type === "SAVE_SCENE" || command.type === "RECALL_SCENE" || command.type === "DELETE_SCENE")) {
-    sceneStore.save([...control.scenes.values()], control.currentSceneId);
+    // The command applies in memory immediately; disk failures become visible WARNING events.
+    void sceneStore.save([...control.scenes.values()], control.currentSceneId);
   }
   return result;
 }
@@ -701,6 +702,9 @@ if (rustManagement.isAvailable()) {
   }
 }
 server.listen(port, host, () => {
+  // UI readiness never waits for ACL subprocesses. Do not inspect the application tree.
+  void protectSettingsLocations(settingsRoot, recordingFolder, message => reportPermissionWarning(message), defaultRecordingFolder)
+    .catch(() => reportPermissionWarning("保存先のアクセス権を確認できませんでした。権限を確認してください。音声と運用は継続します。"));
   console.log(`ParaBus Phase 10 listening on http://${host}:${port}`);
   console.log(`Core ownership: ${coreOwnership.snapshot.effectiveOwner} (${coreOwnership.snapshot.requestedMode})`);
   console.log(`${engine.channels.size} synthetic RX channels, ${engine.outputs.length} outputs, ${engine.sampleRate} Hz`);
@@ -729,6 +733,8 @@ function shutdown(exitCode = 0): void {
   programAudioShadow.close();
   const cleanup = Promise.all([
     profileFlush,
+    sceneStore.flush(),
+    receiverOwnershipStore.flush(),
     externalControl.close(),
     rustManagement.close(),
     discordIngest.close(),

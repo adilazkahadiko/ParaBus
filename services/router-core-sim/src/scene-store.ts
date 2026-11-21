@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
-import { writePrivateFileSync } from "./private-files.ts";
+import { PrivateFileSaveQueue, writePrivateFile } from "./private-files.ts";
 import { join } from "node:path";
 import type { SceneSnapshot, SceneValue } from "../../../packages/shared-types/src/index.ts";
 
 const MAX_SCENES = 128;
 const MAX_VALUES = 5_000;
+export const SCENE_SAVE_WARNING = "シーンのディスク保存に失敗しました。画面の変更は維持していますが、再起動すると失われる場合があります。保存先の権限を確認してください。音声と運用は継続します。";
 
 export interface StoredScenes {
   scenes: SceneSnapshot[];
@@ -36,9 +37,11 @@ function clone(scene: SceneSnapshot): SceneSnapshot {
 export class SceneStore {
   readonly path: string;
   #state: StoredScenes = { scenes: [], currentSceneId: null };
+  readonly #saveQueue: PrivateFileSaveQueue;
 
-  constructor(root: string) {
+  constructor(root: string, warn: (message: string) => void = message => console.warn(message), write = writePrivateFile) {
     this.path = join(root, "scenes.json");
+    this.#saveQueue = new PrivateFileSaveQueue(this.path, warn, SCENE_SAVE_WARNING, write);
     if (!existsSync(this.path)) return;
     const decoded = JSON.parse(readFileSync(this.path, "utf8")) as { scenes?: unknown; currentSceneId?: unknown };
     const scenes = Array.isArray(decoded.scenes)
@@ -54,13 +57,14 @@ export class SceneStore {
     return { scenes: this.#state.scenes.map(clone), currentSceneId: this.#state.currentSceneId };
   }
 
-  save(scenes: readonly SceneSnapshot[], currentSceneId: string | null): void {
+  save(scenes: readonly SceneSnapshot[], currentSceneId: string | null): Promise<void> {
     if (scenes.length > MAX_SCENES) throw new Error("Sceneは最大" + MAX_SCENES + "件です");
     const validated = scenes.map(readScene);
     if (validated.some((scene) => scene === null)) throw new Error("Sceneデータが不正です");
     const nextScenes = validated as SceneSnapshot[];
     const nextCurrent = currentSceneId && nextScenes.some((scene) => scene.id === currentSceneId) ? currentSceneId : null;
-    writePrivateFileSync(this.path, JSON.stringify({ version: 1, scenes: nextScenes, currentSceneId: nextCurrent }, null, 2) + "\n");
     this.#state = { scenes: nextScenes.map(clone), currentSceneId: nextCurrent };
+    return this.#saveQueue.save(JSON.stringify({ version: 1, scenes: nextScenes, currentSceneId: nextCurrent }, null, 2) + "\n");
   }
+  flush(): Promise<void> { return this.#saveQueue.flush(); }
 }

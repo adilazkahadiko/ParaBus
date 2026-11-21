@@ -60,7 +60,7 @@ function runtime(t: test.TestContext) {
   const ingest = new DiscordIngestServer(engine, "test-only", null, decoderFactory, sessions, owners);
   const control = new ControlPlane(engine, undefined, ingest, undefined, undefined, sessions);
   ingest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
-  t.after(async () => { await profiles.flush(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await profiles.flush(); await owners.flush(); rmSync(root, { recursive: true, force: true }); });
   return { root, engine, profiles, sessions, owners, ingest, control };
 }
 
@@ -142,7 +142,7 @@ test("multiple receivers admit only the selected owner and DUPLEX can own RX", (
   assert.deepEqual(ownership.transmitters.map((bot) => bot.profileId), ["DUPLEX01"]);
 });
 
-test("owner disconnect fails closed until manual switch and preserves User state", (t) => {
+test("owner disconnect fails closed until manual switch and preserves User state", async (t) => {
   const target = runtime(t);
   const primary = "600000000000000001";
   const standby = "600000000000000002";
@@ -179,6 +179,7 @@ test("owner disconnect fails closed until manual switch and preserves User state
   target.ingest.ingest({ type: DiscordFrameType.USER_META, ...identity(primary), sourceGeneration: 3, payload: Buffer.from("Old owner") });
   assert.equal(target.engine.channels.size, 1);
   assert.equal(target.ingest.snapshot().receiverOwnership[0].ownerProfileId, "RX02");
+  await target.owners.flush();
   assert.equal(new ReceiverOwnershipStore(target.root).get(guildId, voiceChannelId), "RX02");
   const restartedEngine = new AudioEngine(48_000, 480, 2);
   const restarted = new DiscordIngestServer(restartedEngine, "test-only", null, decoderFactory, null, new ReceiverOwnershipStore(target.root));

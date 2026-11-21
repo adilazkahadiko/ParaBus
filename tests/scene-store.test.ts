@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { SceneStore } from "../services/router-core-sim/src/scene-store.ts";
 
-test("SceneStore restores saved Scenes and current selection", (t) => {
+test("SceneStore restores saved Scenes and current selection", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "dbr-scenes-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const scene = {
@@ -15,6 +15,6 @@ test("SceneStore restores saved Scenes and current selection", (t) => {
     values: { "channel.user-1.faderDb": -6, "channel.user-1.mute": false },
   };
 
-  new SceneStore(root).save([scene], scene.id);
+  await new SceneStore(root).save([scene], scene.id);
   assert.deepEqual(new SceneStore(root).snapshot(), { scenes: [scene], currentSceneId: scene.id });
 });

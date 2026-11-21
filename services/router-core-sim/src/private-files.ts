@@ -1,11 +1,17 @@
 import { execFile, execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
 const execute = promisify(execFile);
+function containsPath(parent: string, child: string): boolean {
+  const path = relative(resolve(parent).toLowerCase(), resolve(child).toLowerCase());
+  return path === "" || !isAbsolute(path) && path !== ".." && !path.startsWith(`..${sep}`);
+}
+const privilegedSids = ["S-1-5-18", "S-1-5-32-544"];
+export const RECORDING_FOLDER_WARNING = "録音先が他の利用者からも読める設定です。必要に応じて権限を確認してください";
 export const PRIVATE_FILE_WARNING = "設定ファイルの保存またはアクセス権の保護に失敗しました。保存先の権限を確認してください。音声と運用は継続します。";
 export class PrivateFileError extends Error {
   constructor() { super("設定ファイルのアクセス権を保護できないため、保存を中止しました。保存先の権限を確認してください。"); }
@@ -32,7 +38,8 @@ async function ownerSidAsync(): Promise<string> {
   return currentSid = validSid(stdout);
 }
 function aclArguments(path: string, sid: string, directory: boolean, remove: string[] = []) {
-  return [path, "/inheritance:r", "/grant:r", `*${sid}:${directory ? "(OI)(CI)F" : "F"}`,
+  const allowed = new Set([sid, ...privilegedSids]);
+  return [path, "/inheritance:r", "/grant:r", ...[...allowed].map(s => `*${s}:${directory ? "(OI)(CI)F" : "F"}`),
     ...(remove.length ? ["/remove:g", ...remove.map(s => `*${validSid(s)}`)] : [])];
 }
 function assertNoReparseParents(path: string): void {
@@ -92,7 +99,7 @@ async function allowedSids(path: string): Promise<string[]> {
   return values as string[];
 }
 
-/** Repair an existing path; explicit grants as well as inherited broad grants are removed. */
+/** Permit the current user, SYSTEM and Administrators; remove other Allow entries. */
 export async function protectPrivatePath(path: string): Promise<void> {
   if (process.platform !== "win32") return;
   assertNoReparseParents(path);
@@ -100,34 +107,78 @@ export async function protectPrivatePath(path: string): Promise<void> {
   if (stat.isSymbolicLink() || !stat.isDirectory() && !stat.isFile()) throw new PrivateFileError();
   const allows = await allowedSids(path);
   const sid = await ownerSidAsync();
-  // Directories need OI/CI even when an older owner-only ACE did not propagate.
-  if (stat.isDirectory() || !allows.includes(sid) || allows.some(s => s !== sid)) {
-    await execute(windowsTool("icacls.exe"), aclArguments(path, sid, stat.isDirectory(), [...new Set(allows.filter(s => s !== sid))]),
-      { windowsHide: true, env: helperEnvironment(), timeout: 10_000 });
-    const after = await allowedSids(path);
-    if (!after.includes(sid) || after.some(s => s !== sid)) throw new PrivateFileError();
-  }
+  const allowed = new Set([sid, ...privilegedSids]);
+  await execute(windowsTool("icacls.exe"), aclArguments(path, sid, stat.isDirectory(), [...new Set(allows.filter(s => !allowed.has(s)))]),
+    { windowsHide: true, env: helperEnvironment(), timeout: 10_000 });
+  const after = await allowedSids(path);
+  if ([...allowed].some(s => !after.includes(s)) || after.some(s => !allowed.has(s))) throw new PrivateFileError();
 }
 
-/** Check existing data without following reparse points or traversing the source tree. */
-export async function protectSettingsLocations(root: string, recordingFolder: string, warn: (message: string) => void): Promise<void> {
+/** Only selected files and dedicated folder ACLs; never change the settings root itself.
+ * Child checks are intentionally omitted (review option A). Inherited ACEs propagate;
+ * explicit child grants/protected DACLs remain the operator's responsibility. */
+export async function protectSettingsLocations(root: string, recordingFolder: string, warn: (message: string) => void, defaultRecordingFolder = join(root, "recordings")): Promise<void> {
   if (process.platform !== "win32") return;
-  try { assertNoReparseParents(root); assertNoReparseParents(recordingFolder); }
+  try { assertNoReparseParents(root); }
   catch { warn(PRIVATE_FILE_WARNING); return; }
-  const check = async (path: string, recursive = false) => {
-    let stat;
-    try { stat = await lstat(path); }
+  const check = async (path: string) => {
+    try { await lstat(path); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
     await protectPrivatePath(path);
-    if (recursive && stat.isDirectory()) for (const child of await readdir(path)) {
-      try { await check(join(path, child), true); } catch { warn(PRIVATE_FILE_WARNING); }
-    }
   };
-  try { await mkdir(root, { recursive: true, mode: 0o700 }); await check(root); } catch { warn(PRIVATE_FILE_WARNING); }
+  try { await mkdir(root, { recursive: true, mode: 0o700 }); } catch { warn(PRIVATE_FILE_WARNING); }
   for (const name of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "receiver-owners.json", "external-control.json"]) {
     try { await check(join(root, name)); } catch { warn(PRIVATE_FILE_WARNING); }
   }
-  for (const directory of new Set([join(root, "logs"), join(root, "support"), recordingFolder])) {
-    try { await mkdir(directory, { recursive: true, mode: 0o700 }); await check(directory, true); } catch { warn(PRIVATE_FILE_WARNING); }
+  const isDefaultRecording = resolve(recordingFolder).toLowerCase() === resolve(defaultRecordingFolder).toLowerCase();
+  const directories = [join(root, "logs"), join(root, "support"), defaultRecordingFolder];
+  for (const directory of new Set(directories)) {
+    // Changing an ancestor also changes inherited child ACEs. Keep custom recording
+    // trees untouched even when they overlap a normally managed dedicated folder.
+    if (!isDefaultRecording && (containsPath(directory, recordingFolder) || containsPath(recordingFolder, directory))) continue;
+    try { assertNoReparseParents(directory); await mkdir(directory, { recursive: true, mode: 0o700 }); await check(directory); } catch { warn(PRIVATE_FILE_WARNING); }
+  }
+  if (!isDefaultRecording) {
+    try {
+      assertNoReparseParents(recordingFolder);
+      if (!(await lstat(recordingFolder)).isDirectory()) throw new PrivateFileError();
+      const allowed = new Set([await ownerSidAsync(), ...privilegedSids]);
+      if ((await allowedSids(recordingFolder)).some(s => !allowed.has(s))) warn(RECORDING_FOLDER_WARNING);
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") warn(PRIVATE_FILE_WARNING); }
+  }
+}
+
+/** Serialize/coalesce disk saves without blocking control commands. Failed state stays pending. */
+export class PrivateFileSaveQueue {
+  #pending: string | undefined;
+  #running: Promise<void> | undefined;
+  #warned = false;
+  readonly path: string;
+  readonly warn: (message: string) => void;
+  readonly warning: string;
+  readonly write: typeof writePrivateFile;
+  constructor(path: string, warn: (message: string) => void, warning: string, write = writePrivateFile) {
+    this.path = path; this.warn = warn; this.warning = warning; this.write = write;
+  }
+  save(content: string): Promise<void> { this.#pending = content; return this.flush(); }
+  flush(): Promise<void> {
+    if (!this.#running) this.#running = this.drain();
+    return this.#running;
+  }
+  private async drain(): Promise<void> {
+    // Yield before draining so #running is assigned even for a synchronous failing test writer.
+    await Promise.resolve();
+    try {
+      while (this.#pending !== undefined) {
+        const content = this.#pending;
+        this.#pending = undefined;
+        try { await this.write(this.path, content); this.#warned = false; }
+        catch {
+          if (this.#pending === undefined) this.#pending = content;
+          if (!this.#warned) { this.#warned = true; try { this.warn(this.warning); } catch { /* Keep control/audio running. */ } }
+          break;
+        }
+      }
+    } finally { this.#running = undefined; }
   }
 }
