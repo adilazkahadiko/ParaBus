@@ -11,6 +11,7 @@ import {
 } from "./bot-config.ts";
 import type { DiscordIpcClient } from "./ipc-client.ts";
 import { redactBotTokenError } from "./token-protection.ts";
+import { maskDiscordIds } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 
 export interface ManagedDiscordBot {
   readonly profile: DiscordBotProfile;
@@ -60,7 +61,7 @@ export class DiscordBotRack {
   ingest(frame: DiscordIpcFrame): void {
     if (frame.type === DiscordFrameType.BOT_CONTROL) {
       void this.handleControl(frame).catch((error) => {
-        console.error(`Discord Bot control failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.error("Discord Bot control failed; check the operator screen");
       });
       return;
     }
@@ -94,7 +95,7 @@ export class DiscordBotRack {
       if (!bot) return;
       await bot.disconnect();
       this.bots.delete(validated);
-      console.log(`[${validated}] Discord Bot disconnected by operator`);
+      console.log(maskDiscordIds(`[${validated}] Discord Bot disconnected by operator`));
     });
   }
 
@@ -112,7 +113,7 @@ export class DiscordBotRack {
       try {
         bot.resync();
       } catch (error) {
-        console.error(`Discord Bot resync failed: ${redactBotTokenError(error, bot.profile.token)}`);
+        console.error("Discord Bot resync failed; check the operator screen");
       }
     }
   }

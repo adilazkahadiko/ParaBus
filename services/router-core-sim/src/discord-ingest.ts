@@ -20,7 +20,6 @@ import type { UserSessionRegistry } from "./user-session-registry.ts";
 import type { ReceiverOwnershipStore } from "./receiver-ownership-store.ts";
 import { StaleSafetyStateError } from "./stale-state.ts";
 import { isTxDestination } from "../../../packages/shared-types/src/index.ts";
-import { sanitizeOperatorMessage } from "./operator-sanitize.ts";
 
 const BOT_STALE_MS = 15_000;
 const MAX_TRACKED_BOTS = 32;
@@ -225,7 +224,7 @@ export class DiscordIngestServer {
       server.once("error", onError);
       server.listen(this.endpoint, () => {
         server.off("error", onError);
-        server.on("error", (error) => console.error("Discord IPC server error:", sanitizeOperatorMessage(error)));
+        server.on("error", () => console.error("Discord IPC server error"));
         this.shadow?.start();
         resolve();
       });
@@ -1094,7 +1093,7 @@ export class DiscordIngestServer {
           this.ingest(frame, socket);
         }
       } catch (error) {
-        console.error("Invalid Discord IPC stream:", sanitizeOperatorMessage(error));
+        console.error("Invalid Discord IPC stream");
         socket.destroy();
       } finally {
         this.#ipcBatches.maxProcessingMs = Math.max(this.#ipcBatches.maxProcessingMs, performance.now() - startedAt);
@@ -1505,6 +1504,14 @@ export class DiscordIngestServer {
       }
     }
     return true;
+  }
+
+  forgetOfflineParticipant(discordUserId: string): void {
+    if ([...this.runtimes.values()].some(runtime => runtime.userId === discordUserId)) throw new Error("参加者が接続中です");
+    const matches = (id: string) => /^discord-user:[^:]+:[^:]+:(\d{17,20})$/.exec(id)?.[1] === discordUserId;
+    for (const id of this.#capacityRejectedSources) if (matches(id)) this.#capacityRejectedSources.delete(id);
+    for (const id of this.#sourceSockets.keys()) if (matches(id)) this.#sourceSockets.delete(id);
+    for (const sources of this.#socketSources.values()) for (const id of sources.keys()) if (matches(id)) sources.delete(id);
   }
 
   /** Test-only bounded ownership projection; it contains no Discord identities. */

@@ -483,6 +483,17 @@
             <p id="external-control-message" role="status"></p>
             <ul id="external-control-devices"></ul>
           </section>
+          <section id="participant-data" class="setup-panel" aria-labelledby="participant-data-title" data-local-only>
+            <h3 id="participant-data-title">参加者データ</h3>
+            <p>本人のDiscord IDと照合してください。参加者設定と、全シーン内のその人のチャンネル値を削除します。接続中は削除できません。</p>
+            <label>表示名・Discord IDで検索<input type="search" data-participant-search autocomplete="off" /></label>
+            <button type="button" data-participant-refresh>参加者一覧を再読み込み</button>
+            <ul data-participant-list></ul>
+            <p>次のボタンは全員分のディスク上の運用ログと診断ZIPを削除します。STATUSの「ログを消去」（画面上のEvent Logのみ）とは別の操作です。新しい運用ログの記録は続きます。</p>
+            <button type="button" class="danger-action" data-participant-purge>運用ログと診断ZIPをすべて削除</button>
+            <p>録音ファイル、トレイのrouter.log、バックアップ、コピーは削除しません。運用者が確認して削除してください。</p>
+            <p data-participant-status role="status" aria-live="polite"></p>
+          </section>
           <section class="application-settings restart-settings" aria-labelledby="restart-title" data-local-only>
             <div>
               <h3 id="restart-title">ParaBus本体</h3>

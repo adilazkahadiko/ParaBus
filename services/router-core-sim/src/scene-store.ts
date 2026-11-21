@@ -43,7 +43,9 @@ export class SceneStore {
     this.path = join(root, "scenes.json");
     this.#saveQueue = new PrivateFileSaveQueue(this.path, warn, SCENE_SAVE_WARNING, write);
     if (!existsSync(this.path)) return;
-    const decoded = JSON.parse(readFileSync(this.path, "utf8")) as { scenes?: unknown; currentSceneId?: unknown };
+    let decoded: { scenes?: unknown; currentSceneId?: unknown };
+    try { decoded = JSON.parse(readFileSync(this.path, "utf8")); }
+    catch { throw new Error("シーン設定ファイルを読み込めません。JSON形式とアクセス権を確認してください。"); }
     const scenes = Array.isArray(decoded.scenes)
       ? decoded.scenes.slice(0, MAX_SCENES).map(readScene).filter((scene): scene is SceneSnapshot => scene !== null)
       : [];
@@ -67,4 +69,8 @@ export class SceneStore {
     return this.#saveQueue.save(JSON.stringify({ version: 1, scenes: nextScenes, currentSceneId: nextCurrent }, null, 2) + "\n");
   }
   flush(): Promise<void> { return this.#saveQueue.flush(); }
+  async saveConfirmed(scenes: readonly SceneSnapshot[], currentSceneId: string | null): Promise<void> {
+    await this.save(scenes, currentSceneId);
+    await this.#saveQueue.confirmSaved();
+  }
 }

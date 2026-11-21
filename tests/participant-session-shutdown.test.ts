@@ -15,9 +15,10 @@ for (const action of ["shutdown", "restart"] as const) test(`${action} runs the 
   const base = `http://127.0.0.1:${port}`;
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(DISCORD_|DBR_|ROUTER_|RECORDER_)/i.test(key)));
   const child = spawn(process.execPath, ["--experimental-test-module-mocks", "tests/helpers/server-with-approved-participants.ts"], {
-    cwd: new URL("..", import.meta.url), stdio: ["ignore", "pipe", "pipe", "ipc"], windowsHide: true,
+    cwd: new URL("..", import.meta.url), stdio: ["pipe", "pipe", "pipe", "ipc"], windowsHide: true,
     env: { ...inherited, PORT: String(port), DBR_OPERATOR_ORIGIN: base, DBR_SETTINGS_ROOT: root, DBR_LAN_ACCESS: "0", DBR_LAUNCHER_PID: String(process.pid), DBR_LAUNCHER_MANAGED: "1", RECORDER_FOLDER: join(root, "recordings"), DISCORD_IPC_ENDPOINT: process.platform === "win32" ? `\\\\.\\pipe\\approval-shutdown-${process.pid}-${port}` : join(root, "discord.sock") },
   });
+  child.stdin!.end('{"tokens":{}}');
   let output = "";
   child.stdout!.on("data", data => output += data); child.stderr!.on("data", data => output += data);
   const exited = new Promise<number | null>((done, reject) => { child.once("error", reject); child.once("exit", code => done(code)); });

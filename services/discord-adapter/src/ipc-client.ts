@@ -94,13 +94,13 @@ export class DiscordIpcClient {
     this.#socket = socket;
     socket.setNoDelay(true);
     socket.once("connect", () => {
-      console.log(`Discord IPC connected: ${this.endpoint}`);
+      console.log("Discord IPC connected");
       for (const frame of this.#queue.splice(0)) socket.write(frame);
       for (const handler of this.#connectedHandlers) {
         try {
           handler();
         } catch (error) {
-          console.error(`Discord IPC resync hook failed: ${error instanceof Error ? error.message : String(error)}`);
+          console.error("Discord IPC resync hook failed");
         }
       }
     });
@@ -110,7 +110,7 @@ export class DiscordIpcClient {
           for (const handler of this.#handlers) handler(frame);
         }
       } catch (error) {
-        console.error(`Discord IPC receive failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.error("Discord IPC receive failed");
         socket.destroy();
       }
     });
@@ -119,7 +119,7 @@ export class DiscordIpcClient {
       if (this.#socket === socket) this.#socket = null;
       for (const handler of this.#disconnectedHandlers) {
         try { handler(); }
-        catch (error) { console.error(`Discord IPC fail-closed hook failed: ${error instanceof Error ? error.message : String(error)}`); }
+        catch { console.error("Discord IPC fail-closed hook failed"); }
       }
       if (!this.#closed) this.#reconnectTimer = setTimeout(() => this.connect(), 1_000);
     });

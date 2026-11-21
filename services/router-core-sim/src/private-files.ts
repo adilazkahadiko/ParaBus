@@ -131,7 +131,8 @@ export async function protectSettingsLocations(root: string, recordingFolder: st
     try { await check(join(root, name)); } catch { warn(PRIVATE_FILE_WARNING); }
   }
   const isDefaultRecording = resolve(recordingFolder).toLowerCase() === resolve(defaultRecordingFolder).toLowerCase();
-  const directories = [join(root, "logs"), join(root, "support"), defaultRecordingFolder];
+  // An inactive default recording folder is not an owned data location for this run.
+  const directories = [join(root, "logs"), join(root, "support"), ...(isDefaultRecording ? [defaultRecordingFolder] : [])];
   for (const directory of new Set(directories)) {
     // Changing an ancestor also changes inherited child ACEs. Keep custom recording
     // trees untouched even when they overlap a normally managed dedicated folder.
@@ -164,6 +165,10 @@ export class PrivateFileSaveQueue {
   flush(): Promise<void> {
     if (!this.#running) this.#running = this.drain();
     return this.#running;
+  }
+  async confirmSaved(): Promise<void> {
+    await this.flush();
+    if (this.#pending !== undefined) throw new Error("設定のディスク保存を確認できませんでした");
   }
   private async drain(): Promise<void> {
     // Yield before draining so #running is assigned even for a synchronous failing test writer.

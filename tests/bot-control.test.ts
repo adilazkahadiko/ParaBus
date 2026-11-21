@@ -90,9 +90,9 @@ test("Adapter reloads current token values from .env without sending them over I
   assert.equal(loaded.DISCORD_TOKEN_RX01, "fresh-value");
 });
 
-test("unconfigured Adapter starts as an empty rack for first-run live setup", () => {
+test("unconfigured Adapter starts as an empty rack for first-run live setup", async () => {
   const missingConfig = join(tmpdir(), `dbr-no-config-${process.pid}-${Date.now()}.json`);
-  assert.deepEqual(loadBotRackProfiles({}, missingConfig), []);
+  assert.deepEqual(await loadBotRackProfiles({}, missingConfig), []);
 });
 
 test("Adapter entry point waits for manual connect with an enabled saved profile, including restart", (t) => {

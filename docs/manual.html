@@ -285,6 +285,10 @@
         <div class="callout warning"><strong>障害時は実行フォルダではなくSupport Bundleを共有する</strong>実行フォルダ全体、.env、Bot設定原本、録音ファイルをZIPにして共有しないでください。Support BundleはON AIR中も作成できます。</div>
         <ol><li><strong>STATUS → Support Bundle · 診断</strong>を開きます。</li><li>ログ日数（既定7日、1〜30日）を選び、<strong>Support Bundleを作成</strong>を押します。ON AIR中・録音中も使用でき、音声・TX状態は変更しません。</li><li><strong>出力先を開く</strong>から<code>settingsRoot/support/</code>の生成ZIPを確認し、その<strong>1ファイルだけ</strong>を調査担当へ共有します。フォルダを開けない環境では、作成結果に表示されたパスを使ってください。</li></ol>
         <p>ZIPには最近の運用ログ、存在するトレイconsoleログ、build commit・起動時PC role・UTC起動時刻、Bot/TX/RX・drop・xrun・録音Queueの診断統計、Bot role・送信先区分・有効状態・台数、Node/OS/CPU/メモリ・native依存状態を含めます。Token・.env・Bot設定原本・録音・Scene・参加者profile原本は含めません。Discord ID・参加者表示名・Guild名・VC名はBundleごとに匿名化し、対応表は付けません。</p>
+        <h3>参加者の保存データを削除する</h3>
+        <p>このPCの<strong>SETUP → 参加者データ</strong>で、表示名またはDiscord IDを検索し、本人のIDを全桁で照合して「この参加者のデータを削除」を押します。参加者設定全体と、全シーン内のその人のチャンネル値を削除します。接続中は拒否します。退出したのに画面にその人のストリップが残っている場合は、録音の保存完了を確認してParaBusを通常終了・起動し直し、その人がVCにいないことを確認してから削除してください。対象者がVCにいなければ、Botが接続中でも削除できます。ON AIR・FAULT中も削除できません。保存完了後に成功を表示します。</p>
+        <p>「運用ログと診断ZIPをすべて削除」は全員分をまとめて消します。診断ZIP作成中は拒否し、対象はlogs直下の運用ログとsupport直下のParaBus生成ZIPだけです。削除後も新しいログの記録は続きます。STATUSの「ログを消去」は画面上のEvent Logのみで、ディスク上のファイルは消しません。</p>
+        <p>録音ファイル（ファイル名に表示名やIDの一部を含む場合があります）、トレイの<code>logs/router.log</code>、バックアップ、ほかのPCや受け渡したコピーは対象外です。運用者が確認して削除してください。手で編集する場合は<strong>ParaBusを停止してから</strong>、<code>user-profiles.json</code>だけでなく<code>scenes.json</code>の全シーン内の該当値も削除します。詳しい手順は<a href="OPERATOR_PRIVACY.ja.md">運用者向けの案内</a>を参照してください。</p>
         <p>Bot profileIdと運用者設定labelは残ります。機密の名称を付けないでください。未知のログ自由文は匿名イベントIDになり、原文の復元はできません。consoleログは更新日で選択され、末尾最大5MiBだけを収集します。途中から始まる最初の行は捨て、切り詰めと元サイズをbundle-info.jsonへ記録します。</p>
       </section>
 
@@ -312,7 +316,7 @@
         <table><thead><tr><th>表示</th><th>意味</th></tr></thead><tbody>
           <tr><td>READY</td><td>GatewayとVoiceの両方が受信可能</td></tr>
           <tr><td>RECONNECTING</td><td>同じBot・Guild・VCへ再接続中。別VCへ自動移動しない</td></tr>
-          <tr><td>STALE</td><td>15秒以上heartbeatを受信していない</td></tr>
+          <tr><td>受信途絶</td><td>15秒以上、状態を知らせる通知を受信していない</td></tr>
           <tr><td>WS / UDP</td><td>Discord VoiceのWebSocket / UDP往復時間（ms）</td></tr>
           <tr><td>LAST AUDIO</td><td>そのBotで最後に音声packetを受けてからの時間</td></tr>
           <tr><td>RX QUALITY</td><td>User別のpacket、実際に確認できたデータの欠け（GAP）、drop、queue、最終packet時刻</td></tr>
@@ -439,7 +443,7 @@
           <li>出力device loss時は勝手なfallbackをせずFAULTへ入る。</li>
           <li>FAULT確認後もEmergency Muteは維持し、出力確認後に別操作で解除する。</li>
           <li>ON AIR中はdevice、output mapping、VC assignment、Bus構造、Scene削除、Limiter OFFをlockする。</li>
-          <li>Discord / Adapterが切れたsourceはsilenceになり、stale表示される。</li>
+          <li>Discord / Adapterからの受信が途切れた音声は無音になり、受信停止の状態が表示される。</li>
           <li>切断中のOpusを後から再生しない。古い会話はdropする。</li>
         </ul>
         <div class="flow" aria-label="音声経路"><div>Discord Voice<br>DAVE復号</div><span>→</span><div>Opus<br>Binary IPC</div><span>→</span><div>Core decode<br>48 kHz PCM</div><span>→</span><div>Channel DSP<br>Meter</div><span>→</span><div>VC Bus /<br>Direct Output</div></div>
@@ -454,7 +458,7 @@
           <tr><td>UIが開かない</td><td>ParaBusアイコン → UIを開く。それでも開かなければログを確認し、<code>http://127.0.0.1:4173</code>へアクセスします。</td></tr>
           <tr><td>DISCORD WAITINGのまま</td><td>SETUPのBOTSでBotが有効か、Bot token、Guild / VC ID、Botの表示・接続権限を確認し、<strong>接続</strong>を押します。ボタンも無効ならDiscord Adapterのログを確認します。</td></tr>
           <tr><td>User channelが増えない</td><td>対象VCでUserが発話しているか、Botがserver deafになっていないか、TX Bot除外IDに入っていないか確認します。</td></tr>
-          <tr><td>meterが動かない</td><td>channelがstaleでないか、MUTE、fader、VC Sendを確認します。Discord受信自体はPK dBFSで切り分けます。</td></tr>
+          <tr><td>meterが動かない</td><td>音声を受け取れているか、MUTE、fader、VC Sendを確認します。Discord受信自体はPK dBFSで切り分けます。</td></tr>
           <tr><td>音が大き過ぎる</td><td>赤meterを確認し、channel fader、VC Send、Bus Masterの順に下げます。LimiterはONのままにします。</td></tr>
           <tr><td>Bot設定を変えたが反映されない</td><td>設定を保存し、対象Botを<strong>切断</strong>してから<strong>接続</strong>します。未保存の変更がある間は接続できません。</td></tr>
           <tr><td>終了しても残っている</td><td>ブラウザーを閉じるだけでは停止しません。実行PCのSETUP → ParaBus を終了を選びます。</td></tr>

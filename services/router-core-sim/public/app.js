@@ -1,5 +1,6 @@
 import { createTxMixControls } from "./tx-mix.js";
 import { mountSupportBundle } from "./support-bundle.js";
+import { mountParticipantData } from "./participant-data.js";
 import { mergeMeterSnapshot } from "./meter-snapshot.js";
 import { mountExternalControl } from "./external-control.js";
 
@@ -7,6 +8,7 @@ const desktopAccess = JSON.parse(document.querySelector("#desktop-access")?.text
 const localSettingsAvailable = desktopAccess.localSettingsAvailable !== false;
 mountExternalControl(localSettingsAvailable);
 mountSupportBundle(document.querySelector("#support-bundle"), fetch, localSettingsAvailable);
+const participantDataView = mountParticipantData(document.querySelector("#participant-data"), fetch, localSettingsAvailable);
 
 const renderTxMix = createTxMixControls(document.querySelector("#tx-mix-panel"), sendCommand, {
   bindFader, syncFader, operate: operateTxAssignment,
@@ -392,7 +394,7 @@ function showView(view) {
   if (setup || route) {
     void loadWindowsEndpoints();
   }
-  if (setup) { void loadDesktopSettings();  }
+  if (setup) { void loadDesktopSettings(); void participantDataView.refresh(); }
 }
 
 function markSettingsDirty() {
