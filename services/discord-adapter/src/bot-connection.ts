@@ -21,6 +21,7 @@ import type { DiscordIpcClient } from "./ipc-client.ts";
 
 import { RtpObserver } from "./rtp-observer.ts";
 import { redactBotTokenError } from "./token-protection.ts";
+import { maskDiscordIds } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 
 const HEARTBEAT_MS = 5_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -280,7 +281,7 @@ export class DiscordBotConnection {
     this.message = `TX stopped (${state}); restart TX explicitly`;
     this.#txFailed = true;
     this.sendStatus();
-    console.error(`[${this.profile.profileId}] ${state}: ${redactBotTokenError(error, this.profile.token)}`);
+    console.error(maskDiscordIds(`[${this.profile.profileId}] ${state}: Discord TX failed; check the operator screen`));
   }
 
   private async assignVoiceChannel(guildId: string, voiceChannelId: string): Promise<void> {
@@ -448,7 +449,7 @@ export class DiscordBotConnection {
       this.receiveRetryCounts.set(userId, retries);
       const delay = Math.min(200 * retries, 3_000);
       if (retries === 1 || retries % 20 === 0) {
-        console.error(`[${this.profile.profileId}] Opus receive stream failed for ${userId}: ${redactBotTokenError(error, this.profile.token)}; retrying in ${delay}ms (attempt ${retries})`);
+        console.error(maskDiscordIds(`[${this.profile.profileId}] Opus receive stream failed for ${userId}; retrying in ${delay}ms (attempt ${retries})`));
       }
       const connection = this.connection;
       const timer = setTimeout(() => {
@@ -546,7 +547,7 @@ export class DiscordBotConnection {
       this.announceVoiceChannelMembers(voiceChannel);
     });
     await entersState(this.connection, VoiceConnectionStatus.Ready, 30_000);
-    console.log(`[${this.profile.profileId}] Discord ${this.profile.role} ready: ${voiceChannel.guild.name} / ${voiceChannel.name}`);
+    console.log(maskDiscordIds(`[${this.profile.profileId}] Discord ${this.profile.role} ready`));
   }
 
   private handleVoiceDisconnected(): void {
@@ -603,6 +604,6 @@ export class DiscordBotConnection {
     if (state.startsWith("gateway")) this.gatewayState = "fault";
     else this.voiceState = "fault";
     this.sendStatus();
-    console.error(`[${this.profile.profileId}] ${state}: ${this.message}`);
+    console.error(maskDiscordIds(`[${this.profile.profileId}] ${state}: Discord connection failed; check the operator screen`));
   }
 }

@@ -158,7 +158,9 @@ export class SettingsStore {
     const sourcePath = this.rackPath;
     let entries: RawBotEntry[] = [];
     if (existsSync(sourcePath)) {
-      const decoded = JSON.parse(readFileSync(sourcePath, "utf8")) as { bots?: unknown };
+      let decoded: { bots?: unknown };
+      try { decoded = JSON.parse(readFileSync(sourcePath, "utf8")); }
+      catch { throw new Error("Bot設定ファイルを読み込めません。JSON形式とアクセス権を確認してください。"); }
       if (Array.isArray(decoded.bots)) entries = decoded.bots as RawBotEntry[];
     }
     if (!existsSync(this.rackPath)) {

@@ -717,7 +717,7 @@ server.listen(port, host, () => {
   console.log(`ParaBus Phase 10 listening on http://${host}:${port}`);
   console.log(`Core ownership: ${coreOwnership.snapshot.effectiveOwner} (${coreOwnership.snapshot.requestedMode})`);
   console.log(`${engine.channels.size} synthetic RX channels, ${engine.outputs.length} outputs, ${engine.sampleRate} Hz`);
-  console.log(`Discord Opus IPC listening on ${discordIngest.endpoint}`);
+  console.log("Discord Opus IPC listening");
   if (desktopAccess.lanEnabled) {
     const warning = "LAN公開中（認証なし）: 同じLANの誰でも操作できます。共有LANでは使わないでください。";
     console.log(warning); control.recordExternalEvent("WARNING", warning);

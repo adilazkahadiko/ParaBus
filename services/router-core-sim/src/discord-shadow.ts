@@ -259,7 +259,7 @@ export class DiscordShadowComparator {
     this.#lastError = `${error.message}${this.#stderrBuffer ? `: ${this.#stderrBuffer.trim()}` : ""}`.slice(0, 500);
     this.#droppedFrames += this.#pending.length;
     this.#pending = [];
-    console.error(`Rust Discord shadow disabled: ${this.#lastError}`);
+    console.error("Rust Discord shadow disabled: metadata comparison unavailable");
     if (!child.killed) child.kill();
   }
 }

@@ -287,7 +287,9 @@ export class UserProfileStore {
 
   private load(): void {
     if (!existsSync(this.path)) return;
-    const decoded = JSON.parse(readFileSync(this.path, "utf8")) as unknown;
+    let decoded: unknown;
+    try { decoded = JSON.parse(readFileSync(this.path, "utf8")); }
+    catch { throw new Error("参加者設定ファイルを読み込めません。JSON形式とアクセス権を確認してください。"); }
     const root = record(decoded);
     const users = Array.isArray(root?.users) ? root.users : Array.isArray(root?.profiles) ? root.profiles : [];
     users.forEach((entry, index) => {

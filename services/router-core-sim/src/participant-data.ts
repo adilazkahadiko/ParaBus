@@ -8,7 +8,7 @@ import { OperationalLog } from "./operational-log.ts";
 import { deleteDirectFiles, SUPPORT_FILE } from "./data-file-deletion.ts";
 
 export const PARTICIPANT_CONNECTED = "この参加者は接続中です。VCから退出したあとに削除してください。";
-export const PARTICIPANT_STALE = "退出済みのストリップが残っています。ParaBusを通常終了して起動し直し、Botを接続せずに削除してください。";
+export const PARTICIPANT_STALE = "退出したのに画面にその人のストリップが残っている場合は、録音の保存完了を確認してParaBusを通常終了・起動し直し、その人がVCにいないことを確認してから削除してください。";
 export const DELETION_FAILED = "削除を完了できませんでした。一部のデータが削除済みの場合があります。保存先の権限を確認して、もう一度実行してください。";
 export class ParticipantDataError extends Error {
   readonly status: number;
