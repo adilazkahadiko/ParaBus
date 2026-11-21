@@ -1,3 +1,4 @@
+import { maskDiscordIds } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 import { createReadStream, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
@@ -714,14 +715,14 @@ server.listen(port, host, () => {
   // UI readiness never waits for ACL subprocesses. Do not inspect the application tree.
   void protectSettingsLocations(settingsRoot, recordingFolder, message => reportPermissionWarning(message), defaultRecordingFolder)
     .catch(() => reportPermissionWarning("保存先のアクセス権を確認できませんでした。権限を確認してください。音声と運用は継続します。"));
-  console.log(`ParaBus Phase 10 listening on http://${host}:${port}`);
-  console.log(`Core ownership: ${coreOwnership.snapshot.effectiveOwner} (${coreOwnership.snapshot.requestedMode})`);
-  console.log(`${engine.channels.size} synthetic RX channels, ${engine.outputs.length} outputs, ${engine.sampleRate} Hz`);
-  console.log("Discord Opus IPC listening");
+  console.log(maskDiscordIds(`ParaBus Phase 10 listening on http://${host}:${port}`));
+  console.log(maskDiscordIds(`Core ownership: ${coreOwnership.snapshot.effectiveOwner} (${coreOwnership.snapshot.requestedMode})`));
+  console.log(maskDiscordIds(`${engine.channels.size} synthetic RX channels, ${engine.outputs.length} outputs, ${engine.sampleRate} Hz`));
+  console.log(maskDiscordIds("Discord Opus IPC listening"));
   if (desktopAccess.lanEnabled) {
     const warning = "LAN公開中（認証なし）: 同じLANの誰でも操作できます。共有LANでは使わないでください。";
-    console.log(warning); control.recordExternalEvent("WARNING", warning);
-    for (const url of desktopAccess.urls) { console.log(`LAN公開中: ${url}`); control.recordExternalEvent("INFO", `LAN公開中: ${url}`); }
+    console.log(maskDiscordIds(warning)); control.recordExternalEvent("WARNING", warning);
+    for (const url of desktopAccess.urls) { console.log(maskDiscordIds(`LAN公開中: ${url}`)); control.recordExternalEvent("INFO", `LAN公開中: ${url}`); }
   }
 });
 

@@ -1,3 +1,4 @@
+import { consoleErrorSummary } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 import { createServer, type Server, type Socket } from "node:net";
 import { ControlCommandError } from "./control-error.ts";
 import { MAX_DISCORD_RX_CHANNELS, MAX_RX_CHANNELS, type BotRole, type DiscordBotHealth, type DiscordIngestSnapshot, type DiscordRxIpcSnapshot, type DiscordTxSnapshot, type LogLevel, type ReceiverOwnershipSnapshot, type TxAudioMode, type TxSubtype } from "../../../packages/shared-types/src/index.ts";
@@ -224,7 +225,7 @@ export class DiscordIngestServer {
       server.once("error", onError);
       server.listen(this.endpoint, () => {
         server.off("error", onError);
-        server.on("error", () => console.error("Discord IPC server error"));
+        server.on("error", (error) => console.error(consoleErrorSummary("Discord IPC server error", error)));
         this.shadow?.start();
         resolve();
       });
@@ -1093,7 +1094,7 @@ export class DiscordIngestServer {
           this.ingest(frame, socket);
         }
       } catch (error) {
-        console.error("Invalid Discord IPC stream");
+        console.error(consoleErrorSummary("Invalid Discord IPC stream", error));
         socket.destroy();
       } finally {
         this.#ipcBatches.maxProcessingMs = Math.max(this.#ipcBatches.maxProcessingMs, performance.now() - startedAt);

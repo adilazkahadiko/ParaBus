@@ -1,3 +1,4 @@
+import { maskDiscordIds, consoleErrorSummary } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 import { createConnection, type Socket } from "node:net";
 import type { DiscordRxIpcSnapshot } from "../../../packages/shared-types/src/index.ts";
 import {
@@ -94,13 +95,13 @@ export class DiscordIpcClient {
     this.#socket = socket;
     socket.setNoDelay(true);
     socket.once("connect", () => {
-      console.log("Discord IPC connected");
+      console.log(maskDiscordIds("Discord IPC connected"));
       for (const frame of this.#queue.splice(0)) socket.write(frame);
       for (const handler of this.#connectedHandlers) {
         try {
           handler();
         } catch (error) {
-          console.error("Discord IPC resync hook failed");
+          console.error(consoleErrorSummary("Discord IPC resync hook failed", error));
         }
       }
     });
@@ -110,7 +111,7 @@ export class DiscordIpcClient {
           for (const handler of this.#handlers) handler(frame);
         }
       } catch (error) {
-        console.error("Discord IPC receive failed");
+        console.error(consoleErrorSummary("Discord IPC receive failed", error));
         socket.destroy();
       }
     });
@@ -119,7 +120,7 @@ export class DiscordIpcClient {
       if (this.#socket === socket) this.#socket = null;
       for (const handler of this.#disconnectedHandlers) {
         try { handler(); }
-        catch { console.error("Discord IPC fail-closed hook failed"); }
+        catch (error) { console.error(consoleErrorSummary("Discord IPC fail-closed hook failed", error)); }
       }
       if (!this.#closed) this.#reconnectTimer = setTimeout(() => this.connect(), 1_000);
     });

@@ -1,3 +1,4 @@
+import { maskDiscordIds, consoleErrorKind, consoleErrorSummary } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -139,7 +140,7 @@ export class DiscordShadowComparator {
     child.once("spawn", () => {
       if (this.#child === child) {
         this.#status = "READY";
-        console.log("Rust Discord shadow ready: metadata comparison only");
+        console.log(maskDiscordIds("Rust Discord shadow ready: metadata comparison only"));
       }
     });
     child.stdout.on("data", (chunk: string) => this.handleOutput(chunk));
@@ -226,7 +227,7 @@ export class DiscordShadowComparator {
         actual = JSON.parse(line);
       } catch (error) {
         const child = this.#child;
-        if (child) this.fail(child, new Error(`invalid Rust Discord shadow output: ${error instanceof Error ? error.message : String(error)}`));
+        if (child) this.fail(child, Object.assign(new Error(`invalid Rust Discord shadow output: ${error instanceof Error ? error.message : String(error)}`), consoleErrorKind(error)));
         return;
       }
       if (!isProjection(actual)) {
@@ -249,7 +250,7 @@ export class DiscordShadowComparator {
     if (!differences.length) return;
     this.#mismatchFrames += 1;
     this.#lastMismatch = `frame ${expected.type}: ${differences.join(", ")} differ`;
-    if (this.#mismatchFrames === 1) console.error(`Rust Discord shadow mismatch: ${this.#lastMismatch}`);
+    if (this.#mismatchFrames === 1) console.error(maskDiscordIds(`Rust Discord shadow mismatch: ${this.#lastMismatch}`));
   }
 
   private fail(child: ChildProcessWithoutNullStreams, error: Error): void {
@@ -259,7 +260,7 @@ export class DiscordShadowComparator {
     this.#lastError = `${error.message}${this.#stderrBuffer ? `: ${this.#stderrBuffer.trim()}` : ""}`.slice(0, 500);
     this.#droppedFrames += this.#pending.length;
     this.#pending = [];
-    console.error("Rust Discord shadow disabled: metadata comparison unavailable");
+    console.error(consoleErrorSummary("Rust Discord shadow disabled: metadata comparison unavailable", error));
     if (!child.killed) child.kill();
   }
 }

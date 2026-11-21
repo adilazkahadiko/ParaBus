@@ -21,7 +21,7 @@ import type { DiscordIpcClient } from "./ipc-client.ts";
 
 import { RtpObserver } from "./rtp-observer.ts";
 import { redactBotTokenError } from "./token-protection.ts";
-import { maskDiscordIds } from "../../../packages/process-lifecycle/src/console-privacy.ts";
+import { maskDiscordIds, consoleErrorKind, consoleErrorSummary } from "../../../packages/process-lifecycle/src/console-privacy.ts";
 
 const HEARTBEAT_MS = 5_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -103,7 +103,7 @@ export class DiscordBotConnection {
       await this.client.login(this.profile.token);
     } catch (error) {
       this.fail("gateway-login-failed", error);
-      throw new Error(redactBotTokenError(error, this.profile.token));
+      throw Object.assign(new Error(redactBotTokenError(error, this.profile.token)), consoleErrorKind(error));
     }
   }
 
@@ -281,7 +281,7 @@ export class DiscordBotConnection {
     this.message = `TX stopped (${state}); restart TX explicitly`;
     this.#txFailed = true;
     this.sendStatus();
-    console.error(maskDiscordIds(`[${this.profile.profileId}] ${state}: Discord TX failed; check the operator screen`));
+    console.error(consoleErrorSummary(`[${this.profile.profileId}] ${state}: Discord TX failed; check the operator screen`, error));
   }
 
   private async assignVoiceChannel(guildId: string, voiceChannelId: string): Promise<void> {
@@ -449,7 +449,7 @@ export class DiscordBotConnection {
       this.receiveRetryCounts.set(userId, retries);
       const delay = Math.min(200 * retries, 3_000);
       if (retries === 1 || retries % 20 === 0) {
-        console.error(maskDiscordIds(`[${this.profile.profileId}] Opus receive stream failed for ${userId}; retrying in ${delay}ms (attempt ${retries})`));
+        console.error(consoleErrorSummary(`[${this.profile.profileId}] Opus receive stream failed for ${userId}; retrying in ${delay}ms (attempt ${retries})`, error));
       }
       const connection = this.connection;
       const timer = setTimeout(() => {
@@ -604,6 +604,6 @@ export class DiscordBotConnection {
     if (state.startsWith("gateway")) this.gatewayState = "fault";
     else this.voiceState = "fault";
     this.sendStatus();
-    console.error(maskDiscordIds(`[${this.profile.profileId}] ${state}: Discord connection failed; check the operator screen`));
+    console.error(consoleErrorSummary(`[${this.profile.profileId}] ${state}: Discord connection failed; check the operator screen`, error));
   }
 }
