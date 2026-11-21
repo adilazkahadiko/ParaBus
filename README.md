@@ -101,6 +101,7 @@ and it cannot be shut down from another PC on the LAN.
 By default, settings and `.env` are stored in the app folder. Extracting a new version into a new folder
 starts with an empty Bot list; settings from the old folder are not imported automatically.
 Keep the old folder, including `.env`, settings and recordings, intact as a private backup.
+On Windows, Bot tokens are encrypted in `.env`. Re-enter tokens when copying settings to another PC or Windows account.
 
 If both versions provide these export/import controls, transfer Bot profiles using the UI on the PC running ParaBus:
 

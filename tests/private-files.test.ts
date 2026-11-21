@@ -42,7 +42,7 @@ test("all configuration stores permit only the current user, SYSTEM and Administ
   const root = fixture(t);
   const warnings: string[] = [];
   await protectSettingsLocations(root, join(root, "recordings"), m => warnings.push(m));
-  new SettingsStore(root, {}).save({ bots: [] });
+  await new SettingsStore(root, {}).save({ bots: [] });
   await new SceneStore(root).save([], null);
   const owners = new ReceiverOwnershipStore(root);
   owners.set("1".repeat(18), "2".repeat(18), "fixture");

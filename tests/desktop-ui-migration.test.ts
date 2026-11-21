@@ -51,12 +51,12 @@ function ui(names: string[], overrides: any = {}) {
   return { context, elements, commands, notices };
 }
 
-test("unrelated UI settings save preserves the receiver owner with legacy RX and SPARE after reconnect", (t) => {
+test("unrelated UI settings save preserves the receiver owner with legacy RX and SPARE after reconnect", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "parabus-spare-save-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const store = new SettingsStore(root, {});
-  store.save({ bots: ["RX", "SPARE"].map((role, i) => ({ id: `RX0${i + 1}`, label: `Receiver ${i}`, role,
-    token: `fake-token-${i}`, tokenEnv: `DISCORD_BOT_TOKEN_${i}`, guildId: "100000000000000001", voiceChannelId: "100000000000000002", enabled: true })) });
+  (await store.save({ bots: ["RX", "SPARE"].map((role, i) => ({ id: `RX0${i + 1}`, label: `Receiver ${i}`, role,
+    token: `fake-token-${i}`, tokenEnv: `DISCORD_BOT_TOKEN_${i}`, guildId: "100000000000000001", voiceChannelId: "100000000000000002", enabled: true })) }));
   const ownership = (bots: ReturnType<SettingsStore["snapshot"]>["bots"]) => {
     const ingest = new DiscordIngestServer(new AudioEngine(48_000, 480, 4), "test-only", null, null);
     for (const [i, bot] of bots.entries()) {
@@ -69,7 +69,7 @@ test("unrelated UI settings save preserves the receiver owner with legacy RX and
   assert.equal(ownership(store.snapshot().bots).ownerProfileId, "RX01");
   const { context } = ui(["setSelectOptions", "syncControlSelect", "generatedTokenEnvironment", "nextBotProfileId", "updateBotProfileTxFields", "refreshBotProfileLocationOptions", "createBotProfileCard", "botSettingsFromCard"]);
   const bots = store.snapshot().bots.map(bot => context.botSettingsFromCard(context.createBotProfileCard(bot, true)));
-  store.save({ bots, tablet: { enabled: false, port: 4175 } });
+  (await store.save({ bots, tablet: { enabled: false, port: 4175 } }));
   const reconnected = ownership(new SettingsStore(root, {}).snapshot().bots);
   assert.equal(reconnected.status, "ACTIVE");
   assert.equal(reconnected.ownerProfileId, "RX01");

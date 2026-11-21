@@ -156,6 +156,7 @@ const elements = {
   addBotTokens: document.querySelector("#add-bot-tokens"),
   setupStatus: document.querySelector("#setup-status"),
   saveBotProfiles: document.querySelector("#save-bot-profiles"),
+  tokenProtectionWarning: document.querySelector("#token-protection-warning"),
   saveApplicationSettings: document.querySelector("#save-application-settings"),
   restartRouter: document.querySelector("#restart-router"),
   shutdownRouter: document.querySelector("#shutdown-router"),
@@ -711,6 +712,10 @@ function refreshBotProfileLocationOptions(card) {
 
 function renderDesktopSettings(settings) {
   settingsSnapshot = settings;
+  if (elements.tokenProtectionWarning) {
+    elements.tokenProtectionWarning.textContent = settings.tokenProtectionWarning || "";
+    elements.tokenProtectionWarning.hidden = !settings.tokenProtectionWarning;
+  }
   elements.appPort.value = String(settings.operator?.port ?? 4173);
   elements.lanAccessEnabled.checked = settings.operator?.lanAccess === true;
   elements.sharedGuildId.value = settings.bots[0]?.guildId ?? "";

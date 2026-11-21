@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
+import { withoutBotTokens } from "../packages/process-lifecycle/src/index.ts";
 
 const tray = readFileSync(new URL("../scripts/router-tray.ps1", import.meta.url), "utf8");
 
@@ -36,6 +37,8 @@ test("launcher gives Core and Adapter a 16-worker pool unless explicitly configu
     const options: any[] = [];
     const context: any = { process: { execPath: "node", pid: 123, cwd: () => "/test", env: configured ? { UV_THREADPOOL_SIZE: configured } : {} },
       children: new Set(), spawn: (_exe: string, _args: string[], option: any) => { options.push(option); return { once() {} }; }, stopAll() {}, console };
+    context.withoutBotTokens = withoutBotTokens;
+    context.launchTokens = {};
     runInNewContext(stripTypeScriptTypes(fn), context);
     context.startService("core.ts"); context.startService("adapter.ts");
     for (const option of options) assert.equal(option.env.UV_THREADPOOL_SIZE, configured ?? "16");

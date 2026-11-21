@@ -2,7 +2,7 @@ import { createReadStream, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { Socket } from "node:net";
-import { watchLauncher } from "../../../packages/process-lifecycle/src/index.ts";
+import { readLauncherTokenInput, watchLauncher } from "../../../packages/process-lifecycle/src/index.ts";
 import type { Duplex } from "node:stream";
 import type { CommandResult, ControlCommand } from "../../../packages/shared-types/src/index.ts";
 import { AudioEngine } from "./audio-engine.ts";
@@ -63,7 +63,9 @@ const projectDirectory = join(import.meta.dirname, "../../..");
 const settingsRoot = process.env.DBR_SETTINGS_ROOT ? resolve(process.env.DBR_SETTINGS_ROOT) : projectDirectory;
 const defaultRecordingFolder = join(projectDirectory, "recordings");
 const recordingFolder = process.env.RECORDER_FOLDER ? resolve(process.env.RECORDER_FOLDER) : defaultRecordingFolder;
-const startupEnvironment = loadBotRackEnvironment(process.env, join(settingsRoot, ".env"));
+const inheritedTokens = await readLauncherTokenInput();
+const settingsEnvironment = { ...process.env, ...inheritedTokens };
+const startupEnvironment = loadBotRackEnvironment(settingsEnvironment, join(settingsRoot, ".env"));
 const port = Number(process.env.PORT ?? 4173);
 const desktopAccess = resolveDesktopAccess(port, process.env.DBR_OPERATOR_ORIGIN ?? startupEnvironment.DBR_OPERATOR_ORIGIN, startupEnvironment.DBR_LAN_ACCESS === "1");
 const host = desktopAccess.host;
@@ -102,7 +104,7 @@ const audioRuntimeTiming = new AudioRuntimeTiming();
 const cueOutputManager = new AudioOutputManager(engine.sampleRate, engine.blockSize, 2, undefined, undefined, rustManagement);
 const inputManager = new AudioInputManager(engine, undefined, undefined, rustManagement, undefined, asioDuplex);
 const recorder = new RecorderManager(engine, recordingFolder);
-const settingsStore = new SettingsStore(settingsRoot);
+const settingsStore = new SettingsStore(settingsRoot, settingsEnvironment, message => reportPermissionWarning(message));
 const userProfileStore = new UserProfileStore(settingsRoot, message => reportPermissionWarning(message));
 const userSessions = new UserSessionRegistry(userProfileStore);
 const receiverOwnershipStore = new ReceiverOwnershipStore(settingsRoot, message => reportPermissionWarning(message));
@@ -112,7 +114,7 @@ const operationalHealth = new OperationalHealthTracker();
 const startupSettings = settingsStore.snapshot();
 let startupBotConfig: unknown = [];
 try {
-  startupBotConfig = loadBotRackConfig(loadBotRackEnvironment(process.env, settingsStore.environmentPath), settingsStore.rackPath);
+  startupBotConfig = loadBotRackConfig(loadBotRackEnvironment(settingsEnvironment, settingsStore.environmentPath), settingsStore.rackPath);
 } catch {
   // Keep SETUP available when an incomplete/invalid Bot configuration needs repair.
 }
@@ -493,7 +495,7 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
       requireDesktopControlRequest(request);
       const controlState = control.snapshot().state;
       if (controlState === "ON_AIR" || controlState === "FAULT") return writeJson(response, 409, { error: "SETUP changes are locked while ON AIR or FAULT" });
-      const snapshot = settingsStore.save(await readJson(request));
+      const snapshot = await settingsStore.save(await readJson(request));
       writeJson(response, 200, { ok: true, settings: snapshot, message: "設定を保存しました。PortとLAN公開の変更は再起動後に反映されます。" });
       return;
     }
@@ -702,6 +704,7 @@ if (rustManagement.isAvailable()) {
   }
 }
 server.listen(port, host, () => {
+  void settingsStore.migrateTokens().catch(() => reportPermissionWarning("Bot Tokenの保存形式を更新できませんでした。保存先の権限を確認してください。音声と運用は継続します。"));
   // UI readiness never waits for ACL subprocesses. Do not inspect the application tree.
   void protectSettingsLocations(settingsRoot, recordingFolder, message => reportPermissionWarning(message), defaultRecordingFolder)
     .catch(() => reportPermissionWarning("保存先のアクセス権を確認できませんでした。権限を確認してください。音声と運用は継続します。"));
@@ -733,6 +736,7 @@ function shutdown(exitCode = 0): void {
   programAudioShadow.close();
   const cleanup = Promise.all([
     profileFlush,
+    settingsStore.flush(),
     sceneStore.flush(),
     receiverOwnershipStore.flush(),
     externalControl.close(),

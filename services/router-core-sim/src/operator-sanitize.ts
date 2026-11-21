@@ -1,4 +1,5 @@
 import type { RouterSnapshot } from "../../../packages/shared-types/src/index.ts";
+import { TOKEN_REENTRY_MESSAGE } from "../../discord-adapter/src/token-protection.ts";
 
 export type OperatorErrorComponent = "audio-input" | "audio-output" | "discord" | "recorder" | "tablet" | "control";
 
@@ -23,6 +24,8 @@ const SAFE_ERRORS: Record<OperatorErrorComponent, SafeOperatorError> = {
 export function sanitizeOperatorMessage(value: unknown, fallback = "Operation unavailable"): string {
   const source = typeof value === "string" ? value : value instanceof Error ? value.message : fallback;
   const sanitized = source
+    .replace(/dpapi:v1:[A-Za-z0-9+/=]+/g, "[CREDENTIAL REDACTED]")
+    .replace(/(?:mfa\.[A-Za-z0-9_-]{20,}|\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b)/g, "[CREDENTIAL REDACTED]")
     .replace(/<Buffer\s+[^>]*>/gi, "[AUDIO DATA]")
     .replace(/([?&](?:token|secret|password|credential|authorization|nonce|api[-_]?key)=)[^&#\s]*/gi, "$1[REDACTED]")
     .replace(/\bAuthorization\s*:\s*(?:Bearer\s+)?[^\s,;]+/gi, "[CREDENTIAL REDACTED]")
@@ -81,7 +84,7 @@ export function operatorFacingSnapshot<T extends RouterSnapshot>(snapshot: T): T
       ...snapshot.discord,
       bots: snapshot.discord.bots.map((bot) => ({
         ...bot,
-        message: !bot.message ? null
+        message: !bot.message ? null : bot.gatewayState === "token-reentry-required" ? TOKEN_REENTRY_MESSAGE
           : /^TX stopped \(tx-(?:stream-failed|player-failed|start-failed|ended)\); restart TX explicitly$/.test(bot.message)
             ? "Discord TX stopped; restart TX explicitly" : safeOperatorSummary("discord"),
       })),

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 import type { BotRole, TxAudioMode, TxSubtype } from "../../../packages/shared-types/src/index.ts";
 import { isTxDestination } from "../../../packages/shared-types/src/index.ts";
+import { AdapterTokenCache, TOKEN_REENTRY_MESSAGE, type TokenProtection, tokenProtection } from "./token-protection.ts";
 
 export const MAX_RX_BOTS = 24;
 export const MAX_TX_BOTS = 22;
@@ -25,6 +26,7 @@ export interface DiscordBotProfile {
   txAudioMode: TxAudioMode | null;
   tokenEnv: string;
   token: string;
+  tokenError?: string;
   guildId: string;
   voiceChannelId: string;
 }
@@ -63,7 +65,7 @@ function snowflake(value: unknown, field: string, profile: string): string {
   return parsed;
 }
 
-export function parseBotRackConfig(input: unknown, environment: NodeJS.ProcessEnv = process.env): DiscordBotProfile[] {
+export function parseBotRackConfig(input: unknown, environment: NodeJS.ProcessEnv = process.env, resolveToken?: (name: string, profileId: string) => { value: string | null; error?: string }): DiscordBotProfile[] {
   const entries = Array.isArray(input) ? input : (input as { bots?: unknown } | null)?.bots;
   if (!Array.isArray(entries)) throw new Error("Bot Rack config must contain a bots array");
   const enabled = entries.filter((entry) => (entry as BotFileEntry | null)?.enabled !== false);
@@ -103,13 +105,14 @@ export function parseBotRackConfig(input: unknown, environment: NodeJS.ProcessEn
     }
     const tokenEnv = requiredString(entry.tokenEnv, "tokenEnv", profileId);
     if (!/^[A-Z_][A-Z0-9_]*$/i.test(tokenEnv)) throw new Error(`${profileId}: invalid tokenEnv name`);
-    const token = environment[tokenEnv]?.trim();
-    if (!token) throw new Error(`${profileId}: environment variable ${tokenEnv} is not set`);
-    if (seenTokens.has(token)) throw new Error(`${profileId}: duplicate Bot token; use one DUPLEX profile for RX + TX`);
-    seenTokens.add(token);
+    const resolved = resolveToken?.(tokenEnv, profileId);
+    const token = resolved ? resolved.value ?? "" : environment[tokenEnv]?.trim();
+    if (!token && !resolved?.error) throw new Error(`${profileId}: environment variable ${tokenEnv} is not set`);
+    if (token && seenTokens.has(token)) throw new Error(`${profileId}: duplicate Bot token; use one DUPLEX profile for RX + TX`);
+    if (token) seenTokens.add(token);
     const guildId = snowflake(entry.guildId, "guildId", profileId);
     const voiceChannelId = snowflake(entry.voiceChannelId, "voiceChannelId", profileId);
-    const target = `${token}:${guildId}:${voiceChannelId}`;
+    const target = `${token || profileId}:${guildId}:${voiceChannelId}`;
     if (seenTargets.has(target)) throw new Error(`${profileId}: duplicate bot/guild/VC target`);
     seenTargets.add(target);
     return {
@@ -120,18 +123,28 @@ export function parseBotRackConfig(input: unknown, environment: NodeJS.ProcessEn
       txSubtype,
       txAudioMode,
       tokenEnv,
-      token,
+      token: token ?? "",
+      ...(resolved?.error ? { tokenError: resolved.error } : {}),
       guildId,
       voiceChannelId,
     };
   });
 }
 
-export function loadBotRackProfiles(
+const adapterTokenCache = new AdapterTokenCache();
+export async function loadBotRackProfiles(
   environment: NodeJS.ProcessEnv = process.env,
   defaultFile = resolve("discord-bots.json"),
-): DiscordBotProfile[] {
-  return parseBotRackConfig(loadBotRackConfig(environment, defaultFile), environment);
+  protection: TokenProtection = tokenProtection,
+  cache: AdapterTokenCache = adapterTokenCache,
+): Promise<DiscordBotProfile[]> {
+  const config = loadBotRackConfig(environment, defaultFile);
+  // Validate structure first, without returning ciphertext as a usable credential.
+  const profiles = parseBotRackConfig(config, {}, (name, profileId) => ({ value: environment[name]?.trim() ? profileId : "" }));
+  const values = profiles.map(profile => environment[profile.tokenEnv]!.trim());
+  const decoded = await cache.read(values, protection);
+  const byName = new Map(profiles.map((profile, index) => [profile.tokenEnv, decoded[index]]));
+  return parseBotRackConfig(config, {}, name => ({ value: byName.get(name) ?? null, ...(byName.get(name) === null ? { error: TOKEN_REENTRY_MESSAGE } : {}) }));
 }
 
 /** Shared configuration selection for Adapter profiles and Core startup identity. */
@@ -143,9 +156,13 @@ export function loadBotRackConfig(
   const configuredJson = environment.DISCORD_BOT_RACK_JSON?.trim();
   if (configuredFile || existsSync(defaultFile)) {
     const path = resolve(configuredFile || defaultFile);
-    return JSON.parse(readFileSync(path, "utf8"));
+    try { return JSON.parse(readFileSync(path, "utf8")); }
+    catch { throw new Error("Discord Bot設定ファイルを読めません。JSON形式とアクセス権を確認してください。"); }
   }
-  if (configuredJson) return JSON.parse(configuredJson);
+  if (configuredJson) {
+    try { return JSON.parse(configuredJson); }
+    catch { throw new Error("Discord Bot設定のJSON形式を確認してください。"); }
+  }
 
   const token = environment.DISCORD_BOT_TOKEN?.trim();
   const guildId = environment.DISCORD_GUILD_ID?.trim();

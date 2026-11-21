@@ -10,6 +10,7 @@ import {
   type DiscordBotProfile,
 } from "./bot-config.ts";
 import type { DiscordIpcClient } from "./ipc-client.ts";
+import { redactBotTokenError } from "./token-protection.ts";
 
 export interface ManagedDiscordBot {
   readonly profile: DiscordBotProfile;
@@ -22,7 +23,7 @@ export interface ManagedDiscordBot {
 }
 
 export interface DiscordBotRackOptions {
-  loadProfiles?: () => DiscordBotProfile[];
+  loadProfiles?: () => DiscordBotProfile[] | Promise<DiscordBotProfile[]>;
   createConnection?: (profile: DiscordBotProfile) => ManagedDiscordBot;
 }
 
@@ -37,7 +38,7 @@ export class DiscordBotRack {
   readonly bots = new Map<string, ManagedDiscordBot>();
   readonly ipc: DiscordIpcClient;
   readonly ignoredUserIds: Set<string>;
-  readonly loadProfiles: () => DiscordBotProfile[];
+  readonly loadProfiles: () => DiscordBotProfile[] | Promise<DiscordBotProfile[]>;
   readonly createConnection: (profile: DiscordBotProfile) => ManagedDiscordBot;
   #operations = new Map<string, Promise<void>>();
   #removeConnectedHandler: (() => void) | null = null;
@@ -74,8 +75,14 @@ export class DiscordBotRack {
         existing.resync();
         return;
       }
-      const profile = this.loadProfiles().find((candidate) => candidate.profileId === validated);
+      const profile = (await this.loadProfiles()).find((candidate) => candidate.profileId === validated);
       if (!profile) throw new Error(`${validated}が有効なBot設定にありません。設定を保存してから接続してください`);
+      if (profile.tokenError) {
+        this.ipc.send({ type: DiscordFrameType.ADAPTER_STATE, botId: "0", guildId: profile.guildId, voiceChannelId: profile.voiceChannelId,
+          payload: Buffer.from(JSON.stringify({ profileId: profile.profileId, label: profile.label, role: profile.role,
+            gatewayState: "token-reentry-required", voiceState: "disconnected", message: profile.tokenError }), "utf8") });
+        return;
+      }
       await this.connectProfile(profile);
     });
   }
@@ -105,7 +112,7 @@ export class DiscordBotRack {
       try {
         bot.resync();
       } catch (error) {
-        console.error(`Discord Bot resync failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`Discord Bot resync failed: ${redactBotTokenError(error, bot.profile.token)}`);
       }
     }
   }
@@ -130,8 +137,8 @@ export class DiscordBotRack {
       await bot.start();
     } catch (error) {
       this.bots.delete(profile.profileId);
-      await bot.close();
-      throw error;
+      try { await bot.close(); } catch { /* Preserve only the sanitized connection error. */ }
+      throw new Error(redactBotTokenError(error, profile.token));
     }
   }
 
