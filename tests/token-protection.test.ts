@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { tmpdir } from "node:os";
 import { PassThrough } from "node:stream";
 import { parseEnv } from "node:util";
 import test from "node:test";
@@ -27,7 +26,8 @@ import type { RouterSnapshot, RuntimeInfoSnapshot } from "../packages/shared-typ
 // put credential operands in assertions: a failed assertion must not print them.
 const dummy = () => [Buffer.from("ParaBus-invalid-identity").toString("base64url"), randomBytes(5).toString("base64url"), randomBytes(24).toString("base64url")].join(".");
 function fixture(t: test.TestContext) {
-  const root = mkdtempSync(join(tmpdir(), "dpapi-fixture-"));
+  mkdirSync(resolve("target"), { recursive: true });
+  const root = mkdtempSync(join(resolve("target"), "dpapi-fixture-"));
   assert.ok(resolve(root).startsWith(resolve("target") + (process.platform === "win32" ? "\\" : "/")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
