@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { PrivateFileError, PRIVATE_FILE_WARNING, RECORDING_FOLDER_WARNING, protectSettingsLocations, writePrivateFile, writePrivateFileSync } from "../services/router-core-sim/src/private-files.ts";
@@ -17,7 +16,8 @@ const windows = process.platform === "win32";
 const broad = ["S-1-1-0", "S-1-5-11", "S-1-5-32-545"];
 const tool = (name: string) => join(process.env.SystemRoot ?? "C:\\Windows", "System32", name);
 function fixture(t: test.TestContext) {
-  const root = mkdtempSync(join(tmpdir(), "private-settings-"));
+  mkdirSync(resolve("target"), { recursive: true });
+  const root = mkdtempSync(join(resolve("target"), "private-settings-"));
   assert.ok(resolve(root).startsWith(resolve("target") + (process.platform === "win32" ? "\\" : "/")), "fixtures must stay under a new target directory");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
@@ -42,7 +42,7 @@ test("all configuration stores permit only the current user, SYSTEM and Administ
   const root = fixture(t);
   const warnings: string[] = [];
   await protectSettingsLocations(root, join(root, "recordings"), m => warnings.push(m));
-  new SettingsStore(root, {}).save({ bots: [] });
+  await new SettingsStore(root, {}).save({ bots: [] });
   await new SceneStore(root).save([], null);
   const owners = new ReceiverOwnershipStore(root);
   owners.set("1".repeat(18), "2".repeat(18), "fixture");

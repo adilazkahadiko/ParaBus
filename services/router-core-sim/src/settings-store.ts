@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
-import { writePrivateFileSync } from "./private-files.ts";
+import { writePrivateFile } from "./private-files.ts";
+import { tokenProtection, PROTECTED_TOKEN_PREFIX, TOKEN_PROTECTION_WARNING, type TokenProtection } from "../../discord-adapter/src/token-protection.ts";
+import { encryptEnvironmentTokens } from "./token-migration.ts";
 import { join } from "node:path";
+import { parseEnv } from "node:util";
 import type { BotRole, TxAudioMode, TxSubtype } from "../../../packages/shared-types/src/index.ts";
 import { isTxDestination } from "../../../packages/shared-types/src/index.ts";
 
@@ -23,6 +26,7 @@ export interface PublicBotSettings {
 }
 
 export interface SettingsSnapshot {
+  tokenProtectionWarning: string | null;
   bots: PublicBotSettings[];
   operator: {
     port: number;
@@ -77,18 +81,7 @@ function operatorPort(value: unknown): number {
 }
 
 function readEnvironment(text: string): Map<string, string> {
-  const values = new Map<string, string>();
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const separator = line.indexOf("=");
-    if (separator < 1) continue;
-    const name = line.slice(0, separator).trim();
-    let value = line.slice(separator + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    values.set(name, value);
-  }
-  return values;
+  return new Map(Object.entries(parseEnv(text)).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 }
 
 function updateEnvironment(text: string, updates: Map<string, string>): string {
@@ -109,10 +102,6 @@ function updateEnvironment(text: string, updates: Map<string, string>): string {
   return `${lines.join("\n").replace(/\n+$/, "")}\n`;
 }
 
-function atomicWrite(path: string, content: string): void {
-  writePrivateFileSync(path, content);
-}
-
 function tokenEnvironmentName(id: string): string {
   return `DISCORD_BOT_TOKEN_${id.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}`;
 }
@@ -126,12 +115,39 @@ export class SettingsStore {
   readonly environment: NodeJS.ProcessEnv;
   readonly environmentPath: string;
   readonly rackPath: string;
+  readonly protection: TokenProtection;
+  readonly warn: (message: string) => void;
+  #pending: Promise<void> = Promise.resolve();
 
-  constructor(root: string, environment: NodeJS.ProcessEnv = process.env) {
+  constructor(root: string, environment: NodeJS.ProcessEnv = process.env, warn: (message: string) => void = message => console.warn(message), protection: TokenProtection = tokenProtection) {
     this.root = root;
     this.environment = environment;
     this.environmentPath = join(root, ".env");
     this.rackPath = join(root, "discord-bots.json");
+    this.warn = warn;
+    this.protection = protection;
+  }
+
+  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const current = this.#pending.then(operation);
+    this.#pending = current.then(() => {}, () => {});
+    return current;
+  }
+
+  flush(): Promise<void> { return this.#pending; }
+
+  private protectionWarning(): void {
+    try { this.warn(TOKEN_PROTECTION_WARNING); } catch { /* A warning sink must not abort the plaintext fallback. */ }
+  }
+
+  migrateTokens(): Promise<void> {
+    return this.enqueue(async () => {
+      if (!existsSync(this.environmentPath)) return;
+      const original = readFileSync(this.environmentPath, "utf8");
+      const migration = await encryptEnvironmentTokens(original, this.protection);
+      if (migration.failed) this.protectionWarning();
+      if (migration.changed) await writePrivateFile(this.environmentPath, migration.text);
+    });
   }
 
   snapshot(): SettingsSnapshot {
@@ -176,6 +192,8 @@ export class SettingsStore {
       };
     });
     return {
+      tokenProtectionWarning: process.platform === "win32" && [...environmentValues].some(([key, value]) => /^DISCORD_BOT_TOKEN(?:_|$)/.test(key) && value && !value.startsWith(PROTECTED_TOKEN_PREFIX))
+        ? "Bot Tokenが暗号化されていません。保存先の権限を確認してください。暗号化が利用可能になった後に再起動してください。" : null,
       bots,
       operator: {
         port: operatorPort(environmentValues.get("PORT") ?? this.environment.PORT),
@@ -192,7 +210,12 @@ export class SettingsStore {
     };
   }
 
-  save(input: unknown): SettingsSnapshot {
+  save(input: unknown): Promise<SettingsSnapshot> {
+    const captured = structuredClone(input);
+    return this.enqueue(() => this.saveLocked(captured));
+  }
+
+  private async saveLocked(input: unknown): Promise<SettingsSnapshot> {
     const settings = input as { bots?: unknown; operator?: RawOperatorSettings; tablet?: RawTabletSettings } | null;
     const rawBots = settings?.bots;
     if (!Array.isArray(rawBots)) throw new Error("Bot設定の配列がありません");
@@ -224,7 +247,7 @@ export class SettingsStore {
     }
     const seenIds = new Set<string>();
     const seenTokenEnvironments = new Set<string>();
-    const seenTokens = new Set<string>();
+    const effectiveTokens: { id: string; value: string }[] = [];
     let rxCount = 0;
     let txCount = 0;
     const destinations = new Set<string>();
@@ -261,21 +284,36 @@ export class SettingsStore {
       if (enabled && !/^\d{17,20}$/.test(guildId)) throw new Error(`${id}: Guild IDは17〜20桁の数字で入力してください`);
       if (enabled && !/^\d{17,20}$/.test(voiceChannelId)) throw new Error(`${id}: VC IDは17〜20桁の数字で入力してください`);
       const token = stringValue(entry.token);
-      if (token && (token.length > 256 || /[\s#=]/.test(token))) throw new Error(`${id}: Tokenの形式が不正です`);
+      if (token && (token.startsWith(PROTECTED_TOKEN_PREFIX) || token.length > 256 || /[\s#=]/.test(token))) throw new Error(`${id}: Tokenの形式が不正です`);
       if (token) updates.set(tokenEnv, token);
       const existingToken = token || environmentValues.get(tokenEnv) || this.environment[tokenEnv];
       if (enabled && !existingToken) throw new Error(`${id}: Bot Tokenを入力してください`);
-      if (enabled && existingToken && seenTokens.has(existingToken)) {
-        throw new Error(`${id}: 同じBot Tokenが複数の有効設定で使われています。1 Botで送受信する場合はRoleをDUPLEXにしてください`);
-      }
-      if (enabled && existingToken) seenTokens.add(existingToken);
+      if (enabled && existingToken) effectiveTokens.push({ id, value: existingToken });
       return { id, label, role, txSubtype, txAudioMode, txDestination, tokenEnv, guildId, voiceChannelId, enabled };
     });
     if (rxCount > SETTINGS_MAX_RX_BOTS) throw new Error(`有効なRX / SPARE Botは最大${SETTINGS_MAX_RX_BOTS}台です`);
     if (txCount > SETTINGS_MAX_TX_BOTS) throw new Error(`有効なTX / DUPLEX Botは最大${SETTINGS_MAX_TX_BOTS}台です`);
 
-    atomicWrite(this.environmentPath, updateEnvironment(environmentText, updates));
-    atomicWrite(this.rackPath, `${JSON.stringify({ version: 1, bots }, null, 2)}\n`);
+    // Option A: the only Core decryption is this save-time duplicate comparison.
+    // Never copy decoded values into process.env, snapshots or persisted metadata.
+    if (effectiveTokens.length > 1) {
+      const protectedValues = [...new Set(effectiveTokens.map(entry => entry.value).filter(value => value.startsWith(PROTECTED_TOKEN_PREFIX)))];
+      const decoded = await this.protection.unprotect(protectedValues);
+      const compared = new Map(protectedValues.map((value, index) => [value, decoded[index]]));
+      const seen = new Set<string>();
+      try { for (const entry of effectiveTokens) {
+        // Unreadable credentials cannot connect; allow repairing other bots. Identical
+        // unreadable ciphertext is still rejected, and re-entry enables full comparison.
+        const plain = compared.get(entry.value);
+        const identity = entry.value.startsWith(PROTECTED_TOKEN_PREFIX) ? plain ? `plain:${plain}` : `unreadable:${entry.value}` : `plain:${entry.value}`;
+        if (seen.has(identity)) throw new Error(`${entry.id}: 同じBot Tokenが複数の有効設定で使われています。1 Botで送受信する場合はRoleをDUPLEXにしてください`);
+        seen.add(identity);
+      } } finally { compared.clear(); decoded.fill(null); seen.clear(); }
+    }
+    const migration = await encryptEnvironmentTokens(updateEnvironment(environmentText, updates), this.protection);
+    if (migration.failed) this.protectionWarning();
+    await writePrivateFile(this.environmentPath, migration.text);
+    await writePrivateFile(this.rackPath, `${JSON.stringify({ version: 1, bots }, null, 2)}\n`);
     return this.snapshot();
   }
 }

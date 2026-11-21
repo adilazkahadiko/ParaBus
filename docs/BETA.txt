@@ -14,6 +14,16 @@ SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照して�
 本文の1058fb681f93・2b920eb1aafd・ed4c57df4431は、旧private履歴での検証・部品取得IDです。
 公開履歴のcommitとして探す必要はありません。配布物のBUILDと出自の記録はcomponent-provenance.jsonを参照。
 
+Bot Tokenの保存と設定の引き継ぎ
+WindowsではBot TokenをDPAPI（現在のWindowsアカウント）で暗号化して.envに保存します。
+設定を別のPCや別のWindowsアカウントへコピーした場合はTokenを入力し直してください。
+引き継ぎでコピーする設定ファイルの一覧は変わりません。
+.envへ平文のTokenを直接書いた場合は、次に起動したときに自動で暗号化します。
+この版で一度起動すると、.envのTokenは暗号化した形式に書き換わります。それより前の版（beta.7以前）では暗号化したTokenを読めないため、前の版に戻す場合は、SETUPでTokenを入力し直してください。
+暗号化処理が利用できない場合はACLで保護した平文で保存し、警告を表示して運用を続けます。
+Windows以外の開発環境では平文保存です。暗号化しても.envを人に渡さないでください。
+漏えいした場合はDiscord Developer PortalでReset Tokenし、保存済みTokenを更新してください。
+
 beta.7の変更
 ・SETUPを音声機器、Bot、外部操作、アプリ設定、本体操作の順に整理しました。
   MAIN OUTPUT TESTと機器ごとの段階Bの許可は折りたたみ、チェックボックスの配置を直しました。

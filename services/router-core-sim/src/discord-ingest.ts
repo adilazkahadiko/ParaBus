@@ -299,7 +299,11 @@ export class DiscordIngestServer {
       const text = Buffer.from(frame.payload ?? []).toString("utf8");
       try {
         const payload = JSON.parse(text) as AdapterStatusPayload;
-        const bot = this.ensureBot(frame, now);
+        // A reconnect can fail before a new Discord ID is known. Update the
+        // profile's previous status so the re-entry notice is visible immediately.
+        const previous = frame.botId === "0" && payload.gatewayState === "token-reentry-required"
+          ? [...this.bots.values()].find(candidate => candidate.profileId === payload.profileId) : undefined;
+        const bot = previous ?? this.ensureBot(frame, now);
         // ADAPTER_STATE is a fresh authenticated liveness signal too. Keeping an
         // older PING timestamp here makes a newly READY reconnect look STALE
         // until the next heartbeat, so its one-shot USER_META replay is lost.
@@ -1124,7 +1128,15 @@ export class DiscordIngestServer {
   }
 
   private ensureBot(frame: DiscordIpcFrame, now: number): DiscordBotRuntime {
-    const key = botKey(frame);
+    let key = botKey(frame);
+    // Before login there is no Discord bot ID. Keep per-profile failures separate,
+    // including two unreadable credentials configured for the same guild/VC.
+    if (frame.botId === "0") {
+      try {
+        const profileId = (decodeJson(frame.payload) as AdapterStatusPayload).profileId;
+        if (typeof profileId === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(profileId)) key = `pending:${profileId}:${key}`;
+      } catch { /* Existing legacy state frames retain their original identity. */ }
+    }
     let bot = this.bots.get(key);
     if (bot) return bot;
     if (frame.botId && frame.botId !== "0") {

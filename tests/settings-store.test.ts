@@ -1,3 +1,5 @@
+import { parseEnv } from "node:util";
+import { tokenProtection } from "../services/discord-adapter/src/token-protection.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,7 +19,7 @@ function fixture(): { root: string; store: SettingsStore } {
   return { root, store: new SettingsStore(root, {}) };
 }
 
-test("Settings reject non-token environment names before writing either settings file", t => {
+test("Settings reject non-token environment names before writing either settings file", async t => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const beforeEnv = readFileSync(store.environmentPath);
@@ -25,25 +27,25 @@ test("Settings reject non-token environment names before writing either settings
   const bot = store.snapshot().bots[0];
   for (const tokenEnv of ["ROUTER_CORE_BIN", "DBR_LAN_ACCESS", "PORT", "NODE_OPTIONS", "RECORDER_FOLDER",
     "DISCORD_BOT_TOKEN_", "DISCORD_BOT_TOKEN_RX-01", "DISCORD_BOT_TOKEN_rx01", "DISCORD_BOT_TOKENOTHER"]) {
-    assert.throws(() => store.save({
+    await assert.rejects(async () => (await store.save({
       operator: { port: 4191, lanAccess: true },
       bots: [
         { ...bot, token: "replacement-token" },
         { ...bot, id: "RX02", tokenEnv, token: "another-token" },
       ],
-    }), /Token環境変数名が不正/, tokenEnv);
+    })), /Token環境変数名が不正/, tokenEnv);
     assert.deepEqual(readFileSync(store.environmentPath), beforeEnv, tokenEnv);
     assert.deepEqual(readFileSync(store.rackPath), beforeRack, tokenEnv);
   }
 });
 
-test("Settings-generated token environment names accept all valid profile ID characters", t => {
+test("Settings-generated token environment names accept all valid profile ID characters", async t => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bot = store.snapshot().bots[0];
   for (const id of ["RX01", "tx-game_01", "_", "-", "0", "a".repeat(32)]) {
     const expected = `DISCORD_BOT_TOKEN_${id.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}`;
-    const snapshot = store.save({ bots: [{ ...bot, id, tokenEnv: undefined, token: "generated-test-token" }] });
+    const snapshot = (await store.save({ bots: [{ ...bot, id, tokenEnv: undefined, token: "generated-test-token" }] }));
     assert.equal(snapshot.bots[0].tokenEnv, expected);
     assert.equal(snapshot.bots[0].tokenConfigured, true);
     assert.match(expected, /^DISCORD_BOT_TOKEN(_[A-Z0-9_]+)?$/);
@@ -51,18 +53,18 @@ test("Settings-generated token environment names accept all valid profile ID cha
   }
 });
 
-test("desktop saves preserve deferred Tablet preferences and do not reserve its inactive port", t => {
+test("desktop saves preserve deferred Tablet preferences and do not reserve its inactive port", async t => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const original = readFileSync(store.environmentPath, "utf8") + "TABLET_CONTROL_ENABLED=1\nTABLET_CONTROL_PORT=4174\n";
   writeFileSync(store.environmentPath, original);
-  const result = store.save({ bots: store.snapshot().bots, operator: { port: 4174 } });
+  const result = (await store.save({ bots: store.snapshot().bots, operator: { port: 4174 } }));
   assert.equal(result.operator.port, 4174);
   const after = readFileSync(store.environmentPath, "utf8");
   assert.match(after, /^TABLET_CONTROL_ENABLED=1$/m); assert.match(after, /^TABLET_CONTROL_PORT=4174$/m);
 });
 
-test("first run ignores example bots and LAN opt-in round-trips without altering tokens", t => {
+test("first run ignores example bots and LAN opt-in round-trips without altering tokens", async t => {
   const root = mkdtempSync(join(tmpdir(), "parabus-empty-settings-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, "discord-bots.example.json"), JSON.stringify({ bots: [{ id: "RX01", label: "RX TEAM 01" }] }));
@@ -70,15 +72,15 @@ test("first run ignores example bots and LAN opt-in round-trips without altering
   const store = new SettingsStore(root, {});
   assert.deepEqual(store.snapshot().bots, []);
   assert.equal(store.snapshot().operator.lanAccess, false);
-  assert.equal(store.save({ bots: [], operator: { lanAccess: true } }).operator.lanAccess, true);
+  assert.equal((await store.save({ bots: [], operator: { lanAccess: true } })).operator.lanAccess, true);
   assert.match(readFileSync(store.environmentPath, "utf8"), /^DBR_LAN_ACCESS=1$/m);
-  assert.equal(store.save({ bots: [] }).operator.lanAccess, true, "older clients cannot silently turn LAN access off");
-  assert.equal(store.save({ bots: [], operator: { lanAccess: false } }).operator.lanAccess, false);
+  assert.equal((await store.save({ bots: [] })).operator.lanAccess, true, "older clients cannot silently turn LAN access off");
+  assert.equal((await store.save({ bots: [], operator: { lanAccess: false } })).operator.lanAccess, false);
   assert.match(readFileSync(store.environmentPath, "utf8"), /^PRIVATE_TOKEN=do-not-change$/m);
-  assert.throws(() => store.save({ bots: [], operator: { lanAccess: "yes" } }), /LAN/);
+  await assert.rejects(async () => (await store.save({ bots: [], operator: { lanAccess: "yes" } })), /LAN/);
 });
 
-test("APEX Bot capacity agrees between Settings and Adapter, including DUPLEX counting and atomic rejection", (t) => {
+test("APEX Bot capacity agrees between Settings and Adapter, including DUPLEX counting and atomic rejection", async (t) => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const configuration = (roles: BotRole[]) => {
@@ -96,7 +98,7 @@ test("APEX Bot capacity agrees between Settings and Adapter, including DUPLEX co
     [...Array<BotRole>(22).fill("DUPLEX"), "SPARE", "SPARE"] as BotRole[],
   ]) {
     const { bots, environment } = configuration(roles);
-    const snapshot = store.save({ bots });
+    const snapshot = (await store.save({ bots }));
     assert.equal(snapshot.bots.length, 24);
     assert.deepEqual(snapshot.limits, { rx: 24, tx: 22, total: 24 });
     const saved = JSON.parse(readFileSync(store.rackPath, "utf8"));
@@ -111,14 +113,14 @@ test("APEX Bot capacity agrees between Settings and Adapter, including DUPLEX co
     [...Array<BotRole>(23).fill("DUPLEX"), "RX"] as BotRole[],
   ]) {
     const { bots, environment } = configuration(roles);
-    assert.throws(() => store.save({ bots }), /最大(?:24|22)/);
+    await assert.rejects(async () => (await store.save({ bots })), /最大(?:24|22)/);
     assert.throws(() => parseBotRackConfig({ bots }, environment), /at most (?:24 total|22 TX\/DUPLEX) bots/);
     assert.equal(readFileSync(store.rackPath, "utf8"), beforeRack);
     assert.equal(readFileSync(store.environmentPath, "utf8"), beforeEnv);
   }
 });
 
-test("Settings snapshot exposes only token configured state", () => {
+test("Settings snapshot exposes only token configured state", async () => {
   const { root, store } = fixture();
   try {
     const snapshot = store.snapshot();
@@ -131,26 +133,26 @@ test("Settings snapshot exposes only token configured state", () => {
   }
 });
 
-test("TX destination settings round-trip and duplicate or invalid slots are rejected by both backends", (t) => {
+test("TX destination settings round-trip and duplicate or invalid slots are rejected by both backends", async (t) => {
   const { root, store } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bot = { id: "TX1", label: "Team 1", role: "TX", tokenEnv: "DISCORD_BOT_TOKEN_TX1", token: "test-secret", guildId: "100000000000000001", voiceChannelId: "100000000000000101", txDestination: "TEAM_01" };
-  assert.equal(store.save({ bots: [bot] }).bots[0].txDestination, "TEAM_01");
+  assert.equal((await store.save({ bots: [bot] })).bots[0].txDestination, "TEAM_01");
   assert.equal(parseBotRackConfig({ bots: [bot] }, { DISCORD_BOT_TOKEN_TX1: "test-secret" })[0].txDestination, "TEAM_01");
   const before = readFileSync(store.rackPath, "utf8");
   const duplicate = { ...bot, id: "TX2", tokenEnv: "DISCORD_BOT_TOKEN_TX2", token: "other-secret" };
-  assert.throws(() => store.save({ bots: [bot, duplicate] }), /送信先区分が重複/);
+  await assert.rejects(async () => (await store.save({ bots: [bot, duplicate] })), /送信先区分が重複/);
   assert.throws(() => parseBotRackConfig({ bots: [bot, duplicate] }, { DISCORD_BOT_TOKEN_TX1: "test-secret", DISCORD_BOT_TOKEN_TX2: "other-secret" }), /duplicate TX destination/);
-  assert.throws(() => store.save({ bots: [{ ...bot, txDestination: "TEAM_21" }] }), /送信先区分が不正/);
+  await assert.rejects(async () => (await store.save({ bots: [{ ...bot, txDestination: "TEAM_21" }] })), /送信先区分が不正/);
   assert.throws(() => parseBotRackConfig({ bots: [{ ...bot, txDestination: "TEAM_21" }] }, { DISCORD_BOT_TOKEN_TX1: "test-secret" }), /invalid txDestination/);
   assert.equal(readFileSync(store.rackPath, "utf8"), before);
 });
 
-test("Settings saves Tablet LAN enablement without storing a pairing secret", () => {
+test("Settings saves Tablet LAN enablement without storing a pairing secret", async () => {
   const { root, store } = fixture();
   try {
     const bots = store.snapshot().bots.map((bot) => ({ ...bot, token: "" }));
-    const snapshot = store.save({ bots, operator: { port: 4191 }, tablet: { enabled: true, port: 4310 } });
+    const snapshot = (await store.save({ bots, operator: { port: 4191 }, tablet: { enabled: true, port: 4310 } }));
     assert.deepEqual(snapshot.operator, { port: 4191, lanAccess: false });
     assert.deepEqual(snapshot.tablet, { enabled: true, port: 4310 });
     const environment = readFileSync(join(root, ".env"), "utf8");
@@ -158,16 +160,16 @@ test("Settings saves Tablet LAN enablement without storing a pairing secret", ()
     assert.match(environment, /TABLET_CONTROL_ENABLED=1/);
     assert.match(environment, /TABLET_CONTROL_PORT=4310/);
     assert.doesNotMatch(environment, /PAIR|SESSION/);
-    assert.throws(() => store.save({ bots, operator: { port: 80 }, tablet: { enabled: false, port: 4310 } }), /Application Port/);
+    await assert.rejects(async () => (await store.save({ bots, operator: { port: 80 }, tablet: { enabled: false, port: 4310 } })), /Application Port/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("Settings save preserves an empty existing token and writes a new token only to .env", () => {
+test("Settings save preserves an empty existing token and writes a new token only to .env", async () => {
   const { root, store } = fixture();
   try {
-    const snapshot = store.save({ bots: [
+    const snapshot = (await store.save({ bots: [
       {
         id: "RX01", label: "Interview RX", role: "RX", tokenEnv: "DISCORD_BOT_TOKEN_RX01", token: "",
         guildId: "100000000000000001", voiceChannelId: "100000000000000101", enabled: true,
@@ -177,37 +179,37 @@ test("Settings save preserves an empty existing token and writes a new token onl
         tokenEnv: "DISCORD_BOT_TOKEN_TX_GAME01", token: "new.secret-token",
         guildId: "100000000000000001", voiceChannelId: "100000000000000101", enabled: true,
       },
-    ] });
+    ] }));
     assert.equal(snapshot.bots.every((bot) => bot.tokenConfigured), true);
     const rack = readFileSync(join(root, "discord-bots.json"), "utf8");
     const environment = readFileSync(join(root, ".env"), "utf8");
     assert.equal(rack.includes("new.secret-token"), false);
     assert.match(environment, /KEEP_VALUE=yes/);
-    assert.match(environment, /DISCORD_BOT_TOKEN_RX01=existing\.secret-token/);
-    assert.match(environment, /DISCORD_BOT_TOKEN_TX_GAME01=new\.secret-token/);
+    assert.equal(new RegExp("^existing\\.secret-token$").test((await tokenProtection.unprotect([parseEnv(environment)["DISCORD_BOT_TOKEN_RX01"] ?? ""]))[0] ?? ""), true);
+    assert.equal(new RegExp("^new\\.secret-token$").test((await tokenProtection.unprotect([parseEnv(environment)["DISCORD_BOT_TOKEN_TX_GAME01"] ?? ""]))[0] ?? ""), true);
     assert.match(environment, /DISCORD_BOT_RACK_FILE=discord-bots\.json/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("Settings save rejects enabled bots without token or valid Discord IDs", () => {
+test("Settings save rejects enabled bots without token or valid Discord IDs", async () => {
   const { root, store } = fixture();
   try {
-    assert.throws(() => store.save({ bots: [{
+    await assert.rejects(async () => (await store.save({ bots: [{
       id: "RX02", label: "RX 02", role: "RX", tokenEnv: "DISCORD_BOT_TOKEN_RX02", token: "",
       guildId: "bad", voiceChannelId: "100000000000000102", enabled: true,
-    }] }), /Guild ID/);
-    assert.throws(() => store.save({ bots: [{
+    }] })), /Guild ID/);
+    await assert.rejects(async () => (await store.save({ bots: [{
       id: "RX02", label: "RX 02", role: "RX", tokenEnv: "DISCORD_BOT_TOKEN_RX02", token: "",
       guildId: "100000000000000001", voiceChannelId: "100000000000000102", enabled: true,
-    }] }), /Bot Token/);
+    }] })), /Bot Token/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("Settings accepts one DUPLEX Bot and rejects reusing its token in another profile", () => {
+test("Settings accepts one DUPLEX Bot and rejects reusing its token in another profile", async () => {
   const { root, store } = fixture();
   try {
     const duplex = {
@@ -215,25 +217,25 @@ test("Settings accepts one DUPLEX Bot and rejects reusing its token in another p
       tokenEnv: "DISCORD_BOT_TOKEN_RX01", token: "",
       guildId: "100000000000000001", voiceChannelId: "100000000000000101", enabled: true,
     };
-    const snapshot = store.save({ bots: [duplex] });
+    const snapshot = (await store.save({ bots: [duplex] }));
     assert.equal(snapshot.bots[0].role, "DUPLEX");
     assert.equal(snapshot.bots[0].txSubtype, "GAME");
     assert.equal(snapshot.bots[0].txAudioMode, "STEREO");
 
-    assert.throws(() => store.save({ bots: [duplex, {
+    await assert.rejects(async () => (await store.save({ bots: [duplex, {
       ...duplex,
       id: "TX_GAME01",
       label: "Duplicate Bot",
       role: "TX",
       tokenEnv: "DISCORD_BOT_TOKEN_TX_GAME01",
       token: "existing.secret-token",
-    }] }), /同じBot Token/);
+    }] })), /同じBot Token/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("Settings snapshot migrates legacy single Bot values without exposing its token", () => {
+test("Settings snapshot migrates legacy single Bot values without exposing its token", async () => {
   const root = mkdtempSync(join(tmpdir(), "dbr-settings-legacy-"));
   try {
     writeFileSync(join(root, ".env"), "DISCORD_BOT_TOKEN=legacy.secret-token\nDISCORD_GUILD_ID=100000000000000001\nDISCORD_VOICE_CHANNEL_ID=100000000000000101\n");
@@ -244,7 +246,7 @@ test("Settings snapshot migrates legacy single Bot values without exposing its t
     assert.equal(snapshot.bots[0].tokenConfigured, true);
     assert.equal(snapshot.bots[0].guildId, "100000000000000001");
     assert.equal(JSON.stringify(snapshot).includes("legacy.secret-token"), false);
-    assert.equal(store.save({ bots: snapshot.bots }).bots[0].tokenEnv, "DISCORD_BOT_TOKEN");
+    assert.equal((await store.save({ bots: snapshot.bots })).bots[0].tokenEnv, "DISCORD_BOT_TOKEN");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

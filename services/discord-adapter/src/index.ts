@@ -1,12 +1,15 @@
 import { DiscordBotRack } from "./bot-rack.ts";
 import { DiscordIpcClient } from "./ipc-client.ts";
-import { watchLauncher } from "../../../packages/process-lifecycle/src/index.ts";
+import { readLauncherTokenInput, watchLauncher } from "../../../packages/process-lifecycle/src/index.ts";
+import { loadBotRackEnvironment, loadBotRackProfiles } from "./bot-config.ts";
 
 const ignoredUserIds = new Set(
   (process.env.DISCORD_TX_BOT_USER_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean),
 );
 const ipc = new DiscordIpcClient();
-const rack = new DiscordBotRack(ipc, ignoredUserIds);
+const inheritedTokens = await readLauncherTokenInput();
+const settingsEnvironment = { ...process.env, ...inheritedTokens };
+const rack = new DiscordBotRack(ipc, ignoredUserIds, { loadProfiles: () => loadBotRackProfiles(loadBotRackEnvironment(settingsEnvironment)) });
 ipc.onFrame((frame) => rack.ingest(frame));
 let stopping = false;
 

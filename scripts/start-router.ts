@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
+import { consumeBotTokens, withoutBotTokens } from "../packages/process-lifecycle/src/index.ts";
 
 const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split(".").map(Number);
 if (nodeMajor !== 22 || nodeMinor < 23 || (nodeMinor === 23 && nodePatch < 4)) {
@@ -36,6 +37,7 @@ if (!rackConfigured && configured.length > 0 && configured.length < discordSetti
 }
 
 const discordEnabled = rackConfigured || configured.length === discordSettings.length;
+const launchTokens = consumeBotTokens();
 const port = Number(process.env.PORT ?? 4173);
 const browserUrl = `http://127.0.0.1:${port}`;
 const RESTART_EXIT_CODE = 75;
@@ -48,9 +50,11 @@ let core: ChildProcess | null = null;
 function startService(path: string): ChildProcess {
   const child = spawn(process.execPath, [path], {
     cwd: process.cwd(),
-    env: { ...process.env, UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE ?? "16", DBR_LAUNCHER_MANAGED: "1", DBR_LAUNCHER_PID: String(process.pid) },
-    stdio: ["inherit", "inherit", "inherit", "ipc"],
+    env: { ...withoutBotTokens(process.env), UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE ?? "16", DBR_LAUNCHER_MANAGED: "1", DBR_LAUNCHER_PID: String(process.pid) },
+    stdio: ["pipe", "inherit", "inherit", "ipc"],
   });
+  child.stdin?.on("error", () => {}); // A child that exits early must not expose its input.
+  child.stdin?.end(JSON.stringify({ tokens: launchTokens }), "utf8");
   children.add(child);
   child.once("exit", () => children.delete(child));
   child.once("error", () => { console.error("ParaBusの子プロセスを起動できませんでした"); stopAll(1); });
@@ -95,10 +99,10 @@ async function waitForCore(): Promise<boolean> {
 function openBrowser(): void {
   if (process.env.OPEN_BROWSER === "0") return;
   if (process.platform === "win32") {
-    const opener = spawn("cmd.exe", ["/c", "start", "", browserUrl], { detached: true, stdio: "ignore" });
+    const opener = spawn("cmd.exe", ["/c", "start", "", browserUrl], { detached: true, stdio: "ignore", env: withoutBotTokens(process.env) });
     opener.unref();
   } else if (process.platform === "darwin") {
-    spawn("open", [browserUrl], { detached: true, stdio: "ignore" }).unref();
+    spawn("open", [browserUrl], { detached: true, stdio: "ignore", env: withoutBotTokens(process.env) }).unref();
   }
 }
 

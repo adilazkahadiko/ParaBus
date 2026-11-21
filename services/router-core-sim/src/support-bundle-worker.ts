@@ -41,6 +41,7 @@ function text(value: string, idKind = "user"): string {
   let safe = value;
   for (const secret of [...secrets].sort((a, b) => b.length - a.length)) safe = safe.split(secret).join("[REDACTED]");
   return safe.replace(/\b\d{17,20}\b/g, (id) => alias(idKind, id))
+    .replace(/dpapi:v1:[A-Za-z0-9+/=]+/g, "[REDACTED]")
     .replace(/(?:mfa\.[A-Za-z0-9_-]{20,}|\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b)/g, "[REDACTED]")
     .replace(/(?:[A-Za-z]:[\\/]|\/(?:home|Users|tmp|var|etc|opt|srv|run)\/)[^\s"'<>]*/g, "[PATH]");
 }

@@ -20,6 +20,7 @@ import { isRxCapableRole, isTxCapableRole, type DiscordBotProfile } from "./bot-
 import type { DiscordIpcClient } from "./ipc-client.ts";
 
 import { RtpObserver } from "./rtp-observer.ts";
+import { redactBotTokenError } from "./token-protection.ts";
 
 const HEARTBEAT_MS = 5_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -101,7 +102,7 @@ export class DiscordBotConnection {
       await this.client.login(this.profile.token);
     } catch (error) {
       this.fail("gateway-login-failed", error);
-      throw error;
+      throw new Error(redactBotTokenError(error, this.profile.token));
     }
   }
 
@@ -279,7 +280,7 @@ export class DiscordBotConnection {
     this.message = `TX stopped (${state}); restart TX explicitly`;
     this.#txFailed = true;
     this.sendStatus();
-    console.error(`[${this.profile.profileId}] ${state}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`[${this.profile.profileId}] ${state}: ${redactBotTokenError(error, this.profile.token)}`);
   }
 
   private async assignVoiceChannel(guildId: string, voiceChannelId: string): Promise<void> {
@@ -447,7 +448,7 @@ export class DiscordBotConnection {
       this.receiveRetryCounts.set(userId, retries);
       const delay = Math.min(200 * retries, 3_000);
       if (retries === 1 || retries % 20 === 0) {
-        console.error(`[${this.profile.profileId}] Opus receive stream failed for ${userId}: ${error.message}; retrying in ${delay}ms (attempt ${retries})`);
+        console.error(`[${this.profile.profileId}] Opus receive stream failed for ${userId}: ${redactBotTokenError(error, this.profile.token)}; retrying in ${delay}ms (attempt ${retries})`);
       }
       const connection = this.connection;
       const timer = setTimeout(() => {
@@ -598,7 +599,7 @@ export class DiscordBotConnection {
 
   private fail(state: string, error: unknown): void {
     this.stopTx();
-    this.message = error instanceof Error ? error.message : String(error);
+    this.message = redactBotTokenError(error, this.profile.token);
     if (state.startsWith("gateway")) this.gatewayState = "fault";
     else this.voiceState = "fault";
     this.sendStatus();
