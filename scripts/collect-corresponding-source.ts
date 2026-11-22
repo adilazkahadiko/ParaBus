@@ -6,11 +6,11 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { verifyPinnedSource } from "./verified-source.ts";
+import { DAVE_LOCK_SHA256, verifyPinnedSource } from "./verified-source.ts";
 
 const DAVE_COMMIT = "a1e2e741bea06bc3b7167a5c3792844b8975993c";
 const HPKE_COMMIT = "f3463e7530771d7f7116635335c25e7d2d11e861";
-type RecordEntry = { path: string; url: string; sha256: string; integrity?: string };
+type RecordEntry = { path: string; url: string; sha256: string; integrity?: string; archiveEntry?: string };
 export function parseRegistryCrates(lock: string): { name: string; version: string; checksum: string }[] {
   return lock.split("[[package]]").slice(1).filter(s => /^source = "registry\+/m.test(s)).map(s => {
     const value = (key: string) => { const match = s.match(new RegExp(`^${key} = "([^"]+)"`, "m")); assert.ok(match, `Missing ${key}`); return match[1]; };
@@ -48,8 +48,10 @@ export async function collectSources(repo: string, nativeBase: string, output: s
   const tarRead = (archive: string, entry: string) => execFileSync(archiveTool(), ["-xOf", archive, entry], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
   const dave = await download("davey/davey-js-0.1.12.tar.gz", `https://codeload.github.com/Snazzah/davey/tar.gz/${DAVE_COMMIT}`);
   const daveLock = tarRead(dave, `davey-${DAVE_COMMIT}/Cargo.lock`);
-  assert.equal(sha256(Buffer.from(daveLock)), "cf9bc6884056b8e20ee6835ac0ffca237f8b869d5ca14cddf25f548fa15ceb50");
+  assert.equal(sha256(Buffer.from(daveLock)), DAVE_LOCK_SHA256);
   writeFileSync(join(output, "davey/Cargo.lock"), daveLock);
+  records.push({ path: "davey/Cargo.lock", url: `https://codeload.github.com/Snazzah/davey/tar.gz/${DAVE_COMMIT}`,
+    archiveEntry: `davey-${DAVE_COMMIT}/Cargo.lock`, sha256: DAVE_LOCK_SHA256 });
   await download("davey/hpke-rs-f3463e75.tar.gz", `https://codeload.github.com/cryspen/hpke-rs/tar.gz/${HPKE_COMMIT}`);
   const jobs: (() => Promise<unknown>)[] = [];
   for (const [group, lock] of [["davey/crates", daveLock], ["parabus-crates", readFileSync(join(repo, "Cargo.lock"), "utf8")]]) {

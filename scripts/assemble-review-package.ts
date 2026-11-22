@@ -10,12 +10,14 @@ import { stageRelease, auditReleaseEntries } from "./release-stage.ts";
 import { omitCrashDiagnostics } from "./omit-crash-diagnostics.ts";
 import { verifyNativeInputs, verifyArtifactSourceInputs } from "./native-inputs.ts";
 import { overlayJavaScriptUpdates } from "./release-js-overlays.ts";
+import { verifyCollectedSources } from "./verified-source.ts";
 
 const repo = resolve(import.meta.dirname, "..");
 assert.ok(process.argv.length === 5 || process.argv.length === 6, "Usage: node scripts/assemble-review-package.ts <clean-ci-base> <collected-sources> <new-output-root> [vX.Y.Z-beta.N]");
 assert.equal(process.versions.node, "22.23.4");
 const base = resolve(process.argv[2]), sources = resolve(process.argv[3]), output = resolve(process.argv[4]);
 assert.ok(!existsSync(output), "Output already exists; choose a new directory");
+verifyCollectedSources(sources);
 const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 }).trim();
 assert.equal(git(["status", "--porcelain"]), "", "Commit reviewed changes before assembly");
 const commit = git(["rev-parse", "HEAD"]);
@@ -30,10 +32,6 @@ function files(root: string, prefix = ""): string[] {
   });
 }
 const json = (file: string, value: unknown) => writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
-const sourceInventory = JSON.parse(readFileSync(join(sources, "SOURCE_DOWNLOADS.json"), "utf8"));
-for (const record of [...sourceInventory.records, ...JSON.parse(readFileSync(join(sources, "SUPPLEMENTAL_NOTICES.json"), "utf8"))]) {
-  assert.equal(hash(join(sources, record.path)), record.sha256, `Source changed after verification: ${record.path}`);
-}
 const licenses = JSON.parse(readFileSync(join(sources, "DEPENDENCY_LICENSE_INVENTORY.json"), "utf8"));
 assert.ok(licenses.every((p: { licenseFiles: string[]; supplemental?: string[] }) => p.licenseFiles.length || p.supplemental?.length), "Unresolved notice");
 const node = join(repo, "runtime/node.exe"), nodeLicense = join(repo, "runtime/LICENSE");

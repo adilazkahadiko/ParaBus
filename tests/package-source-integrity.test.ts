@@ -1,11 +1,50 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { verifyNativeInputs, verifyArtifactSourceInputs, assertNativeReuseCompatibility } from "../scripts/native-inputs.ts";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { collectSources } from "../scripts/collect-corresponding-source.ts";
+import { DAVE_LOCK_SHA256, verifyCollectedSources } from "../scripts/verified-source.ts";
+
+function collectedFixture(t: test.TestContext, records: unknown[] = [{ path: "davey/Cargo.lock", sha256: DAVE_LOCK_SHA256 }]) {
+  const base = resolve("target/beta8-retry-20261122/tests");
+  mkdirSync(base, { recursive: true });
+  const directory = mkdtempSync(join(base, "collected-"));
+  assert.ok(directory.startsWith(base));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(join(directory, "SOURCE_DOWNLOADS.json"), JSON.stringify({ schemaVersion: 1, records }));
+  writeFileSync(join(directory, "SUPPLEMENTAL_NOTICES.json"), "[]");
+  return directory;
+}
+
+test("assembly refuses a missing derived davey lockfile before creating a package", t => {
+  const directory = collectedFixture(t), output = join(directory, "package");
+  const result = spawnSync(process.execPath, ["scripts/assemble-review-package.ts", directory, directory, output], { encoding: "utf8", timeout: 10_000 });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stderr.includes("Missing collected source: davey/Cargo.lock"), true);
+  assert.equal(existsSync(output), false);
+});
+
+test("assembly refuses altered derived source bytes before creating a package", t => {
+  const directory = collectedFixture(t), output = join(directory, "package");
+  mkdirSync(join(directory, "davey"));
+  writeFileSync(join(directory, "davey/Cargo.lock"), "altered lockfile fixture");
+  const result = spawnSync(process.execPath, ["scripts/assemble-review-package.ts", directory, directory, output], { encoding: "utf8", timeout: 10_000 });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stderr.includes("Source changed after verification: davey/Cargo.lock"), true);
+  assert.equal(existsSync(output), false);
+});
+
+test("omitting the derived lockfile record cannot bypass source verification", t => {
+  assert.throws(() => verifyCollectedSources(collectedFixture(t, [])), /Missing collected source record: davey\/Cargo.lock/);
+});
+
+test("retaking the derived lockfile hash cannot authorize changed bytes", t => {
+  const directory = collectedFixture(t, [{ path: "davey/Cargo.lock", sha256: "0".repeat(64) }]);
+  assert.throws(() => verifyCollectedSources(directory), /Unreviewed collected source hash: davey\/Cargo.lock/);
+});
 
 test("native reuse verifies source bytes without looking up legacy Git commits", () => {
   const repo = resolve(import.meta.dirname, "..");
