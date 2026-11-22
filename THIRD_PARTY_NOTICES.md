@@ -253,3 +253,11 @@ Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自
 beta.6から依存ライブラリ・音声native・Node.jsの変更はありません。
 package.json、package-lock.json、Cargo.lock、release/*.json、.nvmrcはbeta.6から変更していません。
 Node.jsは引き続き22.23.4です。第三者部品のライセンス・出自の案内は上記を参照してください。
+
+## Windows公開ベータ版（v0.1.0-beta.8、2026-11-22）
+
+公開Release: https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.8
+beta.7から依存ライブラリ・音声native・Node.jsの変更はありません。
+package.json、package-lock.json、Cargo.toml、Cargo.lock、release/native-input-lock.json、.nvmrcはbeta.7から変更していません。
+Node.jsは引き続き22.23.4です。配布対象の文書追加に伴いrelease/release-manifest.jsonだけを更新しています。
+第三者部品のライセンス・出自の案内は上記を参照してください。

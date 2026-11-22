@@ -15,7 +15,7 @@ Before operating a Bot or recording, read the [operator privacy and data handlin
 > Read the [known issues and field checklist](docs/BETA.txt) first,
 > and always keep a backup audio path. Do not use ParaBus as your only, untested broadcast path.
 >
-> - In a real event on 2026-11-19, beta.6 (BUILD 7608a91) ran for about 8 hours with about 60 participants and 20 bots, including Stream Deck control and recording, without the application stopping; recording drops were 0 (user report). beta.7 changes only the UI and external control API; beta.7 itself has not undergone a long-running test.
+> - In a real event on 2026-11-19, beta.6 (BUILD 7608a91) ran for about 8 hours with about 60 participants and 20 bots, including Stream Deck control and recording, without the application stopping; recording drops were 0 (user report). beta.8 itself has not undergone a long-running test.
 > - The maintainer confirmed live Discord connection and audio send/receive with the beta.2 Windows ZIP, but only in a short test.
 > - On Windows 11 PCs with Smart App Control on, the bundled unsigned audio DLLs may be blocked from loading, preventing startup. The maintainer confirmed this with beta.2 on 2026-10-27.
 > - Check the status in **Windows Security → App & browser control → Smart App Control settings** ([Microsoft instructions](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)). ParaBus currently has no workaround. Keep OS protection settings unchanged.
@@ -42,10 +42,12 @@ and [Discord bot setup](docs/DISCORD_RX.md).
 
 ## Download
 
-**Windows x64 beta: [v0.1.0-beta.7](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.7)**
+**Windows x64 beta: [v0.1.0-beta.8](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.8)**
 
-[Download ParaBus-windows-x64-v0.1.0-beta.7.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.7/ParaBus-windows-x64-v0.1.0-beta.7.zip) ·
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.7/SHA256SUMS.txt)
+Release date: 2026-11-22 (Japan time).
+
+[Download ParaBus-windows-x64-v0.1.0-beta.8.zip](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.8/ParaBus-windows-x64-v0.1.0-beta.8.zip) ·
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.8/SHA256SUMS.txt)
 
 The ZIP includes Node.js, corresponding source and third-party notices. Extract it into a new folder.
 
@@ -98,9 +100,12 @@ and it cannot be shut down from another PC on the LAN.
 
 ## Updating
 
+Dependencies, audio native components and Node.js are unchanged from beta.7. Node.js remains 22.23.4.
+
 By default, settings and `.env` are stored in the app folder. Extracting a new version into a new folder
 starts with an empty Bot list; settings from the old folder are not imported automatically.
-Keep the old folder, including `.env`, settings and recordings, intact as a private backup.
+Protect backups of settings and recordings in an encrypted location accessible only to you.
+If you migrate by copying `.env` into a new folder, only the copy is encrypted; the old folder can retain plaintext tokens. After confirming beta.8 works, delete the old folder's `.env`. Re-enter tokens if you later return to an older version.
 On Windows, Bot tokens are encrypted in `.env`. Re-enter tokens when copying settings to another PC or Windows account.
 
 If both versions provide these export/import controls, transfer Bot profiles using the UI on the PC running ParaBus:

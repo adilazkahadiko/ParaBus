@@ -1,4 +1,4 @@
-ParaBus v0.1.0-beta.7（2026-11-21）
+ParaBus v0.1.0-beta.8（2026-11-22）
 
 ParaBusはDiscord、Elgato（Stream Deck）、Steinberg（ASIO）と提携しておらず、各社の承認を受けていない非公式ソフトウェアです。各名称は各社の商標または登録商標です。
 Botの運用・録音前に docs/OPERATOR_PRIVACY.ja.md（プライバシーポリシー、同意、削除、暗号化の案内）を確認してください。
@@ -6,8 +6,8 @@ Botの運用・録音前に docs/OPERATOR_PRIVACY.ja.md（プライバシーポ�
 位置づけ
 試用・フィードバックのためのベータ版です。正式な安定版ではありません。
 Windows実機で検証しています。beta.6での多人数イベントの確認は下記「検証の範囲」を参照してください。
-別機種・SoundGrid/LV1での本番実機確認と、beta.7自体の長時間試験は未完了です。
-Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.7 から取得できます。
+別機種・SoundGrid/LV1での本番実機確認と、beta.8自体の長時間試験は未完了です。
+Windows x64版は https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.8 から取得できます。
 Windows ZIPに対応ソース・第三者表記を同梱しています。作成方法・配布構成は
 SOURCE_RELEASE.md、CORRESPONDING_SOURCE.txt、WINDOWS_BETA.txtを参照してください。
 第三者依存にはそれぞれのライセンスが適用されます。ルートのTHIRD_PARTY_NOTICES.mdを参照。
@@ -20,6 +20,7 @@ WindowsではBot TokenをDPAPI（現在のWindowsアカウント）で暗号化�
 引き継ぎでコピーする設定ファイルの一覧は変わりません。
 .envへ平文のTokenを直接書いた場合は、次に起動したときに自動で暗号化します。
 この版で一度起動すると、.envのTokenは暗号化した形式に書き換わります。それより前の版（beta.7以前）では暗号化したTokenを読めないため、前の版に戻す場合は、SETUPでTokenを入力し直してください。
+新しいフォルダーへ.envをコピーして移行した場合、暗号化されるのはコピー先だけです。前の版のフォルダーの.envには暗号化されていないTokenが残ります。beta.8で動作を確認したら、前の版のフォルダーの.envを削除してください。前の版に戻す予定があるなら、戻すときにTokenを入力し直してください。
 暗号化処理が利用できない場合はACLで保護した平文で保存し、警告を表示して運用を続けます。
 Windows以外の開発環境では平文保存です。暗号化しても.envを人に渡さないでください。
 漏えいした場合はDiscord Developer PortalでReset Tokenし、保存済みTokenを更新してください。
@@ -34,6 +35,27 @@ Windows以外の開発環境では平文保存です。暗号化しても.envを
 バックアップや他のPCのコピーは対象外です。運用者が確認して手で削除してください。
 手で編集する場合はParaBusを停止し、user-profiles.jsonとscenes.jsonの両方を確認してください。
 詳しくはdocs/OPERATOR_PRIVACY.ja.mdを参照してください。
+
+beta.8の変更
+・Bot TokenをWindowsの機能（DPAPI）で暗号化して.envに保存します。
+  暗号化したTokenは同じPC・同じWindowsアカウントでだけ読めます。
+  別のPCやアカウント、beta.7以前に戻す場合はTokenの入力し直しが必要です。
+  暗号化できない場合はアクセス権で保護した平文で保存し、警告を表示します。
+・子プロセスへTokenを環境変数で渡さないようにしました。
+・個別の設定ファイルと、運用ログ・診断ZIP・既定の録音の専用フォルダーのアクセス権を、
+  実行ユーザーとSYSTEM・Administratorsだけに制限します。独自の録音先は変更せず警告だけを出します。
+  本体フォルダー全体や、子に明示的に設定された許可・継承の無効化は変更しません。
+  保護に失敗した場合は警告を確認してください。詳しくはOPERATOR_PRIVACY.ja.mdを参照してください。
+・運用ログの保持期間は7日間のまま、起動時に加え日付が変わったあとの最初の書き込み時にも期限切れを削除します。
+・SETUP「参加者データ」で参加者設定と全シーン内のその人の値を削除できます。
+  運用ログと診断ZIPは全員分をまとめて削除できます。録音・router.log・バックアップ・コピーは対象外です。
+・トレイのログ（router.log）では参加者IDを下4桁だけ表示し、エラーは種類（name・code）だけを記録します。
+  beta.8より前のrouter.logには、全桁のIDが残っている場合があります。
+・運用者向けの案内OPERATOR_PRIVACY.ja.mdを追加しました。プライバシーポリシーのひな形、
+  録音の同意、削除の手順を含みます。法律上の助言ではありません。
+・Discord、Elgato（Stream Deck）、Steinberg（ASIO）とは非提携・非承認である旨と商標の表記を追加しました。
+・依存パッケージ・音声native・Node.jsはbeta.7から変更していません。Node.jsは22.23.4です。
+  外部操作APIの仕様は変わらず、Stream Deckプラグインは引き続きv0.1.3を推奨します。
 
 beta.7の変更
 ・SETUPを音声機器、Bot、外部操作、アプリ設定、本体操作の順に整理しました。
@@ -135,8 +157,9 @@ beta.2までの変更
   メンテナーがbeta.2のWindows ZIP版で実Discordへの接続と音声の送受信を確認しましたが、短時間の試験のみです。
 ・2026-11-19、beta.6（BUILD 7608a91）を実イベントで約8時間、約60人・Bot 20台で使用しました。
   Stream Deck操作と録音を行い、本体は途中で停止せず、録音の取りこぼしは0でした（利用者報告）。
-  beta.7で変えたのは画面と外部操作APIだけですが、beta.7自体の長時間試験は未実施です。
   詳細な集計値はCHECKLIST.mdの実機運用記録を参照してください。
+・2026-11-22、メンテナーのPCでbeta.8候補版のToken暗号化、実Bot接続と音声送受信、参加者データ削除、ログ一括削除、beta.7への戻りを確認しました（利用者報告）。
+  beta.8自体の長時間試験は未実施です。
 ・2026-10-22、Node 22.23.4の候補1058fb681f93をWindows実機で約71分動作させました。
   MainはEVO 4 / Audient ASIO、CueはINZONE。所有者が受信・Cue・録音・Discord送信を確認し、
   この試験では聴感・録音の問題報告はありませんでした。
