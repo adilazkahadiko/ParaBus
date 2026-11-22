@@ -12,7 +12,7 @@ Botの運用・録音前に[運用者向けのプライバシーと保存デー�
 > 先に[既知の問題・現場での確認項目](docs/BETA.txt)を確認し、必ず予備の音声経路を用意してください。
 > 唯一の送出経路として無検証で使用しないでください。
 >
-> - beta.6（BUILD 7608a91）を2026-11-19の実イベントで約8時間、約60人・Bot 20台で使用し、Stream Deck操作と録音を行いました。本体は途中で停止せず、録音の取りこぼしは0でした（利用者報告）。beta.7の変更は画面と外部操作APIだけですが、beta.7自体の長時間試験は未実施です。
+> - beta.6（BUILD 7608a91）を2026-11-19の実イベントで約8時間、約60人・Bot 20台で使用し、Stream Deck操作と録音を行いました。本体は途中で停止せず、録音の取りこぼしは0でした（利用者報告）。beta.8自体の長時間試験は未実施です。
 > - メンテナーがbeta.2のWindows ZIP版で実Discordへの接続と音声の送受信を確認しましたが、短時間の試験のみです。
 > - Windows 11でスマート アプリ コントロールがオンの場合、同梱の署名のない音声DLLの読み込みが拒否され、起動しないことがあります。2026-10-27にメンテナーのPCでbeta.2を使って確認しました。
 > - 状態は **Windows セキュリティ → アプリ & ブラウザー コントロール → スマート アプリ コントロールの設定** で確認できます（[Microsoftの案内](https://support.microsoft.com/ja-jp/windows/security/windows-security/app-browser-control-in-the-windows-security-app)）。現時点でParaBus側の回避策はありません。OSの保護設定は変更しないでください。
@@ -41,10 +41,12 @@ Botの準備は[Discord設定](docs/DISCORD_RX.md)を参照してください。
 
 外部操作（Stream Deckなど）の使い方は[操作マニュアル](docs/manual.html#external-control)を参照してください。
 
-**Windows x64 ベータ版：[v0.1.0-beta.7](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.7)**
+**Windows x64 ベータ版：[v0.1.0-beta.8](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.8)**
 
-[ParaBus-windows-x64-v0.1.0-beta.7.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.7/ParaBus-windows-x64-v0.1.0-beta.7.zip) ／
-[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.7/SHA256SUMS.txt)
+公開日: 2026-11-22（日本時間）。
+
+[ParaBus-windows-x64-v0.1.0-beta.8.zip をダウンロード](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.8/ParaBus-windows-x64-v0.1.0-beta.8.zip) ／
+[SHA256SUMS.txt](https://github.com/adilazkahadiko/ParaBus/releases/download/v0.1.0-beta.8/SHA256SUMS.txt)
 
 Node.js・対応ソース・第三者表記を同梱しています。新しい専用フォルダーへ展開してください。
 
@@ -96,10 +98,13 @@ Botは起動時に未接続で待機します。SETUPでBotを設定し、対象
 
 ## 更新
 
+依存パッケージ・音声native・Node.jsはbeta.7から変更していません。Node.jsは22.23.4です。
+
 設定と`.env`は、既定ではアプリのフォルダーに保存されます。新しい版を新しいフォルダーへ展開すると、
 Bot一覧は空の状態から始まり、前のフォルダーの設定は自動的には引き継がれません。
 WindowsのTokenは暗号化して`.env`に保存します。別のPCや別のWindowsアカウントへ設定をコピーした場合は、Tokenを入力し直してください。
-前のフォルダーは`.env`・設定・録音も含め、そのまま非公開のバックアップとして残してください。
+設定・録音をバックアップする場合は、暗号化された本人専用の場所で保護してください。
+新しいフォルダーへ.envをコピーして移行した場合、暗号化されるのはコピー先だけです。前の版のフォルダーの.envには暗号化されていないTokenが残ります。beta.8で動作を確認したら、前の版のフォルダーの.envを削除してください。前の版に戻す予定があるなら、戻すときにTokenを入力し直してください。
 
 前後の版に以下の書き出し・読み込み機能がある場合は、実行PCの画面からBot設定を引き継げます。
 

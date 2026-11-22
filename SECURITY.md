@@ -15,14 +15,16 @@ If a token may have leaked, revoke and regenerate it in the Discord Developer Po
 
 ## Supported versions
 
-ParaBus is in beta. The current Windows release is [v0.1.0-beta.7](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.7).
+ParaBus is in beta. The current Windows release is [v0.1.0-beta.8](https://github.com/adilazkahadiko/ParaBus/releases/tag/v0.1.0-beta.8).
+
+Release date: 2026-11-22 (Japan time).
 Fixes target the latest commit on `main`; update to the latest beta when a fix is released.
 
 ---
 
 ## サポート対象
 
-現在のWindowsベータ版はv0.1.0-beta.7です。修正はmainの最新コミットを対象とし、修正版のベータが公開されたら更新してください。
+現在のWindowsベータ版はv0.1.0-beta.8です。修正はmainの最新コミットを対象とし、修正版のベータが公開されたら更新してください。
 
 ## 外部操作API
 
