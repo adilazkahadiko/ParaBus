@@ -2,7 +2,7 @@ import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { open, statfs } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { finished } from "node:stream/promises";
-import { MAX_OUTPUT_CHANNELS, MAX_RX_CHANNELS, MAX_VC_BUSES, type RecorderSelection, type RecorderSnapshot, type RecorderState, type RecorderTrackKind, type RecorderTrackSnapshot } from "../../../packages/shared-types/src/index.ts";
+import { MAX_OUTPUT_CHANNELS, MAX_RX_CHANNELS, MAX_VC_BUSES, MAX_OUTPUT_SELECTORS, type RecorderSelection, type RecorderSnapshot, type RecorderState, type RecorderTrackKind, type RecorderTrackSnapshot } from "../../../packages/shared-types/src/index.ts";
 import type { AudioEngine } from "./audio-engine.ts";
 import { ControlCommandError } from "./control-error.ts";
 
@@ -35,7 +35,7 @@ export function isRecorderSelection(value: unknown): value is RecorderSelection 
   return Array.isArray(selection.outputs) && selection.outputs.length <= MAX_OUTPUT_CHANNELS
     && new Set(selection.outputs).size === selection.outputs.length
     && Array.from(selection.outputs).every((output) => Number.isInteger(output) && output >= 0 && output < MAX_OUTPUT_CHANNELS)
-    && ids(selection.busIds, MAX_VC_BUSES) && ids(selection.channelIds, MAX_RX_CHANNELS);
+    && ids(selection.busIds, MAX_VC_BUSES + MAX_OUTPUT_SELECTORS) && ids(selection.channelIds, MAX_RX_CHANNELS);
 }
 
 export interface RecorderManagerOptions {

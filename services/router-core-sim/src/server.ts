@@ -34,6 +34,7 @@ import { safeOperatorSummary, sanitizeOperatorMessage } from "./operator-sanitiz
 import { OperationalHealthTracker, OperationalLog } from "./operational-log.ts";
 import { localAudioFaultDetail } from "./audio-fault-diagnostics.ts";
 import { SceneStore } from "./scene-store.ts";
+import { OutputSelectorStore } from "./output-selector-store.ts";
 import { ParticipantDataManager } from "./participant-data.ts";
 import { createParticipantDataHandler } from "./participant-data-api.ts";
 import { runtimeInfo } from "./runtime-info.ts";
@@ -113,6 +114,8 @@ const userSessions = new UserSessionRegistry(userProfileStore);
 const receiverOwnershipStore = new ReceiverOwnershipStore(settingsRoot, message => reportPermissionWarning(message));
 const operationalLog = new OperationalLog(settingsRoot);
 const sceneStore = new SceneStore(settingsRoot, message => reportPermissionWarning(message));
+const outputSelectorStore = new OutputSelectorStore(settingsRoot, message => reportPermissionWarning(message));
+outputSelectorStore.restore(engine);
 const operationalHealth = new OperationalHealthTracker();
 const startupSettings = settingsStore.snapshot();
 let startupBotConfig: unknown = [];
@@ -136,6 +139,7 @@ const discordIngest = new DiscordIngestServer(
   receiverOwnershipStore,
 );
 const control = new ControlPlane(engine, outputManager, discordIngest, inputManager, recorder, userSessions, (event) => operationalLog.append(event), cueOutputManager);
+outputSelectorStore.attach(control);
 reportPermissionWarning = message => control.recordExternalEvent("WARNING", message);
 for (const message of permissionWarnings) reportPermissionWarning(message);
 permissionWarnings.clear();
@@ -745,6 +749,7 @@ function shutdown(exitCode = 0): void {
     profileFlush,
     settingsStore.flush(),
     sceneStore.flush(),
+    outputSelectorStore.save(engine).then(() => outputSelectorStore.flush()),
     receiverOwnershipStore.flush(),
     externalControl.close(),
     rustManagement.close(),

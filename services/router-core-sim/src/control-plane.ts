@@ -12,6 +12,8 @@ import type {
 import { MAX_DISCORD_RX_CHANNELS } from "../../../packages/shared-types/src/index.ts";
 import { clamp } from "./dsp.ts";
 import { AudioEngine, VcBus } from "./audio-engine.ts";
+import { OutputSelector } from "./output-selector.ts";
+import { randomUUID } from "node:crypto";
 import type { AudioOutputManager } from "./audio-output.ts";
 import type { AudioInputManager } from "./audio-input.ts";
 import type { RecorderManager } from "./recorder.ts";
@@ -32,6 +34,8 @@ const BUS_OUTPUT_MODES = new Set(["MONO", "DUAL_MONO"]);
 const MAX_DEVICE_ID_BYTES = 8_192;
 const MAX_SCENE_PARAMETER_BYTES = 4_096;
 STRUCTURAL_COMMANDS.add("SET_GROUP_BUS_SOURCES");
+const SELECTOR_STRUCTURE = new Set(["CREATE_OUTPUT_SELECTOR", "UPDATE_OUTPUT_SELECTOR", "REMOVE_OUTPUT_SELECTOR"]);
+for (const type of SELECTOR_STRUCTURE) STRUCTURAL_COMMANDS.add(type);
 const busIds = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 32 && value.every(id => typeof id === "string" && id.length > 0 && id.length <= 256) && new Set(value).size === value.length;
 
 type UnknownRecord = Record<string, unknown>;
@@ -51,6 +55,14 @@ function validateCommand(command: unknown): command is ControlCommand {
   const id = (key: string) => isString(command[key]);
   const confirmed = () => optional(command, "confirmed", isBoolean);
   switch (type) {
+    case "CREATE_OUTPUT_SELECTOR": case "UPDATE_OUTPUT_SELECTOR":
+      return (type === "CREATE_OUTPUT_SELECTOR" || id("selectorId")) && isString(command.name, 80) && command.name.trim().length > 0
+        && integer(command.output, 0) && BUS_OUTPUT_MODES.has(command.outputMode as string)
+        && ["SWITCH", "ADDITIVE"].includes(command.mode as string) && optional(command, "fadeMs", v => finite(v, 0, 2000))
+        && busIds(command.sourceBusIds) && confirmed() && optional(command, "allowCollision", isBoolean);
+    case "REMOVE_OUTPUT_SELECTOR": return id("selectorId") && confirmed();
+    case "SELECT_OUTPUT_SELECTOR": return id("selectorId") && id("busId") && ["SWITCH", "ADD", "REMOVE", "TOGGLE"].includes(command.operation as string);
+    case "OUTPUT_SELECTOR_OFF": return id("selectorId");
     case "SET_STATE": return STATES.has(command.state as string) && confirmed();
     case "SET_CHANNEL_FADER": return id("channelId") && finite(command.db, -90, 12);
     case "SET_CHANNEL_MUTE": return id("channelId") && isBoolean(command.mute);
@@ -203,10 +215,49 @@ export class ControlPlane {
   private executeCommand(command: ControlCommand): CommandResult {
     if (!validateCommand(command)) return this.denied("Invalid command");
     try {
+      if (SELECTOR_STRUCTURE.has(command.type) && this.state !== "SETUP") return this.denied("セレクターの作成・設定変更・削除はSETUP中だけ可能です");
+      if ("busId" in command && this.engine.buses.get(command.busId)?.selector && ["SET_BUS_OUTPUT", "CLEAR_BUS_OUTPUT", "SET_BUS_BINDING", "REMOVE_VC_BUS", "SET_GROUP_BUS_SOURCES", "SET_NEW_PARTICIPANT_POLICY"].includes(command.type)) return this.denied("セレクターの設定画面から変更してください");
       if (this.state === "ON_AIR" && STRUCTURAL_COMMANDS.has(command.type)) {
         return this.denied(`${command.type} is locked while ON AIR`);
       }
       switch (command.type) {
+        case "CREATE_OUTPUT_SELECTOR": case "UPDATE_OUTPUT_SELECTOR": {
+          for (const id of command.sourceBusIds) {
+            const source = this.requireBus(id);
+            if (source.groupSourceIds !== null || source.selector) return this.denied("選べるのは通常のVC Busだけです");
+          }
+          const existing = command.type === "UPDATE_OUTPUT_SELECTOR" ? this.requireSelector(command.selectorId) : undefined;
+          const bus = existing ?? new VcBus(`selector-${randomUUID()}`, command.name.trim(), this.engine.blockSize, this.engine.sampleRate);
+          const previous = existing?.selector?.snapshot();
+          const selector = new OutputSelector(command.mode, command.fadeMs ?? previous?.fadeMs ?? 300, command.sourceBusIds, previous?.selectedBusIds, previous?.primaryBusId);
+          if (existing?.selector) selector.continueFrom(existing.selector, this.engine.sampleRate);
+          if (!existing && [...this.engine.buses.values()].filter(bus => bus.selector).length >= 8) return this.denied("セレクターは最大8個です");
+          const outputResult = this.configureBusOutput(bus, { type: "SET_BUS_OUTPUT", busId: bus.id, output: command.output, mode: command.outputMode, allowCollision: command.allowCollision, confirmed: command.confirmed });
+          if (outputResult) return outputResult;
+          bus.label = command.name.trim();
+          if (existing) this.engine.setSelector(bus.id, selector);
+          else { bus.selector = selector; bus.compressorEnabled = false; this.engine.addBus(bus); }
+          this.log("INFO", `Output selector ${existing ? "updated" : "created"}`);
+          this.revision++;
+          return { ok: true, revision: this.revision, data: { selectorId: bus.id } };
+        }
+        case "REMOVE_OUTPUT_SELECTOR": {
+          if (!command.confirmed) return this.denied("セレクター削除には確認が必要です", true);
+          this.requireSelector(command.selectorId);
+          this.engine.removeBus(command.selectorId);
+          this.log("WARNING", "Output selector removed");
+          break;
+        }
+        case "SELECT_OUTPUT_SELECTOR": {
+          const selector = this.requireSelector(command.selectorId).selector!;
+          const changed = selector.operate(command.busId, command.operation, this.engine.sampleRate);
+          this.log("INFO", `Output selector ${command.selectorId} ${command.operation} source ${selector.legs.findIndex(leg => leg.id === command.busId) + 1}${changed ? "" : " (unchanged)"}`);
+          break;
+        }
+        case "OUTPUT_SELECTOR_OFF":
+          this.requireSelector(command.selectorId).selector!.off(this.engine.sampleRate);
+          this.log("INFO", `Output selector ${command.selectorId} OFF`);
+          break;
         case "SET_STATE":
           return this.setState(command.state, command.confirmed === true);
         case "SET_CHANNEL_FADER": {
@@ -226,7 +277,7 @@ export class ControlPlane {
         case "SET_VC_SEND": {
           const channel = this.requireChannel(command.channelId);
           if (!this.engine.buses.has(command.busId)) throw new Error(`unknown bus: ${command.busId}`);
-          if (this.requireBus(command.busId).groupSourceIds !== null) return this.denied("Group BusはVC MIXの後段です。参加者を直接Sendできません");
+          if (this.requireBus(command.busId).groupSourceIds !== null || this.requireBus(command.busId).selector) return this.denied("後段のBusには参加者を直接Sendできません");
           const current = channel.vcSends.get(command.busId) ?? { gainDb: -12, mute: true };
           channel.vcSends.set(command.busId, {
             gainDb: command.db === undefined ? current.gainDb : clamp(command.db, -90, 12),
@@ -291,38 +342,8 @@ export class ControlPlane {
           this.requireBus(command.busId).mute = command.mute;
           break;
         case "SET_BUS_OUTPUT": {
-          const bus = this.requireBus(command.busId);
-          const activeChannels = this.outputManager?.snapshot().activeChannelCount ?? this.engine.outputChannelCount;
-          const mode = command.mode ?? "MONO";
-          const outputs = mode === "DUAL_MONO" ? [command.output, command.output + 1] : [command.output];
-          if (outputs.some((output) => output >= activeChannels)) throw new RangeError(`出力chは1〜${activeChannels}で指定してください`);
-          const routes = [...this.engine.matrixRoutes.values()].filter((route) => route.sourceId === bus.id);
-          const rightRouteId = `bus-output:${bus.id}:right`;
-          const rightRoute = routes.find((route) => route.id === rightRouteId);
-          const primaryRoutes = routes.filter((route) => route.id !== rightRouteId);
-          if (primaryRoutes.length > 1 || routes.length > 2) return this.denied("複数出力のBUSはAdvanced Matrixで変更してください");
-          const primaryRoute = primaryRoutes[0];
-          const excludedRouteIds = [primaryRoute?.id, rightRoute?.id].filter((id): id is string => Boolean(id));
-          const collisionsByOutput = outputs.map((output) => ({
-            output,
-            collisions: this.physicalOutputOccupants(output, undefined, excludedRouteIds),
-          }));
-          for (const entry of collisionsByOutput) {
-            const collisionGuard = this.guardPhysicalOutputCollision(entry.output, entry.collisions, command.allowCollision === true, command.confirmed === true);
-            if (collisionGuard) return collisionGuard;
-          }
-          if (primaryRoute) {
-            this.engine.matrixRoutes.set(primaryRoute.id, { ...primaryRoute, output: command.output });
-          } else {
-            this.engine.addMatrixRoute({ id: `bus-output:${bus.id}`, sourceId: bus.id, output: command.output, gainDb: 0, mute: false, tap: "POST" });
-          }
-          if (mode === "DUAL_MONO") {
-            this.engine.matrixRoutes.set(rightRouteId, { id: rightRouteId, sourceId: bus.id, output: command.output + 1, gainDb: 0, mute: false, tap: "POST" });
-          } else if (rightRoute) {
-            this.engine.matrixRoutes.delete(rightRouteId);
-          }
-          for (const entry of collisionsByOutput) if (entry.collisions.length) this.log("WARNING", `Intentional output collision confirmed: Output ${entry.output + 1}`);
-          this.log("INFO", `${bus.label} → Output ${command.output + 1}${mode === "DUAL_MONO" ? `/${command.output + 2} (DUAL MONO)` : ""}`);
+          const result = this.configureBusOutput(this.requireBus(command.busId), command);
+          if (result) return result;
           break;
         }
         case "CLEAR_BUS_OUTPUT": {
@@ -356,7 +377,7 @@ export class ControlPlane {
           bus.newParticipantPolicy = command.policy ?? "SAFE";
           bus.defaultSendDb = clamp(command.defaultSendDb ?? -12, -60, 0);
           if (command.groupSourceIds) {
-            for (const sourceId of command.groupSourceIds) if (this.requireBus(sourceId).groupSourceIds !== null) return this.denied("Group BusをさらにGroup Busへ接続することはできません");
+            for (const sourceId of command.groupSourceIds) if (this.requireBus(sourceId).groupSourceIds !== null || this.requireBus(sourceId).selector) return this.denied("通常のVC BusだけをGroup Busへ接続できます");
             bus.groupSourceIds = Object.freeze([...command.groupSourceIds]);
             bus.compressorEnabled = false;
           }
@@ -372,7 +393,7 @@ export class ControlPlane {
         }
         case "REMOVE_VC_BUS":
           if (!command.confirmed) return this.denied("VC Bus削除には確認が必要です", true);
-          if (this.engine.buses.size <= 1) return this.denied("最後のVC Busは削除できません");
+          if ([...this.engine.buses.values()].filter(bus => !bus.selector).length <= 1) return this.denied("最後のVC Busは削除できません");
           this.log("WARNING", `VC Bus ${this.requireBus(command.busId).label} removed`);
           this.engine.removeBus(command.busId);
           this.userSessions?.removeBus(command.busId);
@@ -801,6 +822,7 @@ export class ControlPlane {
       buses: [...this.engine.buses.values()].map((bus) => ({
         id: bus.id,
         label: bus.label,
+        ...(bus.selector ? { selector: bus.selector.snapshot() } : {}),
         groupSourceIds: bus.groupSourceIds ? [...bus.groupSourceIds] : null,
         ...(bus.linkedDiscordGuildId ? { linkedDiscordGuildId: bus.linkedDiscordGuildId } : {}),
         ...(bus.linkedDiscordVoiceChannelId ? { linkedDiscordVoiceChannelId: bus.linkedDiscordVoiceChannelId } : {}),
@@ -1134,6 +1156,47 @@ export class ControlPlane {
   private requireBus(id: string) {
     const bus = this.engine.buses.get(id);
     if (!bus) throw new Error(`unknown bus: ${id}`);
+    return bus;
+  }
+
+  private configureBusOutput(bus: VcBus, command: Extract<ControlCommand, { type: "SET_BUS_OUTPUT" }>): CommandResult | null {
+    const activeChannels = this.outputManager?.snapshot().activeChannelCount ?? this.engine.outputChannelCount;
+    const mode = command.mode ?? "MONO";
+    const outputs = mode === "DUAL_MONO" ? [command.output, command.output + 1] : [command.output];
+    if (outputs.some((output) => output >= activeChannels)) throw new RangeError(`出力chは1〜${activeChannels}で指定してください`);
+    const routes = [...this.engine.matrixRoutes.values()].filter((route) => route.sourceId === bus.id);
+    const rightRouteId = `bus-output:${bus.id}:right`;
+    const rightRoute = routes.find((route) => route.id === rightRouteId);
+    const primaryRoutes = routes.filter((route) => route.id !== rightRouteId);
+    if (primaryRoutes.length > 1 || routes.length > 2) return this.denied("複数出力のBUSはAdvanced Matrixで変更してください");
+    const primaryRoute = primaryRoutes[0];
+    const excludedRouteIds = [primaryRoute?.id, rightRoute?.id].filter((id): id is string => Boolean(id));
+    const collisionsByOutput = outputs.map((output) => ({
+      output,
+      collisions: this.physicalOutputOccupants(output, undefined, excludedRouteIds),
+    }));
+    for (const entry of collisionsByOutput) {
+      const collisionGuard = this.guardPhysicalOutputCollision(entry.output, entry.collisions, command.allowCollision === true, command.confirmed === true);
+      if (collisionGuard) return collisionGuard;
+    }
+    if (primaryRoute) {
+      this.engine.matrixRoutes.set(primaryRoute.id, { ...primaryRoute, output: command.output });
+    } else {
+      this.engine.addMatrixRoute({ id: `bus-output:${bus.id}`, sourceId: bus.id, output: command.output, gainDb: 0, mute: false, tap: "POST" });
+    }
+    if (mode === "DUAL_MONO") {
+      this.engine.matrixRoutes.set(rightRouteId, { id: rightRouteId, sourceId: bus.id, output: command.output + 1, gainDb: 0, mute: false, tap: "POST" });
+    } else if (rightRoute) {
+      this.engine.matrixRoutes.delete(rightRouteId);
+    }
+    for (const entry of collisionsByOutput) if (entry.collisions.length) this.log("WARNING", `Intentional output collision confirmed: Output ${entry.output + 1}`);
+    this.log("INFO", `${bus.label} → Output ${command.output + 1}${mode === "DUAL_MONO" ? `/${command.output + 2} (DUAL MONO)` : ""}`);
+    return null;
+  }
+
+  private requireSelector(id: string): VcBus {
+    const bus = this.requireBus(id);
+    if (!bus.selector) throw new Error("Unknown output selector");
     return bus;
   }
 

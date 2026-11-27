@@ -3,6 +3,8 @@ import type { ControlCommand } from "../../../packages/shared-types/src/index.ts
 export type Tier = "A" | "B" | "C";
 // One entry per discriminant. Adding/removing an internal command breaks typecheck.
 export const COMMAND_POLICIES = {
+  CREATE_OUTPUT_SELECTOR: "C", UPDATE_OUTPUT_SELECTOR: "C", REMOVE_OUTPUT_SELECTOR: "C",
+  SELECT_OUTPUT_SELECTOR: "C", OUTPUT_SELECTOR_OFF: "C",
   SET_STATE: "state", SET_CHANNEL_FADER: "C", SET_CHANNEL_MUTE: "C",
   SET_USER_CHANNEL_COLOR: "C", SET_USER_STRIP_ORDER: "C", RESET_USER_STRIP_ORDER: "C",
   SET_PARTICIPANT_APPROVAL: "C", SET_USER_TRUSTED: "C", SET_RECEIVER_OWNER: "C",

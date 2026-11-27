@@ -3,11 +3,13 @@ import {
   MAX_OUTPUT_CHANNELS,
   MAX_RX_CHANNELS,
   MAX_VC_BUSES,
+  MAX_OUTPUT_SELECTORS,
   SAMPLE_RATE,
   type NewParticipantPolicy,
   type SourceKind,
   type TapPoint,
 } from "../../../packages/shared-types/src/index.ts";
+import { OutputSelector } from "./output-selector.ts";
 import {
   Compressor,
   HighPassFilter,
@@ -402,6 +404,7 @@ export class VcBus {
   autoCreated = false;
   /** null = ordinary VC; an array = post-VC group (no nested groups). */
   groupSourceIds: readonly string[] | null = null;
+  selector: OutputSelector | null = null;
 
   constructor(id: string, label: string, blockSize: number, sampleRate = SAMPLE_RATE) {
     this.id = id;
@@ -480,6 +483,7 @@ interface MatrixRoutePlan {
 }
 
 interface AudioExecutionPlan {
+  readonly selectors: readonly { bus: VcBus; sources: readonly (Float32Array | null)[] }[];
   readonly channels: readonly ChannelPlan[];
   readonly buses: readonly VcBus[];
   readonly groups: readonly { bus: VcBus; sources: readonly VcBus[] }[];
@@ -516,6 +520,7 @@ export class AudioEngine {
   #topologyDirty = false;
   #observedChannels: AudioChannel[] = [];
   #executionPlan: AudioExecutionPlan = {
+    selectors: [],
     channels: [],
     buses: [],
     groups: [],
@@ -572,7 +577,8 @@ export class AudioEngine {
   }
 
   addBus(bus: VcBus): void {
-    if (this.buses.size >= MAX_VC_BUSES) throw new Error(`maximum ${MAX_VC_BUSES} VC buses exceeded`);
+    const selectors = [...this.buses.values()].filter(candidate => candidate.selector !== null).length;
+    if (bus.selector ? selectors >= MAX_OUTPUT_SELECTORS : this.buses.size - selectors >= MAX_VC_BUSES) throw new Error("Bus / selector limit exceeded");
     if (this.buses.has(bus.id)) throw new Error(`bus already exists: ${bus.id}`);
     this.buses.set(bus.id, bus);
   }
@@ -581,6 +587,7 @@ export class AudioEngine {
     this.#withTopologyBatch(() => {
       if (!this.buses.delete(busId)) throw new Error(`unknown bus: ${busId}`);
       for (const bus of this.buses.values()) if (bus.groupSourceIds?.includes(busId)) bus.groupSourceIds = bus.groupSourceIds.filter(id => id !== busId);
+      for (const bus of this.buses.values()) bus.selector?.removeSource(busId);
       for (const channel of this.channels.values()) channel.vcSends.delete(busId);
       for (const [routeId, route] of this.matrixRoutes) {
         if (route.sourceId === busId) this.matrixRoutes.delete(routeId);
@@ -591,8 +598,9 @@ export class AudioEngine {
 
   setGroupSources(busId: string, sourceIds: readonly string[]): void {
     const bus = this.buses.get(busId);
-    if (!bus || bus.linkedDiscordVoiceChannelId || [...this.channels.values()].some(channel => channel.vcSends.has(busId))) throw new Error("Group must be a dedicated unbound bus");
-    if (new Set(sourceIds).size !== sourceIds.length || sourceIds.some(id => id === busId || !this.buses.has(id) || this.buses.get(id)!.groupSourceIds !== null)) throw new Error("Group sources must be distinct ordinary VC buses");
+    if ([...this.buses.values()].some(candidate => candidate.selector?.legs.some(leg => leg.id === busId))) throw new Error("Selector sources must remain ordinary VC buses");
+    if (!bus || bus.selector || bus.linkedDiscordVoiceChannelId || [...this.channels.values()].some(channel => channel.vcSends.has(busId))) throw new Error("Group must be a dedicated unbound bus");
+    if (new Set(sourceIds).size !== sourceIds.length || sourceIds.some(id => id === busId || !this.buses.has(id) || this.buses.get(id)!.groupSourceIds !== null || this.buses.get(id)!.selector !== null)) throw new Error("Group sources must be distinct ordinary VC buses");
     if ([...this.buses.values()].some(candidate => candidate.groupSourceIds?.includes(busId))) throw new Error("Nested groups are not supported");
     this.#beforeTopologyMutation();
     bus.groupSourceIds = Object.freeze([...sourceIds]);
@@ -603,6 +611,14 @@ export class AudioEngine {
     if (sourceId !== null && !this.channels.has(sourceId) && !this.buses.has(sourceId)) throw new Error(`unknown monitor source: ${sourceId}`);
     this.#beforeTopologyMutation();
     this.monitorSourceId = sourceId;
+    this.#afterTopologyMutation();
+  }
+
+  setSelector(busId: string, selector: OutputSelector): void {
+    this.#beforeTopologyMutation();
+    const bus = this.buses.get(busId);
+    if (!bus?.selector) throw new Error("Unknown output selector");
+    bus.selector = selector;
     this.#afterTopologyMutation();
   }
 
@@ -684,12 +700,17 @@ export class AudioEngine {
 
     for (let busIndex = 0; busIndex < plan.buses.length; busIndex += 1) {
       const bus = plan.buses[busIndex];
-      if (bus.groupSourceIds === null) bus.finish(this.sampleRate, this.emergencyMuted);
+      if (bus.groupSourceIds === null && !bus.selector) bus.finish(this.sampleRate, this.emergencyMuted);
     }
     for (let index = 0; index < plan.groups.length; index++) {
       const group = plan.groups[index];
       for (let source = 0; source < group.sources.length; source++) group.bus.add(group.sources[source].buffer, 0);
       group.bus.finish(this.sampleRate, this.emergencyMuted);
+    }
+    for (let index = 0; index < plan.selectors.length; index++) {
+      const selector = plan.selectors[index];
+      selector.bus.selector!.mix(selector.bus.buffer, selector.sources);
+      selector.bus.finish(this.sampleRate, this.emergencyMuted);
     }
     if (plan.monitorSource && plan.monitorOutput !== null) {
       this.mixToOutput(plan.monitorOutput, plan.monitorSource, 0);
@@ -781,7 +802,7 @@ export class AudioEngine {
       const sends: ChannelSendPlan[] = [];
       channel.vcSends.forEach((send, busId) => {
         const bus = busById.get(busId);
-        if (bus && bus.groupSourceIds === null) sends.push({ bus, send });
+        if (bus && bus.groupSourceIds === null && !bus.selector) sends.push({ bus, send });
       });
       channels.push({ channel, sends });
     });
@@ -796,8 +817,12 @@ export class AudioEngine {
     const monitorChannel = this.monitorSourceId ? this.channels.get(this.monitorSourceId) : undefined;
     const monitorSource = monitorChannel?.processed ?? (this.monitorSourceId ? busById.get(this.monitorSourceId)?.preMaster : undefined) ?? null;
     this.outputTestTones.forEach((outputIndex) => outputTestToneIndices.push(outputIndex));
-    const groups = buses.filter(bus => bus.groupSourceIds !== null).map(bus => ({ bus, sources: bus.groupSourceIds!.map(id => busById.get(id)).filter((source): source is VcBus => !!source && source.groupSourceIds === null) }));
-    this.#executionPlan = { channels, buses, groups, matrixRoutes, monitorSource, monitorOutput: this.monitorOutput, monitorOutputMode: this.monitorOutputMode, outputTestToneIndices };
+    const groups = buses.filter(bus => bus.groupSourceIds !== null).map(bus => ({ bus, sources: bus.groupSourceIds!.map(id => busById.get(id)).filter((source): source is VcBus => !!source && source.groupSourceIds === null && !source.selector) }));
+    const selectors = buses.filter(bus => bus.selector).map(bus => ({ bus, sources: bus.selector!.legs.map(leg => {
+      const source = busById.get(leg.id);
+      return source && source.groupSourceIds === null && !source.selector ? source.buffer : null;
+    }) }));
+    this.#executionPlan = { channels, buses, groups, selectors, matrixRoutes, monitorSource, monitorOutput: this.monitorOutput, monitorOutputMode: this.monitorOutputMode, outputTestToneIndices };
     this.#topologyDirty = false;
   }
 

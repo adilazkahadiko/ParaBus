@@ -3,6 +3,9 @@ import { mountSupportBundle } from "./support-bundle.js";
 import { mountParticipantData } from "./participant-data.js";
 import { mergeMeterSnapshot } from "./meter-snapshot.js";
 import { mountExternalControl } from "./external-control.js";
+import { createOutputSelectorControls } from "./output-selectors.js";
+
+const renderOutputSelectors = createOutputSelectorControls(document.querySelector('#output-selectors'), sendCommand, { conflicts: selectedOutputConflict, notice: showNotice });
 
 const desktopAccess = JSON.parse(document.querySelector("#desktop-access")?.textContent || "{}");
 const localSettingsAvailable = desktopAccess.localSettingsAvailable !== false;
@@ -2934,6 +2937,7 @@ function render(currentSnapshot) {
   renderMasters(currentSnapshot);
   renderLegacyPostRecovery(currentSnapshot);
   renderIo(currentSnapshot);
+  renderOutputSelectors(currentSnapshot, socket?.readyState === WebSocket.OPEN);
   renderRouteOverview(currentSnapshot);
   renderReceiverOwners(currentSnapshot);
   renderStatus(currentSnapshot);
