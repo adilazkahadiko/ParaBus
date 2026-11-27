@@ -1,10 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, renameSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { MAX_OUTPUT_SELECTORS, MAX_VC_BUSES, type ControlCommand, type OutputSelectorSnapshot } from "../../../packages/shared-types/src/index.ts";
 import { AudioEngine, VcBus, type MatrixRoute } from "./audio-engine.ts";
 import type { ControlPlane } from "./control-plane.ts";
 import { OutputSelector } from "./output-selector.ts";
-import { PrivateFileSaveQueue, writePrivateFile } from "./private-files.ts";
+import { PrivateFileSaveQueue, protectPrivateFileSync, writePrivateFile } from "./private-files.ts";
 
 interface SourceIdentity { id: string; label: string; guildId?: string; voiceChannelId?: string; autoCreated: boolean }
 interface StoredSelector extends OutputSelectorSnapshot {
@@ -56,8 +57,13 @@ const SAVED_COMMANDS = new Set<ControlCommand["type"]>([
 export class OutputSelectorStore {
   readonly path: string;
   readonly #queue: PrivateFileSaveQueue;
-  constructor(root: string, warn: (message: string) => void = message => console.warn(message), write = writePrivateFile) {
+  readonly #warn: (message: string) => void;
+  readonly #recovery: { rename: typeof renameSync; protect: typeof protectPrivateFileSync; now: () => Date };
+  #saveBlocked = false;
+  constructor(root: string, warn: (message: string) => void = message => console.warn(message), write = writePrivateFile,
+    recovery = { rename: renameSync, protect: protectPrivateFileSync, now: () => new Date() }) {
     this.path = join(root, "output-selectors.json");
+    this.#warn = warn; this.#recovery = recovery;
     this.#queue = new PrivateFileSaveQueue(this.path, warn, "出力セレクターの保存に失敗しました。再起動すると変更が失われる場合があります。保存先の権限を確認してください。", write);
   }
 
@@ -65,15 +71,20 @@ export class OutputSelectorStore {
     if (!existsSync(this.path)) return;
     let data: StoredSelectors;
     try {
+      if (statSync(this.path).size > 1_048_576) throw new Error();
       const text = readFileSync(this.path, "utf8");
       if (Buffer.byteLength(text) > 1_048_576) throw new Error();
       data = JSON.parse(text);
       if (!validate(data)) throw new Error();
-      if (data.selectors.some(s => engine.buses.has(s.id) || s.routes.some(r => r.output >= engine.outputChannelCount || engine.matrixRoutes.has(r.id)))) throw new Error();
-      if (data.sources.some(s => { const bus = engine.buses.get(s.id); return bus && (bus.selector || bus.groupSourceIds !== null); })) throw new Error();
+      if (data.selectors.some(s => engine.channels.has(s.id) || engine.buses.has(s.id) || s.routes.some(r => r.output >= engine.outputChannelCount || engine.matrixRoutes.has(r.id)))) throw new Error();
+      if (data.sources.some(s => {
+        const bus = engine.buses.get(s.id);
+        return engine.channels.has(s.id) || bus && (bus.selector || bus.groupSourceIds !== null || bus.linkedDiscordGuildId !== s.guildId || bus.linkedDiscordVoiceChannelId !== s.voiceChannelId)
+          || s.guildId !== undefined && s.voiceChannelId !== undefined && [...engine.buses.values()].some(other => other.id !== s.id && other.linkedDiscordGuildId === s.guildId && other.linkedDiscordVoiceChannelId === s.voiceChannelId);
+      })) throw new Error();
       const existingSelectors = [...engine.buses.values()].filter(bus => bus.selector).length;
       if (existingSelectors + data.selectors.length > MAX_OUTPUT_SELECTORS || engine.buses.size - existingSelectors + data.sources.filter(source => !engine.buses.has(source.id)).length > MAX_VC_BUSES) throw new Error();
-    } catch { throw new Error("出力セレクター設定を読み込めません。JSON形式とアクセス権を確認してください。"); }
+    } catch { this.recoverInvalidFile(); return; }
     // Referenced source identities must exist before Discord reconnects. No PCM,
     // participants, credentials, or selected-state scene parameters are stored.
     for (const source of data.sources) if (!engine.buses.has(source.id)) {
@@ -94,11 +105,29 @@ export class OutputSelectorStore {
     }
   }
 
+  private recoverInvalidFile(): void {
+    const prefix = "出力セレクターの設定を読み込めなかったため、セレクターなしで起動しました。";
+    let message: string;
+    try {
+      const timestamp = this.#recovery.now().toISOString().replace(/:/g, "-");
+      let invalid = `${this.path}.invalid-${timestamp}`;
+      while (existsSync(invalid)) invalid = `${this.path}.invalid-${timestamp}-${randomUUID().replaceAll("-", ".")}`;
+      this.#recovery.protect(this.path);
+      this.#recovery.rename(this.path, invalid);
+      message = `${prefix}元のファイルは${basename(invalid)}に残しています。`;
+    } catch {
+      this.#saveBlocked = true;
+      message = `${prefix}元のファイルの保護または名前の変更に失敗したため、output-selectors.jsonに残しています。この起動中は上書き保存しません。`;
+    }
+    try { this.#warn(message); } catch { /* Warning delivery must not abort startup. */ }
+  }
+
   attach(control: ControlPlane): () => void {
     return control.onCommand(command => { if (SAVED_COMMANDS.has(command.type)) void this.save(control.engine); });
   }
 
   save(engine: AudioEngine): Promise<void> {
+    if (this.#saveBlocked) return Promise.resolve();
     const sourceIds = new Set<string>();
     const selectors: StoredSelector[] = [];
     for (const bus of engine.buses.values()) if (bus.selector) {

@@ -1,6 +1,6 @@
 import { execFile, execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -97,6 +97,26 @@ async function allowedSids(path: string): Promise<string[]> {
   const values: unknown = JSON.parse(stdout);
   if (!Array.isArray(values) || values.some(v => typeof v !== "string" || !/^S-\d+(?:-\d+)+$/.test(v))) throw new PrivateFileError();
   return values as string[];
+}
+
+/** Startup recovery must protect existing files, including explicit Allow grants,
+ * before renaming them in the same directory (which retains the file's ACL). */
+export function protectPrivateFileSync(path: string): void {
+  assertNoReparseParents(path);
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new PrivateFileError();
+  if (process.platform !== "win32") { chmodSync(path, 0o600); return; }
+  const readAllows = (): string[] => {
+    const values: unknown = JSON.parse(execFileSync(powershell(), psArgs(aclScript),
+      { encoding: "utf8", windowsHide: true, env: helperEnvironment(path), stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 }));
+    if (!Array.isArray(values) || values.some(value => typeof value !== "string" || !/^S-\d+(?:-\d+)+$/.test(value))) throw new PrivateFileError();
+    return values as string[];
+  };
+  const sid = ownerSid(), allowed = new Set([sid, ...privilegedSids]);
+  execFileSync(windowsTool("icacls.exe"), aclArguments(path, sid, false, [...new Set(readAllows().filter(value => !allowed.has(value)))]),
+    { windowsHide: true, env: helperEnvironment(), stdio: "ignore", timeout: 10_000 });
+  const after = readAllows();
+  if ([...allowed].some(value => !after.includes(value)) || after.some(value => !allowed.has(value))) throw new PrivateFileError();
 }
 
 /** Permit the current user, SYSTEM and Administrators; remove other Allow entries. */

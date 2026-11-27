@@ -172,7 +172,7 @@ test("settings and selected targets restore after a new engine; private queue at
   c.execute({ type: "REMOVE_OUTPUT_SELECTOR", selectorId: f.selectorId, confirmed: true }); await store.flush();
   const empty = new AudioEngine(); store.restore(empty); assert.equal(empty.buses.size, 0);
   writeFileSync(store.path, '{"version":1,"sources":[],"selectors":[{}]}');
-  assert.throws(() => store.restore(new AudioEngine()), /JSON/);
+  const recovered = new AudioEngine(); assert.doesNotThrow(() => store.restore(recovered)); assert.equal(recovered.buses.size, 0);
 });
 
 test("save failures are reported safely and latest state can be retried", async t => {

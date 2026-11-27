@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,7 +48,13 @@ test("desktop commands persist output selectors across an actual isolated Mock C
       asset: () => fetch(base + '/output-selectors.js'),
     };
   }
-  const first = await start(); assert.equal((await first.state()).buses.length, 0);
+  writeFileSync(join(root, 'output-selectors.json'), '{broken');
+  const first = await start(), initial = await first.state(); assert.equal(initial.buses.length, 0);
+  const warning = initial.alerts.find(event => event.message.includes('出力セレクターの設定を読み込めなかったため'));
+  assert.ok(warning); assert.equal(warning.level, 'WARNING');
+  const backup = readdirSync(root).find(name => name.startsWith('output-selectors.json.invalid-'))!;
+  assert.ok(warning.message.includes(backup)); assert.equal(readFileSync(join(root, backup), 'utf8'), '{broken');
+  const operational = readdirSync(join(root, 'logs')).find(name => name.startsWith('operational-'))!;
   await first.command({ type: 'SELECT_OUTPUT_DEVICE', deviceId: 'mock-64' });
   const a = await first.command({ type: 'CREATE_VC_BUS', name: 'Team A' }), b = await first.command({ type: 'CREATE_VC_BUS', name: 'Team B' });
   const { selectorId } = await first.command({ type: 'CREATE_OUTPUT_SELECTOR', name: 'Director', output: 2, outputMode: 'DUAL_MONO', mode: 'SWITCH', sourceBusIds: [a.busId, b.busId] });
@@ -61,6 +67,7 @@ test("desktop commands persist output selectors across an actual isolated Mock C
   assert.deepEqual(before.selector?.selectedBusIds, [a.busId, b.busId]); assert.equal(before.selector?.fadeMs, 300);
   assert.equal((await first.asset()).status, 200);
   await first.stop();
+  assert.ok(readFileSync(join(root, 'logs', operational), 'utf8').includes(warning.message), 'startup recovery warning reaches the operational log as well as desktop state');
   const second = await start();
   const after = (await second.state()).buses.find(bus => bus.id === selectorId)!;
   assert.deepEqual(after.selector, before.selector); assert.deepEqual(after.physicalOutputs, before.physicalOutputs); assert.equal(after.masterDb, -6);

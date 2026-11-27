@@ -66,7 +66,7 @@ function assertSafeEntryName(relativePath: string): void {
       throw new Error("release artifact contains a forbidden directory entry");
     }
   }
-  if (FORBIDDEN_SECRET_FILES.has(name) || (name.startsWith(".env.") && name !== ENV_EXAMPLE)) {
+  if (FORBIDDEN_SECRET_FILES.has(name) || name.startsWith("output-selectors.json.invalid-") || (name.startsWith(".env.") && name !== ENV_EXAMPLE)) {
     throw new Error("release artifact contains a forbidden environment or secret entry");
   }
   if (FORBIDDEN_SECRET_EXTENSIONS.has(name.slice(name.lastIndexOf(".")))) {
