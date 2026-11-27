@@ -194,6 +194,7 @@ export class ControlPlane {
 
   private commandValue(command: ControlCommand): unknown {
     try {
+      if (command?.type === "SELECT_OUTPUT_SELECTOR" || command?.type === "OUTPUT_SELECTOR_OFF") return JSON.stringify(this.engine.buses.get(command.selectorId)?.selector?.snapshot());
       if (command?.type === "SET_CHANNEL_FADER") return this.engine.channels.get(command.channelId)?.faderDb;
       if (command?.type === "SET_BUS_MASTER") return this.engine.buses.get(command.busId)?.masterDb;
       if (command?.type === "SET_VC_SEND") { const send = this.engine.channels.get(command.channelId)?.vcSends.get(command.busId); return JSON.stringify([send?.gainDb, send?.mute]); }

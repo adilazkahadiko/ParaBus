@@ -93,9 +93,9 @@ export class ExternalState {
   }
   internalTargetsRevision() { return this.#internalTargetsRevision; }
   identityOf(value: object | undefined | null) { return value ? this.identity(value) : null; }
-  /** Keep ordinary IDs compatible, but never publish Discord topology encoded inside an ID. */
+  /** Keep ordinary IDs compatible; alias selectors and IDs carrying Discord topology. */
   publicBusId(id: string) {
-    if (!/discord-(?:vc|user):|\d{17,20}|^external-bus:/.test(id)) return id;
+    if (!this.#publicBusIds.has(id) && !this.control.engine.buses.get(id)?.selector && !/discord-(?:vc|user):|\d{17,20}|^external-bus:/.test(id)) return id;
     let alias = this.#publicBusIds.get(id);
     if (!alias) {
       alias = this.#busAliasStore?.busAlias(id) ?? fail("UNAVAILABLE");
@@ -139,6 +139,7 @@ export class ExternalState {
     if (command?.type === "SET_BUS_MASTER") groups = [dep("bus", command.busId, "fader")];
     if (command?.type === "SET_TX_MASTER") groups = [dep("tx", command.profileId!, "fader")];
     if (command?.type === "SET_VC_SEND") groups = [dep("send", command.channelId, command.busId, "fader"), dep("send", command.channelId, command.busId, "mute")];
+    if (command?.type === "SELECT_OUTPUT_SELECTOR" || command?.type === "OUTPUT_SELECTOR_OFF") groups = [dep("selector", command.selectorId, "selection")];
     if (groups) {
       for (const group of groups) for (const key of this.#dependencyGroups.get(group) ?? []) this.updateDependency(key);
     }
@@ -177,7 +178,12 @@ export class ExternalState {
       if (field === "fader") return b.masterDb;
       if (field === "limiter") return b.limiter.enabled;
       if (field === "compressor") return extra === "enabled" ? b.compressorEnabled : (b.compressor as unknown as Record<string, unknown>)[extra];
-      return [this.identity(b), b.linkedDiscordGuildId, b.linkedDiscordVoiceChannelId, b.groupSourceIds];
+      return [this.identity(b), b.linkedDiscordGuildId, b.linkedDiscordVoiceChannelId, b.groupSourceIds,
+        b.selector ? [this.identity(b.selector), b.selector.mode, b.selector.fadeMs, b.selector.snapshot().sourceBusIds] : null];
+    }
+    if (family === "selector") {
+      const bus = engine.buses.get(id);
+      return bus?.selector ? [this.identity(bus), this.identity(bus.selector), bus.selector.snapshot()] : null;
     }
     if (family === "send") { const send = engine.channels.get(id)?.vcSends.get(field); return extra === "fader" ? send?.gainDb : this.identityOf(send); }
     if (family === "tx") {
@@ -227,6 +233,14 @@ export class ExternalState {
       else fail("INVALID");
     } else fail("INVALID");
   }
+  projectSelector(id: string) {
+    const bus = this.control.engine.buses.get(id);
+    if (!bus?.selector) return fail("NOT_FOUND");
+    const selector = bus.selector.snapshot();
+    return { selectorId: this.publicBusId(id), name: displayName(bus.label), mode: selector.mode, fadeMs: selector.fadeMs,
+      sourceBusIds: selector.sourceBusIds.map(id => this.publicBusId(id)), selectedBusIds: selector.selectedBusIds.map(id => this.publicBusId(id)),
+      primaryBusId: selector.primaryBusId === null ? null : this.publicBusId(selector.primaryBusId), emergencyMuted: this.control.engine.emergencyMuted };
+  }
   project(device: Pick<ExternalDevice, "readDisplayNames" | "allowedTierBOperations">, enabled: boolean, ingest = this.ingest()) {
     const engine = this.control.engine, channels = this.channels();
     const bots = ingest.txStems.filter(b => b.profileId).map(b => ({
@@ -257,6 +271,7 @@ export class ExternalState {
         masterDb: b.masterDb, mute: b.mute, limiterEnabled: b.limiter.enabled,
         compressor: { enabled: b.compressorEnabled, thresholdDb: b.compressor.thresholdDb, ratio: b.compressor.ratio,
           attackMs: b.compressor.attackMs, releaseMs: b.compressor.releaseMs, makeupDb: b.compressor.makeupDb } })),
+      selectors: [...engine.buses.values()].filter(bus => bus.selector).map(bus => this.projectSelector(bus.id)),
       pfl, tx: { targetsRevision: this.targetsRevision, armedProfileIds: [...armed], liveProfileIds: [...(ingest.txTargets?.live ?? [])],
         selectionKind: this.selectionKind, allTeams: teams.length > 0 && teams.every(id => armed.includes(id)), takeTier: armed.length ? "A" as const : null, bots },
       recorder: { state: this.control.recorder?.state ?? "IDLE" },

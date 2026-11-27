@@ -1,4 +1,5 @@
 import type { OutputSelectorSnapshot, SelectorMode, SelectorOperation } from "../../../packages/shared-types/src/index.ts";
+import { ControlCommandError } from "./control-error.ts";
 
 export interface SelectorLeg {
   id: string;
@@ -42,11 +43,11 @@ export class OutputSelector {
 
   operate(busId: string, operation: SelectorOperation, sampleRate: number): boolean {
     const leg = this.legs.find(leg => leg.id === busId);
-    if (!leg) throw new Error("選択できるVC Busではありません");
-    if ((this.mode === "ADDITIVE") !== (operation === "TOGGLE")) throw new Error("セレクターの動きと操作が一致しません");
+    if (!leg) throw new ControlCommandError("INVALID", "選択できるVC Busではありません");
+    if ((this.mode === "ADDITIVE") !== (operation === "TOGGLE")) throw new ControlCommandError("INVALID", "セレクターの動きと操作が一致しません");
     if (operation === "SWITCH" && leg.target === 1) return false;
     if (operation === "ADD" && leg.target === 1 || operation === "REMOVE" && leg.target === 0) return false;
-    if (operation === "REMOVE" && this.legs.filter(candidate => candidate.target === 1).length <= 1) throw new Error("最後の1チームは外せません。OFFを使ってください");
+    if (operation === "REMOVE" && this.legs.filter(candidate => candidate.target === 1).length <= 1) throw new ControlCommandError("LOCKED", "最後の1チームは外せません。OFFを使ってください");
     if (operation === "SWITCH") for (const candidate of this.legs) candidate.target = 0;
     leg.target = operation === "REMOVE" ? 0 : operation === "TOGGLE" ? 1 - leg.target : 1;
     if (this.mode === "SWITCH") {

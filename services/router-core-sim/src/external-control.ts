@@ -291,6 +291,23 @@ export class ExternalControlServer {
       return this.handleB(operation, args, runtime, device, phase, this.prepareB(operation, args, phase === "action"), arm);
     }
     const [family, kind, mode] = operation.split(".");
+    if (family === "selector") {
+      if (phase !== "action") fail("INVALID");
+      fields(args, operation === "selector.select" ? ["selectorId", "busId", "operation"] : ["selectorId"]);
+      const selectorId = this.state.resolveBusId(args.selectorId), selector = engine.buses.get(selectorId)?.selector;
+      if (!selector) fail("NOT_FOUND");
+      if (operation === "selector.off") this.commit({ type: "OUTPUT_SELECTOR_OFF", selectorId });
+      else {
+        const operation = textId(args.operation, 16);
+        if (operation !== "SWITCH" && operation !== "ADD" && operation !== "REMOVE" && operation !== "TOGGLE") fail("INVALID");
+        if ((selector.mode === "ADDITIVE") !== (operation === "TOGGLE")) fail("INVALID");
+        const busId = this.state.resolveBusId(args.busId), source = engine.buses.get(busId);
+        if (!source) fail("NOT_FOUND");
+        if (source.selector || source.groupSourceIds !== null || !selector.legs.some(leg => leg.id === busId)) fail("INVALID");
+        this.commit({ type: "SELECT_OUTPUT_SELECTOR", selectorId, busId, operation });
+      }
+      return this.state.projectSelector(selectorId);
+    }
     if (kind === "fader" || kind === "mute") {
       const selectors = family === "bus" ? ["busId"] : family === "send" ? ["target", "busId"] : ["profileId"];
       const key = kind === "fader" ? mode === "adjust" ? "deltaDb" : "db" : mode === "toggle" ? "expectedMute" : "mute";
@@ -539,7 +556,7 @@ export class ExternalControlServer {
   }
   private info(device: ExternalDevice) {
     return { apiVersion: "1.0", paraBusVersion: this.options.version,
-      features: ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute", "scene.preview", "scene.recall", "recording.selection", "meters.ws"],
+      features: ["state.ws", "fader.relative", "fader.absolute", "participants.slot", "participants.user", "tx.targets", "confirmation.arm-execute", "scene.preview", "scene.recall", "recording.selection", "meters.ws", "selectors"],
       operations: [...OPERATIONS, ...TIER_B_OPERATIONS].map(name => ({ name,
         tiers: TIER_B_OPERATIONS.includes(name) && name !== "scene.preview" ? ["B"]
           : name.endsWith(".fader.set") || name === "emergency.set" || name === "settings.lock.set" ? ["A", "B"] : ["A"] })), limits: LIMITS,

@@ -23,7 +23,8 @@ test("external classification is exhaustive, unique and closed for every Control
   const source = readFileSync(new URL("../packages/shared-types/src/index.ts", import.meta.url), "utf8").split("export type ControlCommand =")[1].split("export interface CommandResult")[0];
   const types = [...new Set([...source.matchAll(/type: "([A-Z_]+)"/g)].map(m => m[1]))];
   assert.equal(types.length, 61); assert.deepEqual(Object.keys(COMMAND_POLICIES).sort(), types.sort());
-  for (const type of ["CREATE_OUTPUT_SELECTOR", "UPDATE_OUTPUT_SELECTOR", "REMOVE_OUTPUT_SELECTOR", "SELECT_OUTPUT_SELECTOR", "OUTPUT_SELECTOR_OFF"] as const) assert.equal(COMMAND_POLICIES[type], "C", "selectors have no external operation in this PR");
+  for (const type of ["CREATE_OUTPUT_SELECTOR", "UPDATE_OUTPUT_SELECTOR", "REMOVE_OUTPUT_SELECTOR"] as const) assert.equal(COMMAND_POLICIES[type], "C");
+  for (const type of ["SELECT_OUTPUT_SELECTOR", "OUTPUT_SELECTOR_OFF"] as const) assert.equal(COMMAND_POLICIES[type], "A");
   assert.equal(new Set(OPERATIONS).size, OPERATIONS.length);
   const context = { state: "SETUP" };
   assert.equal(classifyCommand({ type: "NEW_UNCLASSIFIED" } as unknown as ControlCommand, context), "C");
@@ -176,7 +177,7 @@ test("participants generations follow online appearances, order, VC and Bus iden
 
 test("public projection is exact, name opt-in, revisions exclude meters/time/internal no-ops and detect ABA", async t => {
   const f = await fixture(t); f.api.manage({ action: "enable" }); const state = await f.state();
-  assert.deepEqual(Object.keys(state).sort(), ["instanceId", "revision", "participantsRevision", "enabled", "state", "settingsLocked", "emergencyMuted", "emergencyEpoch", "outputCount", "participants", "registeredUsers", "participantOrders", "buses", "pfl", "tx", "recorder", "scenes", "currentSceneId", "permissions"].sort());
+  assert.deepEqual(Object.keys(state).sort(), ["instanceId", "revision", "participantsRevision", "enabled", "state", "settingsLocked", "emergencyMuted", "emergencyEpoch", "outputCount", "participants", "registeredUsers", "participantOrders", "buses", "selectors", "pfl", "tx", "recorder", "scenes", "currentSceneId", "permissions"].sort());
   const serialized = JSON.stringify(state); for (const privateValue of [f.registration.token, f.registration.deviceId, "Private device", "Private guest", "Private bot", "Private bus label"]) assert.equal(serialized.includes(privateValue), false);
   assert.deepEqual(Object.keys(state.participants[0]).sort(), ["discordUserId", "sends"].sort());
   assert.deepEqual(Object.keys(state.tx.bots[0]).sort(), ["profileId", "destination", "state", "active", "masterDb", "sourceInputChannelIds", "sourceMode"].sort());
