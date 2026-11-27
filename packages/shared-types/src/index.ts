@@ -9,6 +9,24 @@ export function isTxDestination(value: unknown): value is string {
   return typeof value === "string" && TX_DESTINATIONS.includes(value);
 }
 export const MAX_VC_BUSES = 32;
+export const MAX_OUTPUT_SELECTORS = 8;
+export type SelectorMode = "SWITCH" | "ADDITIVE";
+export type SelectorOperation = "SWITCH" | "ADD" | "REMOVE" | "TOGGLE";
+export interface OutputSelectorConfig {
+  name: string;
+  output: number;
+  outputMode: "MONO" | "DUAL_MONO";
+  mode: SelectorMode;
+  fadeMs?: number;
+  sourceBusIds: string[];
+}
+export interface OutputSelectorSnapshot {
+  mode: SelectorMode;
+  fadeMs: number;
+  sourceBusIds: string[];
+  selectedBusIds: string[];
+  primaryBusId: string | null;
+}
 
 export type OnAirState = "SETUP" | "READY" | "ON_AIR" | "FAULT";
 export type TapPoint = "PRE" | "POST";
@@ -110,6 +128,7 @@ export interface UserSessionSnapshot {
 
 export interface BusSnapshot {
   id: string;
+  selector?: OutputSelectorSnapshot;
   label: string;
   groupSourceIds?: readonly string[] | null;
   linkedDiscordGuildId?: string;
@@ -674,6 +693,11 @@ export interface RouterSnapshot {
 }
 
 export type ControlCommand =
+  | ({ type: "CREATE_OUTPUT_SELECTOR"; allowCollision?: boolean; confirmed?: boolean } & OutputSelectorConfig)
+  | ({ type: "UPDATE_OUTPUT_SELECTOR"; selectorId: string; allowCollision?: boolean; confirmed?: boolean } & OutputSelectorConfig)
+  | { type: "REMOVE_OUTPUT_SELECTOR"; selectorId: string; confirmed?: boolean }
+  | { type: "SELECT_OUTPUT_SELECTOR"; selectorId: string; busId: string; operation: SelectorOperation }
+  | { type: "OUTPUT_SELECTOR_OFF"; selectorId: string }
   | { type: "SET_STATE"; state: OnAirState; confirmed?: boolean }
   | { type: "SET_CHANNEL_FADER"; channelId: string; db: number }
   | { type: "SET_CHANNEL_MUTE"; channelId: string; mute: boolean }

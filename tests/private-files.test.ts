@@ -8,9 +8,10 @@ import { PrivateFileError, PRIVATE_FILE_WARNING, RECORDING_FOLDER_WARNING, prote
 import { SettingsStore } from "../services/router-core-sim/src/settings-store.ts";
 import { ExternalDeviceStore } from "../services/router-core-sim/src/external-device-store.ts";
 import { SceneStore } from "../services/router-core-sim/src/scene-store.ts";
+import { OutputSelectorStore } from "../services/router-core-sim/src/output-selector-store.ts";
 import { ReceiverOwnershipStore } from "../services/router-core-sim/src/receiver-ownership-store.ts";
 import { UserProfileStore } from "../services/router-core-sim/src/user-profile-store.ts";
-import { AudioChannel, SineSource } from "../services/router-core-sim/src/audio-engine.ts";
+import { AudioChannel, AudioEngine, SineSource } from "../services/router-core-sim/src/audio-engine.ts";
 
 const windows = process.platform === "win32";
 const broad = ["S-1-1-0", "S-1-5-11", "S-1-5-32-545"];
@@ -44,6 +45,7 @@ test("all configuration stores permit only the current user, SYSTEM and Administ
   await protectSettingsLocations(root, join(root, "recordings"), m => warnings.push(m));
   await new SettingsStore(root, {}).save({ bots: [] });
   await new SceneStore(root).save([], null);
+  await new OutputSelectorStore(root).save(new AudioEngine());
   const owners = new ReceiverOwnershipStore(root);
   owners.set("1".repeat(18), "2".repeat(18), "fixture");
   await owners.flush();
@@ -52,14 +54,14 @@ test("all configuration stores permit only the current user, SYSTEM and Administ
   const channel = new AudioChannel("fixture", "Fixture", "DiscordUser", new SineSource(1000, -12), 480, 48000);
   profiles.restoreOrCreate(channel, "3".repeat(18), "Fixture");
   await profiles.flush();
-  for (const file of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "receiver-owners.json", "external-control.json"]) assertPrivateAcl(join(root, file));
+  for (const file of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json"]) assertPrivateAcl(join(root, file));
   assert.deepEqual(warnings, []);
 });
 
 test("startup limits scope to selected files and dedicated folders without inspecting children", { skip: !windows }, async t => {
   const root = fixture(t), recordings = join(root, "recordings");
   for (const dir of ["logs", "support", "recordings/nested"]) mkdirSync(join(root, dir), { recursive: true });
-  const files = [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "receiver-owners.json", "external-control.json", "logs/old.jsonl", "support/fixture.zip", "recordings/nested/fixture.wav"];
+  const files = [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json", "logs/old.jsonl", "support/fixture.zip", "recordings/nested/fixture.wav"];
   for (const file of files) writeFileSync(join(root, file), "fixture");
   execFileSync(tool("icacls.exe"), [root, "/grant:r", ...broad.map(s => `*${s}:(OI)(CI)M`)], { windowsHide: true, stdio: "ignore" });
   execFileSync(tool("icacls.exe"), [join(root, ".env"), "/grant:r", "*S-1-1-0:R"], { windowsHide: true, stdio: "ignore" });
@@ -78,6 +80,17 @@ test("startup limits scope to selected files and dedicated folders without inspe
   assert.deepEqual([root, join(root, "node_modules"), unrelated, otherFile].map(acl), before);
   assert.ok(acl(explicitChild).rules.some(r => r.allow && r.sid === "S-1-1-0"), "option A leaves explicit child grants to the operator");
   const next = join(root, "logs/new.jsonl"); writeFileSync(next, "fixture"); assertPrivateAcl(next);
+});
+
+test("invalid selector backup retains private ACLs and removes broad explicit grants before quarantine", { skip: !windows }, t => {
+  const root = fixture(t), file = join(root, "output-selectors.json");
+  writeFileSync(file, "broken-private-content");
+  execFileSync(tool("icacls.exe"), [file, "/grant:r", "*S-1-1-0:R"], { windowsHide: true, stdio: "ignore" });
+  const warnings: string[] = [];
+  new OutputSelectorStore(root, message => warnings.push(message)).restore(new AudioEngine());
+  const backup = readdirSync(root).find(name => name.startsWith("output-selectors.json.invalid-"));
+  assert.ok(backup); assertPrivateAcl(join(root, backup));
+  assert.equal(readFileSync(join(root, backup), "utf8"), "broken-private-content"); assert.equal(warnings.length, 1);
 });
 
 test("custom recording folders and existing files retain their exact ACLs and only warn", { skip: !windows }, async t => {

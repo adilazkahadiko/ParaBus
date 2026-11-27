@@ -25,6 +25,9 @@ discord-bots.json
 user-profiles.json
 receiver-owners.json
 scenes.json
+output-selectors.json
+output-selectors.json.invalid-*
+output-selectors.json.*.tmp
 external-control.json
 external-control.json.*.tmp
 tokens.json

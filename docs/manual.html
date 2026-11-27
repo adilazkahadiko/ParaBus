@@ -369,6 +369,22 @@
         <div class="callout warning"><strong>MappingはSETUPで確定する</strong>ON AIR中は出力先、PRE / POST、test toneの変更が拒否されます。deviceのch数を超えるOUTは選択できません。</div>
       </section>
 
+      <section id="output-selectors" data-search-section>
+        <h2>出力セレクター（ROUTE）</h2>
+        <p>セレクターを使う出力chからは、各VC Busの出力ch割り当てを外してください。同じchに残すと、同じ声が二重に出ます。各VC BusのフェーダーとMUTEはセレクターにも反映されるため、チームの切り替えにVC BusのMUTEを使う必要はありません。</p>
+        <p>配信、3Play、主観オブザーバーなど、出力先ごとに「どのチームのVCを流すか」を選べます。最大8個です。</p>
+        <ol><li>SETUPにして、ROUTEの「出力セレクター」→「セレクターの作成・設定」を開きます。</li><li>名前（80文字まで）、出力ch、MONOまたはDUAL_MONO（選んだchと次のchへ同じ音声）、動き、フェード時間を設定します。フェードは0〜2000 ms、初期値300 msです。</li><li>選べる通常のVC Busにチェックを入れ、「設定を保存」を押します。グループBusや他のセレクターは選べません。既存の出力と重なる場合は、音声が加算されることを確認して適用します。</li></ol>
+        <table><thead><tr><th>操作</th><th>切り替え型</th><th>足し算型</th></tr></thead><tbody>
+          <tr><td>チームをクリック</td><td>そのチームへ同時クロスフェード。すでに選択中なら追加分も含めて変更しません。</td><td>そのチームだけON/OFF。他のチームは変わりません。</td></tr>
+          <tr><td>0.5秒長押し</td><td>未選択なら追加、選択中なら外します。最後の1チームは外せないため、無音にするときはOFFを使います。</td><td>クリックと同じON/OFFです。</td></tr>
+          <tr><td>OFF</td><td colspan="2">全チームをフェードで消して無音にします。</td></tr>
+        </tbody></table>
+        <p>Shift+クリック、またはボタンにフォーカスしてShift+Enterでも長押しと同じ操作ができます。選択したチームのボタンは点灯し、複数選択中は破線と「追加あり」で表示します。MASTER、MUTE、出力メーター、LIMITERの状態もパネルで確認できます。リミッターの変更はSETUP中だけ可能です。</p>
+        <p>選択操作とOFFはON AIR中も使えます。切り替え途中の再操作は、その時点の音量から続きます。クロスフェードはequal-powerです。複数チームはそのまま加算するため、セレクターのリミッターを有効にしてMASTERで調整してください。元のVC MIXのフェーダーとMUTEも反映します。緊急ミュートが最優先です。</p>
+        <p>設定と選択中のチームは自動保存し、再起動後に復元します。参照するVC Busの識別情報も保存するため、再接続後に同じBusを使います。Sceneの呼び出しは選択チームを変えません。MASTERやMUTEなどは通常のBusと同様にSceneへ含まれます。VC Busを削除すると、全セレクターから外れます。</p>
+        <p>SESSIONの録音対象一覧からセレクターをBusトラックとして選べます。通常のBus録音と同じPRE MASTER音声です。出力MASTER・MUTE・出力リミッター後を録音したい場合は、Main Outputの該当chを選んでください。</p>
+      </section>
+
       <section id="meter" data-search-section>
         <h2>メーターと数値の読み方</h2>
         <div class="meter-grid">

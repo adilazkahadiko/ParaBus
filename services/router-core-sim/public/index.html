@@ -232,6 +232,24 @@
 
           </section>
 
+          <section id="output-selectors" aria-label="出力セレクター">
+            <h3>出力セレクター</h3>
+            <p>クリックで切り替え。0.5秒長押し、またはShift+クリック／Shift+Enterで追加・外す。足し算型はクリックでON/OFF。</p>
+            <div data-selector-panels class="output-selector-panels"></div>
+            <details>
+              <summary>セレクターの作成・設定（SETUP中のみ、最大8個）</summary>
+              <form class="output-selector-form">
+                <label>セレクター<select name="selectorId"><option value="">新規作成</option></select></label>
+                <label>名前<input name="name" maxlength="80" required></label>
+                <label>出力ch<input name="output" type="number" min="1" max="64" value="1" required></label>
+                <label>出力方式<select name="outputMode"><option>MONO</option><option>DUAL_MONO</option></select></label>
+                <label>動き<select name="mode"><option value="SWITCH">切り替え型</option><option value="ADDITIVE">足し算型</option></select></label>
+                <label>フェード時間（ms）<input name="fadeMs" type="number" min="0" max="2000" value="300" required></label>
+                <fieldset><legend>選べるVC Bus</legend><div data-selector-members></div></fieldset>
+                <button type="submit">設定を保存</button><button data-selector-remove type="button" class="danger-action">削除</button>
+              </form>
+            </details>
+          </section>
           <section class="migration-controls" aria-label="VCグループ">
             <h3>VC GROUP</h3>
             <div class="io-route"><label>グループ<select id="group-bus-select"><option value="">新規作成</option></select></label><label>新規グループ名<input id="group-bus-name" maxlength="80" placeholder="赤チーム"></label><button id="apply-group-bus" type="button">グループを適用</button><button id="remove-group-bus" class="danger-action" type="button">グループを削除</button></div>

@@ -22,7 +22,8 @@ const code = (reply: any, expected: string, status?: number) => { assert.equal(r
 test("external classification is exhaustive, unique and closed for every ControlCommand", () => {
   const source = readFileSync(new URL("../packages/shared-types/src/index.ts", import.meta.url), "utf8").split("export type ControlCommand =")[1].split("export interface CommandResult")[0];
   const types = [...new Set([...source.matchAll(/type: "([A-Z_]+)"/g)].map(m => m[1]))];
-  assert.equal(types.length, 56); assert.deepEqual(Object.keys(COMMAND_POLICIES).sort(), types.sort());
+  assert.equal(types.length, 61); assert.deepEqual(Object.keys(COMMAND_POLICIES).sort(), types.sort());
+  for (const type of ["CREATE_OUTPUT_SELECTOR", "UPDATE_OUTPUT_SELECTOR", "REMOVE_OUTPUT_SELECTOR", "SELECT_OUTPUT_SELECTOR", "OUTPUT_SELECTOR_OFF"] as const) assert.equal(COMMAND_POLICIES[type], "C", "selectors have no external operation in this PR");
   assert.equal(new Set(OPERATIONS).size, OPERATIONS.length);
   const context = { state: "SETUP" };
   assert.equal(classifyCommand({ type: "NEW_UNCLASSIFIED" } as unknown as ControlCommand, context), "C");
