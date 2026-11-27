@@ -147,7 +147,7 @@ export async function protectSettingsLocations(root: string, recordingFolder: st
     await protectPrivatePath(path);
   };
   try { await mkdir(root, { recursive: true, mode: 0o700 }); } catch { warn(PRIVATE_FILE_WARNING); }
-  for (const name of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json"]) {
+  for (const name of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json", "lan-control.json", "lan-control-secrets.json"]) {
     try { await check(join(root, name)); } catch { warn(PRIVATE_FILE_WARNING); }
   }
   const isDefaultRecording = resolve(recordingFolder).toLowerCase() === resolve(defaultRecordingFolder).toLowerCase();

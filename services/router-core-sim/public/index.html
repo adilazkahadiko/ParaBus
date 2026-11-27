@@ -21,6 +21,7 @@
       </nav>
       <div class="top-status" aria-label="現在の安全状態">
         <span id="lan-access-badge" class="status warning lan-access-badge" hidden>LAN公開中（認証なし）</span>
+        <span id="lan-control-badge" class="status warning" hidden data-local-only>別PC操作: LAN待ち受け中</span>
         <span id="control-state" class="status waiting">システム: 接続中</span>
         <span id="receiver-guard" class="status warning">受信: 確認中</span>
         <span id="output-guard" class="status safe">出力: 確認中</span>
@@ -477,10 +478,29 @@
               </section>
               <section class="application-settings" aria-label="メインUIのLAN公開">
                 <div><h3>ACCESS</h3><p id="lan-access-status">このPCのみ（127.0.0.1）</p></div>
+                <p>別のPCからセレクターなどを操作するだけなら、認証つきの『別のPCからの操作』を使ってください。</p>
               </section>
               <div class="setup-runtime"><button id="save-application-settings" class="primary-action" type="submit">設定を保存</button></div>
             </div>
           </form>
+          <section id="lan-control-setup" class="application-settings setup-panel" aria-labelledby="lan-control-title" data-local-only>
+            <h3 id="lan-control-title">別のPCからの操作</h3>
+            <p>認証つきTLS 1.3専用。初回、Windowsのファイアウォールの許可画面が出たら、自分で許可してください。アプリは規則を追加・変更しません。</p>
+            <p>共用ネットワークでは、必要な機器・IP・操作だけを許可してください。使い終わったらOFFにしてください。</p>
+            <p id="lan-control-status" role="status">確認中</p><p id="lan-control-error" role="alert"></p>
+            <form id="lan-control-form">
+              <label><input id="lan-control-enabled" type="checkbox">別のPCからの操作をONにする</label>
+              <label>このPCのIPv4アドレス<select id="lan-control-address" required><option value="">IPv4アドレスを選んでください</option></select></label>
+              <label>ポート<input id="lan-control-port" type="number" min="1024" max="65535" value="4176" required></label>
+              <button type="submit">適用する</button>
+            </form>
+            <button id="lan-control-stop" type="button" class="danger-action">OFFにする</button>
+            <p>証明書のSHA-256指紋: <code id="lan-control-fingerprint"></code></p>
+            <button id="lan-control-rotate" type="button">証明書を作り直す</button>
+            <p>接続コードには鍵が含まれます。人に見せない・チャットに貼らないでください。Tier Bは「外部操作」の許可と、操作ごとの確認も必要です。</p>
+            <p>「外部操作」で登録した機器を設定してください。すべての機器は、別PCからの使用・追加の操作グループとも既定でOFFです。</p>
+            <div id="lan-control-devices"></div><p id="lan-control-message" role="status"></p>
+          </section>
           <section id="external-control-setup" class="application-settings setup-panel" aria-labelledby="external-control-title" data-local-only>
             <h3 id="external-control-title">外部操作（Stream Deck など）</h3>
             <div class="external-control-connection">

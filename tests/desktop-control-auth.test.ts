@@ -285,6 +285,12 @@ test("desktop HTTP and WebSocket command surfaces reject unauthorized browser cl
   }
   const nonce = html.match(/<meta name="dbr-session-nonce" content="([A-Za-z0-9_-]{43})"/i)?.[1];
   assert.ok(nonce, "bootstrap HTML contains the process-lifetime nonce");
+  const lanHeaders = { origin, 'x-dbr-session-nonce': nonce, 'content-type': 'application/json' };
+  const lanRequest = (headers: Record<string, string>) => fetch(origin + '/api/lan-control', { method: 'POST', headers, body: '{"action":"status"}' });
+  assert.equal((await lanRequest({ origin, 'content-type': 'application/json' })).status, 403);
+  assert.equal((await lanRequest({ ...lanHeaders, origin: 'https://attacker.invalid' })).status, 403);
+  const lanStatus = await lanRequest(lanHeaders); assert.equal(lanStatus.status, 200);
+  const lanData = (await lanStatus.json() as any).data; assert.equal(lanData.enabled, false); assert.equal(lanData.listening, false); assert.equal(lanData.fingerprint, null);
   const probe = (headers: Record<string, string>) => fetch(origin + "/api/session/check", { method: "POST", headers });
   const probeHeaders = { origin, "x-dbr-session-nonce": nonce };
   const ready = await probe(probeHeaders);

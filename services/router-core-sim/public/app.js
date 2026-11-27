@@ -3,6 +3,7 @@ import { mountSupportBundle } from "./support-bundle.js";
 import { mountParticipantData } from "./participant-data.js";
 import { mergeMeterSnapshot } from "./meter-snapshot.js";
 import { mountExternalControl } from "./external-control.js";
+import { mountLanControl } from "./lan-control.js";
 import { createOutputSelectorControls } from "./output-selectors.js";
 
 const renderOutputSelectors = createOutputSelectorControls(document.querySelector('#output-selectors'), sendCommand, { conflicts: selectedOutputConflict, notice: showNotice });
@@ -10,6 +11,7 @@ const renderOutputSelectors = createOutputSelectorControls(document.querySelecto
 const desktopAccess = JSON.parse(document.querySelector("#desktop-access")?.textContent || "{}");
 const localSettingsAvailable = desktopAccess.localSettingsAvailable !== false;
 mountExternalControl(localSettingsAvailable);
+mountLanControl(localSettingsAvailable);
 mountSupportBundle(document.querySelector("#support-bundle"), fetch, localSettingsAvailable);
 const participantDataView = mountParticipantData(document.querySelector("#participant-data"), fetch, localSettingsAvailable);
 
@@ -1411,7 +1413,7 @@ async function saveBotProfiles(event) {
   const prompt = tokenChanged
     ? "Bot設定と新しいTokenをこのPCへ保存しますか？\nTokenは保存後に再表示されません。接続は各Botの「接続確認」で開始します。"
     : "現在のBot設定を保存しますか？\n接続中Botの状態は変更しません。";
-  const lanWarning = elements.lanAccessEnabled.checked && !settingsSnapshot.operator?.lanAccess ? "\n\nLAN公開を有効にします。同じLANの誰でも認証なしで操作できます。共有LANでは使用しないでください。" : "";
+  const lanWarning = elements.lanAccessEnabled.checked && !settingsSnapshot.operator?.lanAccess ? "\n\nLAN公開を有効にします。同じLANの誰でも認証なしで操作できます。共有LANでは使用しないでください。別のPCからセレクターなどを操作するだけなら、認証つきの『別のPCからの操作』を使ってください。" : "";
   if (!confirm(prompt + lanWarning)) return;
 
   settingsSaving = true;

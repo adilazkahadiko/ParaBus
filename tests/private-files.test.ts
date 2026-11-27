@@ -9,6 +9,7 @@ import { SettingsStore } from "../services/router-core-sim/src/settings-store.ts
 import { ExternalDeviceStore } from "../services/router-core-sim/src/external-device-store.ts";
 import { SceneStore } from "../services/router-core-sim/src/scene-store.ts";
 import { OutputSelectorStore } from "../services/router-core-sim/src/output-selector-store.ts";
+import { LanControlStore, LanSecretStore } from "../services/router-core-sim/src/lan-control-store.ts";
 import { ReceiverOwnershipStore } from "../services/router-core-sim/src/receiver-ownership-store.ts";
 import { UserProfileStore } from "../services/router-core-sim/src/user-profile-store.ts";
 import { AudioChannel, AudioEngine, SineSource } from "../services/router-core-sim/src/audio-engine.ts";
@@ -46,6 +47,8 @@ test("all configuration stores permit only the current user, SYSTEM and Administ
   await new SettingsStore(root, {}).save({ bots: [] });
   await new SceneStore(root).save([], null);
   await new OutputSelectorStore(root).save(new AudioEngine());
+  new LanControlStore(root).configure(false, '192.0.2.1', 4176);
+  await new LanSecretStore(root, message => warnings.push(message)).credentials('192.0.2.1');
   const owners = new ReceiverOwnershipStore(root);
   owners.set("1".repeat(18), "2".repeat(18), "fixture");
   await owners.flush();
@@ -54,14 +57,14 @@ test("all configuration stores permit only the current user, SYSTEM and Administ
   const channel = new AudioChannel("fixture", "Fixture", "DiscordUser", new SineSource(1000, -12), 480, 48000);
   profiles.restoreOrCreate(channel, "3".repeat(18), "Fixture");
   await profiles.flush();
-  for (const file of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json"]) assertPrivateAcl(join(root, file));
+  for (const file of [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json", "lan-control.json", "lan-control-secrets.json"]) assertPrivateAcl(join(root, file));
   assert.deepEqual(warnings, []);
 });
 
 test("startup limits scope to selected files and dedicated folders without inspecting children", { skip: !windows }, async t => {
   const root = fixture(t), recordings = join(root, "recordings");
   for (const dir of ["logs", "support", "recordings/nested"]) mkdirSync(join(root, dir), { recursive: true });
-  const files = [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json", "logs/old.jsonl", "support/fixture.zip", "recordings/nested/fixture.wav"];
+  const files = [".env", "discord-bots.json", "user-profiles.json", "scenes.json", "output-selectors.json", "receiver-owners.json", "external-control.json", "lan-control.json", "lan-control-secrets.json", "logs/old.jsonl", "support/fixture.zip", "recordings/nested/fixture.wav"];
   for (const file of files) writeFileSync(join(root, file), "fixture");
   execFileSync(tool("icacls.exe"), [root, "/grant:r", ...broad.map(s => `*${s}:(OI)(CI)M`)], { windowsHide: true, stdio: "ignore" });
   execFileSync(tool("icacls.exe"), [join(root, ".env"), "/grant:r", "*S-1-1-0:R"], { windowsHide: true, stdio: "ignore" });
