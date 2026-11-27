@@ -4,7 +4,7 @@ export type Tier = "A" | "B" | "C";
 // One entry per discriminant. Adding/removing an internal command breaks typecheck.
 export const COMMAND_POLICIES = {
   CREATE_OUTPUT_SELECTOR: "C", UPDATE_OUTPUT_SELECTOR: "C", REMOVE_OUTPUT_SELECTOR: "C",
-  SELECT_OUTPUT_SELECTOR: "C", OUTPUT_SELECTOR_OFF: "C",
+  SELECT_OUTPUT_SELECTOR: "A", OUTPUT_SELECTOR_OFF: "A",
   SET_STATE: "state", SET_CHANNEL_FADER: "C", SET_CHANNEL_MUTE: "C",
   SET_USER_CHANNEL_COLOR: "C", SET_USER_STRIP_ORDER: "C", RESET_USER_STRIP_ORDER: "C",
   SET_PARTICIPANT_APPROVAL: "C", SET_USER_TRUSTED: "C", SET_RECEIVER_OWNER: "C",
@@ -36,6 +36,7 @@ export function classifyCommand(command: ControlCommand, context: { state: strin
 }
 
 export const OPERATIONS = [
+  "selector.select", "selector.off",
   "bus.fader.adjust", "bus.fader.set", "bus.mute.set", "bus.mute.toggle",
   "send.fader.adjust", "send.fader.set", "send.mute.set", "send.mute.toggle",
   "tx.fader.adjust", "tx.fader.set", "pfl.set", "loudness.reset", "emergency.set",

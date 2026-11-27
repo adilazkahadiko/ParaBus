@@ -4,6 +4,8 @@
 
 **状態: 段階2bを実装。** 段階2aの操作別 B 権限・arm / execute に加え、scene.preview（A）、scene.recall・recording.start / stop（B）、WS メーター購読を提供する。段階 A と tx.take の分類、起動時の無効化、権限変更・停止の失効規則を維持する。シーンの保存・削除は引き続き C。末尾の「現状調査」は仕様策定時の `d6de003f350a9e22733c1dbc4928811704b4a6b5` の記録である。
 
+出力セレクターの外部操作として `selector.select` / `selector.off`（A）と `state.selectors` を追加した。機器登録・認証・流量制限・重複排除・revision の既存契約を共用する。セレクターの作成・設定変更・削除は C のまま、ローカルSETUP画面で行う。
+
 実装判断: メンテナーの決定により `tx.take` は集合の大きさ・選択方式によらず段階 A。機器名はローカル管理応答だけに含める。段階2aのメンテナー決定により operational log の外部操作行には deviceId を記録する（第12節）。機器登録は settings root の `external-control.json`（最大128件、取り消し済みを含む）へ原子的に保存する。POSIX は mode 0600、Windows は公開前に継承 ACL を外して実行ユーザーのみに Full Control を付与する。破損した登録ファイルは自動上書きせず外部操作を利用不可とする。
 
 参加者の音を Bus ごとに切る・下げるには `send.mute.*` / `send.fader.*` を使う。旧 POST の Direct Out / Matrix にだけ影響する `channel.fader.adjust` / `channel.fader.set` / `channel.mute.set` / `channel.mute.toggle` は外部 API v1 では提供せず、不明操作と同じ `INVALID` で拒否する。participants の状態にも旧 POST の `faderDb` / `mute` は含めない。シーンの preview / recall が扱う項目は変更しない。
@@ -78,7 +80,7 @@ version 2 で鍵が欠落・不正・読み取り不能な場合や、登録フ�
 
 「A: 常に可」は、追加の段階 B 権限と二段階確認が不要という意味である。認証、有効化、入力制約、既存ロック、FAULT、安全状態、revision 検査を免除しない。B はトークンごとの該当操作の許可と ParaBus 側の二段階確認が必要。C は外部から使用不可とする。
 
-次表は現行 `ControlCommand` の全 56 種類の `type` を列挙する。同じ `type` でも引数によって段階が異なるものは、互いに重ならない条件に分解する。新しい内部命令や新しい引数の意味は、明示的に分類するまで拒否する。実装では `ControlCommand["type"]` に対する網羅的な分類定義とテストを置き、未分類・重複・意図しない外部公開を検出する。
+次表は現行 `ControlCommand` の全 61 種類の `type` を列挙する。同じ `type` でも引数によって段階が異なるものは、互いに重ならない条件に分解する。新しい内部命令や新しい引数の意味は、明示的に分類するまで拒否する。実装では `ControlCommand["type"]` に対する網羅的な分類定義とテストを置き、未分類・重複・意図しない外部公開を検出する。
 
 | 内部命令 | 段階 | 外部契約・条件 |
 | --- | --- | --- |
@@ -94,6 +96,11 @@ version 2 で鍵が欠落・不正・読み取り不能な場合や、登録フ�
 | `SET_VC_SEND` | A / B | ミュートとゲイン adjust は A、ゲイン set は第 7 節で A / B を判定。Bus 紐付けや Group Bus への直接 Send は含まない |
 | `SET_BUS_MASTER` | A / B | Bus マスター。adjust は A、set は第 7 節で A / B を判定 |
 | `SET_BUS_MUTE` | A | Bus ミュート |
+| `CREATE_OUTPUT_SELECTOR` | C | セレクター作成 |
+| `UPDATE_OUTPUT_SELECTOR` | C | セレクター設定変更 |
+| `REMOVE_OUTPUT_SELECTOR` | C | セレクター削除 |
+| `SELECT_OUTPUT_SELECTOR` | A | `selector.select` 経由の切り替え・追加・外す・チームON/OFF |
+| `OUTPUT_SELECTOR_OFF` | A | `selector.off` 経由の全チームOFF |
 | `SET_BUS_OUTPUT` | C | 出力割り当て |
 | `CLEAR_BUS_OUTPUT` | C | 出力割り当て解除 |
 | `SET_BUS_BINDING` | C | Bus と VC の紐付け |
@@ -186,6 +193,7 @@ HTTP は UTF-8 JSON、POST は `Content-Type: application/json` を必須とす�
 | 対象 | 指定 |
 | --- | --- |
 | Bus | `busId`: state に現れた不透明な文字列をそのまま保存。ラベルから生成しない |
+| 出力セレクター | `selectorId`: `state.selectors[]`から取得する公開Bus別名。名前や内部IDから生成しない |
 | TX Bot | `profileId`: 設定された英数字・`_`・`-` の 1〜32 文字。送り先は `destination` で検証できる |
 | 送り先区分 | `TEAM_01`〜`TEAM_20`、`INTERVIEW`、`SPARE`。`ALL_TEAMS` は選択方式であり区分 ID ではない |
 | シーン | `sceneId`: state から取得する 1〜128 文字の不透明な文字列。新規生成は現行では UUID だが、読込済み ID を UUID に限定しない。番号や名前を ID として使わない |
@@ -206,6 +214,8 @@ Discord User ID は 17〜20 桁の **文字列** のまま扱い、JSON number �
 
 ### 外部用 revision
 
+セレクターの ID は `selectors[].selectorId` を使用する。内部のセレクターIDは返さず、通常のBusと同じ `publicBusId` / `resolveBusId` の経路を通す。セレクターは内部IDの文字列にかかわらず、既存の保護済みBus別名鍵とドメイン分離HMAC-SHA256による `external-bus:<43文字base64url>` の別名にする。`buses[].busId` に現れる同じセレクターも同じ別名である。選べるBus・選択中のBus・主のBusも同じ公開Bus ID規則に従う。設定の鍵と対象の内部IDが同じなら再起動後も別名は変わらない。鍵・内部ID・DiscordのVC識別情報を新しいフィールドへ含めない。
+
 `instanceId` は起動ごとに新しく発行する。外部用 `revision` と `participantsRevision` は 1 以上の安全な整数で、同一起動中は単調増加する。前者はメーター・時刻・接続数を除く公開操作状態と安全依存関係の変更、後者は参加者の対応付けの変更で増加する。内部 `ControlPlane.revision` の単なる別名にはしない。操作画面からの変更、Discord の入退室・TX 状態、安全状態、対象の削除と再作成も観測する。値が元に戻る ABA でも世代は元に戻さない。
 
 全体の `revision` は state の配信・取得と新旧の判別に使い、操作の競合検出には使わない。任意の `expectedRevision` を付けてもこの規則は変わらない。操作ごとに照合するものは次表に限定する。全操作に共通して認証、有効化、`instanceId`、対象の存在・同一性、権限、既存の安全検査を適用する。
@@ -214,6 +224,7 @@ Discord User ID は 17〜20 桁の **文字列** のまま扱い、JSON number �
 | --- | --- | --- |
 | `*.mute.toggle`（参加者・Bus・Send） | 対象自身の現在の mute と必須の `args.expectedMute:boolean` | 不一致なら `STALE_REVISION` と現在の mute を返す。他対象のフェーダーや入退室では拒否しない |
 | `*.mute.set` | 明示した `args.mute` と実行時の対象 | 現在値の一致は要求せず、同じ値への set は副作用なしで成功 |
+| `selector.select` / `selector.off` | 現在のセレクター、選べるBusと動き、操作の種類 | 共通のinstanceId検査と実行時の対象・操作検査を維持。全体expectedRevisionは他のA操作と同じ参照値で、一致を要求しない。選択の変更は同期で世代更新し、ABAも検出する |
 | フェーダー adjust / A の set | 対象の現在 dB、床適用後の上昇量、同一機器・同一対象の dB 枠 | 実行時の値で分類・制限する。無関係な変更では拒否しない |
 | フェーダー B の set | arm 時の対象世代とそのフェーダー値の世代、固定した目標 dB | 対象の再作成・同じフェーダーの変更で `STALE_REVISION`。他のフェーダーや対象外の入退室は依存しない |
 | `emergency.set(active:false)` | 必須の `expectedEmergencyEpoch`、arm 時の emergencyEpoch、READY / FAULT とデバイス回復・準備状態 | epoch の変更は `STALE_REVISION`、現在の安全条件違反は `LOCKED` |
@@ -241,6 +252,8 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 | --- | --- | --- | --- |
 | `bus.fader.adjust` / `bus.fader.set` | adjust は A、set は A / B（第 7 節） | `busId`, `deltaDb` / `db` | `SET_BUS_MASTER` |
 | `bus.mute.set` / `bus.mute.toggle` | A | `busId`, set は `mute:boolean`、toggle は `expectedMute:boolean` | `SET_BUS_MUTE` |
+| `selector.select` | A | `selectorId`, `busId`, `operation:"SWITCH"\|"ADD"\|"REMOVE"\|"TOGGLE"` | `SELECT_OUTPUT_SELECTOR` |
+| `selector.off` | A | `selectorId` | `OUTPUT_SELECTOR_OFF` |
 | `send.fader.adjust` / `send.fader.set` | adjust は A、set は A / B（第 7 節） | `target`, `busId`, `deltaDb` / `db` | `SET_VC_SEND` の `db` のみ |
 | `send.mute.set` / `send.mute.toggle` | A | `target`, `busId`, set は `mute:boolean`、toggle は `expectedMute:boolean` | `SET_VC_SEND` の `mute` のみ |
 | `tx.fader.adjust` / `tx.fader.set` | adjust は A、set は A / B（第 7 節） | `profileId`, `deltaDb` / `db` | `SET_TX_MASTER` |
@@ -262,6 +275,12 @@ B の依存関係は arm 時に ParaBus が保存し、execute 時に照合す�
 コンプのパラメーターは `enabled:boolean`、`thresholdDb` (-60〜0)、`ratio` (1〜20)、`attackMs` (0.1〜200)、`releaseMs` (10〜2000)、`makeupDb` (-12〜24)。省略した値は変更しない。リミッターは enabled のみとし、天井など内部パラメーターは公開しない。
 
 `recording.start` の `selection` は空集合不可。`outputs` は 0 始まりで state の `outputCount` 未満、最大 64。`busIds` は最大 32、`participants` は最大 112。各配列の重複は禁止。participants の固定ユーザー指定と slot 指定が同じ本人へ解決される場合も重複として INVALID。slot は第5節の expectedParticipantsRevision を arm / execute の両方で検査する。参加者は arm 時点でオンライン対象へ固定し、execute 時の変更は拒否する。内部の `selection.channelIds` に解決し、`matrixOutput` は最初の選択出力または出力 0、`includeUsers:false,includeBuses:false` とともに渡す。後二者による全対象の自動展開には依存しない。出力が存在しない、対象が欠けた、録音中・停止処理中の場合は既存の制約に従い拒否する。保存パスの指定や全新規参加者の自動追加は提供しない。録音セッション・状態は非同期の終了・FAULT も含む単調な世代で追跡し、IDLE → RECORDING → IDLE の ABA でも確認を失効させる。必要な backend がない・FAULT・同期的な保存先のエラーは UNAVAILABLE、二重開始・STOPPING・非録音時の停止は LOCKED。開始応答後に非同期のファイル書き込みが失敗した場合は state.recorder.state が FAULT になる。
+
+`selector.select` の切り替え型では、`SWITCH`で指定チームだけへクロスフェードする。すでに選択中のチームなら追加分・主のBus・進行中のフェードも変えず成功する。`ADD`は現在の選択に加え、`REMOVE`は指定チームだけを外す。最後の1チームを`REMOVE`すると`LOCKED`となるため、全体を無音にする場合は`selector.off`を使う。未選択チームへの`REMOVE`、選択済みチームへの`ADD`は変更なしで成功する。足し算型は`TOGGLE`だけを使い、指定チームのON/OFFを反転する。`selector.off`は両方の動きで全チームをフェードアウトする。各操作はON AIR中も可能で、緊急ミュートを解除しない。
+
+両操作の成功`data`は第10節の`selectors[]`と同じ8フィールドのオブジェクト。セレクター名は常に返すが、チーム名は応答へ複製せず、機器に表示名の読み取りを許可したときの`buses[].label`で参照する。`/actions`で実行し、Bの権限やarm/executeは不要。通常の操作流量枠を使い、`selector.off`も流量制限を迂回しない。再送は同じrequestIdと同じ本文を使う。特に`TOGGLE`を新しいrequestIdで自動再送すると再反転するため、応答不明時も既存の重複排除規則に従う。全体`expectedRevision`は任意の参照値で、指定する場合は既存の整数検証を受ける。
+
+存在しないセレクター・Bus、通常のBusをセレクターとして指定した場合は`NOT_FOUND`。既存Busでも候補外・グループ・別セレクターの指定、未知の操作、動きに合わない操作、必須引数の欠落や余分な引数は`INVALID`。内部の作成・変更・削除命令名を直接送ると`TIER_FORBIDDEN`となる。公開の`selector.create` / `selector.update` / `selector.remove`は存在せず`INVALID`。内部のエラー文やIDを外部エラーに転送しない。
 
 `scene.preview` は全体の `expectedRevision` を要求せず、副作用なしでその時点の差分を返す。成功の `data` は `previewId`、`sceneId`、`changes`、`excludedParticipantCount`。`changes` の要素は `{target,field,from,to,recallSafe,locked}` とし、`target` は `{kind:"channel",target:<固定参加者>}`、`{kind:"bus",busId}`、または `{kind:"other",id:<不透明ID>}`。`field` は **target からの相対名** とし、内部の `channel.<内部channel ID>.` / `bus.<内部Bus ID>.` / `matrix.<内部route ID>.` を返さない。相対名は次表に限定する。
 
@@ -362,6 +381,7 @@ state の JSON 形は次のとおり。`?` は任意フィールドを表す説�
 | `registeredUsers` | 固定指定の選択肢。`{discordUserId,online,displayName?}` の配列。オフラインのレベルは含めない |
 | `participantOrders` | `{scope,users:string[]}` の配列。all と VC Bus ごとの順序。各 users は Discord User ID |
 | `buses` | `{busId,kind:"vc"\|"group"\|"other",label?,masterDb,mute,limiterEnabled,compressor:{enabled,thresholdDb,ratio,attackMs,releaseMs,makeupDb}}` の配列。`label` は表示名の読み取りを許可した機器にだけ含めるBus表示名 |
+| `selectors` | `{selectorId,name,mode:"SWITCH"\|"ADDITIVE",fadeMs,sourceBusIds:string[],selectedBusIds:string[],primaryBusId:string\|null,emergencyMuted:boolean}` の配列。最大8個。`sourceBusIds`は選択可能な通常のVC Bus、`selectedBusIds`は現在の選択目標でフェードアウト中の旧チームを含めない。`primaryBusId`は切り替え型の主のチームで、全OFF・足し算型ではnull。緊急ミュートは全体の値と同じ |
 | `pfl` | 第 6 節 `pfl.set` と同じ `source` の値 |
 | `tx` | `{targetsRevision,armedProfileIds:string[],liveProfileIds:string[],selectionKind:"profiles"\|"destinations"\|"allTeams",allTeams:boolean,takeTier:"A"\|null,bots:[...]}` |
 | `tx.bots[]` | `{profileId,destination:string\|null,state:"NO_BOT"\|"NOT_READY"\|"READY"\|"SENDING"\|"FAULT",active,masterDb,sourceInputChannelIds:string[],sourceMode:"localInput"\|"legacyMatrix"\|"unassigned"}`。入力 ID は読み取り専用で保持・編集不要 |
@@ -374,6 +394,8 @@ state の JSON 形は次のとおり。`?` は任意フィールドを表す説�
 toggle の `expectedMute` は対象の `buses[].mute`、または `participants[].sends[].mute` から取得する。公開 state の revision が増えただけで未実行操作や arm を失効させない。B の依存関係の世代はサーバーが保持し、操作ごとの検査に使う。クライアントが全体 revision からそれを推測する必要はない。
 
 参加者と Bus の表示名は既定で含めない。ローカル SETUP でその機器に `readDisplayNames:true` を許可したときのみ、`participants` / `registeredUsers` の `displayName` と `buses[].label` に出す。false ならこれらのキー自体を含めない。いずれも制御文字を除去し最大 80 文字に制限する。scene.preview の名称フィールドも同じ許可・無害化方針とし、不許可時の `from` / `to` は null とする。プラグインは表示用の非信頼文字列としてエスケープし、ログ・共有設定・遠隔同期へ自動出力しない。ユーザー ID も個人に結び付く情報であり、名前を省いた state も公開情報とは扱わない。
+
+`selectors[].name`は運用者が設定するセレクター名として、表示名の読み取り権限にかかわらず常に返す。制御文字除去・最大80文字・表示時のエスケープは同じ。チーム名の権限は緩和しない。HTTPとWSで同じprojectionを使う。選択・主のBusの変更はローカル操作も含めて同期でrevisionと依存世代を進める。配信前に選択が元へ戻るABAでも世代は戻らず、変更のない操作や重複排除された再送は進めない。100ms観測が休止している間は既存と同じ再開時の世代更新を使う。フェード途中のサンプルゲインはstate/revisionの対象に含めない。
 
 WS は認証成功後、ただちに `{type:"state",payload:<state>}` を送り、その後は変更があったとき最大 10 Hz で**完全な projection** を配信する。購読者は差分の取りこぼし処理を必要としない。通常の state にメーターは含めない。操作要求は WS では受け付けず、HTTP に統一する。
 
