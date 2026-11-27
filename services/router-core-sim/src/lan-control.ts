@@ -1,6 +1,6 @@
 import type { ExternalDevice } from './external-device-store.ts';
 import { ExternalControlServer } from './external-control.ts';
-import { ipv4, lanAddresses, LanControlStore, LanSecretStore, readLanScope, type LanGroup } from './lan-control-store.ts';
+import { ipv4, matchesLanAddress, lanAddresses, LanControlStore, LanSecretStore, readLanScope, type LanGroup } from './lan-control-store.ts';
 import { encodeConnectionCode } from './lan-client.ts';
 import { boolean, fail, fields, type RecordValue } from './external-protocol.ts';
 import { sanitizeOperatorMessage } from './operator-sanitize.ts';
@@ -26,6 +26,8 @@ export class LanControl {
   constructor(root: string, local: ExternalControlServer, reservedPorts: () => number[], addresses = lanAddresses, protection?: TokenProtection, warn = (message: string) => local.options.log(message)) {
     this.store = new LanControlStore(root); this.local = local; this.reservedPorts = reservedPorts; this.addresses = addresses;
     this.warn = warn; this.secrets = new LanSecretStore(root, warn, protection);
+    void this.secrets.retainTokens(new Set(local.store.list().filter(device => !device.revoked && this.store.scope(device.deviceId).enabled).map(device => device.deviceId)))
+      .catch(() => this.warn('LAN機器の不要な鍵を削除できません。保存先を確認してください。'));
     const previous = local.options.onManagementChange;
     local.options.onManagementChange = (action, id, result) => {
       previous?.(action, id, result);
@@ -36,8 +38,9 @@ export class LanControl {
           try { this.store.removeDevice(id); } catch { this.local.options.log('LAN機器の設定を削除できません。保存先を確認してください。'); }
           void this.secrets.forget(id).catch(() => this.local.options.log('LAN機器の鍵を削除できません。保存先を確認してください。'));
         }
+        if (action === 'revoke') void this.secrets.forget(id).catch(() => this.warn('LAN機器の鍵を削除できません。保存先を確認してください。'));
         const token = (result as { token?: string } | undefined)?.token;
-        if (token) void this.secrets.remember(id, token).catch(() => this.local.options.log('LAN機器の鍵を保存できません。接続コードを再発行してください。'));
+        if (token && this.store.scope(id).enabled) void this.secrets.remember(id, token).catch(() => this.local.options.log('LAN機器の鍵を保存できません。接続コードを再発行してください。'));
       }
     };
   }
@@ -88,7 +91,9 @@ export class LanControl {
         const id = this.local.state.resolveBusId(selectorId); if (!this.local.options.control.engine.buses.get(id)?.selector) fail('NOT_FOUND');
         return this.local.state.publicBusId(id);
       });
-      this.store.setScope(device.deviceId, scope); this.#api?.invalidateDevice(device.deviceId); return this.snapshot();
+      this.store.setScope(device.deviceId, scope); this.#api?.invalidateDevice(device.deviceId);
+      if (!scope.enabled) await this.secrets.forget(device.deviceId);
+      return this.snapshot();
     }
     if (value.action === 'rotate') {
       fields(value, ['action', 'confirmed']); if (value.confirmed !== true) fail('CONFIRMATION_REQUIRED');
@@ -101,6 +106,7 @@ export class LanControl {
       fields(value, ['action', 'deviceId'], ['reissue']); if (value.reissue !== undefined) boolean(value.reissue);
       const device = this.local.store.list().find(device => device.deviceId === value.deviceId && !device.revoked); if (!device) fail('NOT_FOUND');
       const settings = this.store.snapshot(), fingerprint = this.secrets.fingerprint();
+      if (!this.store.scope(device.deviceId).enabled) fail('LOCKED');
       if (!fingerprint || !ipv4(settings.address)) fail('LOCKED');
       let token = await this.secrets.token(device.deviceId);
       if (!token || this.local.store.authenticate(token)?.deviceId !== device.deviceId) {
@@ -121,7 +127,7 @@ export class LanControl {
       if (epoch !== this.#epoch || !this.store.snapshot().enabled) return;
       const api = new ExternalControlServer({ ...this.local.options, onManagementChange: undefined,
         transport: { address: settings.address, port: settings.port, tls: { cert: credentials.certificate, key: credentials.key }, enabled: () => this.store.snapshot().enabled,
-          authorize: (device, ip) => { const scope = this.store.scope(device.deviceId); return scope.enabled && scope.addresses.includes(ip); },
+          authorize: (device, ip) => { const scope = this.store.scope(device.deviceId); return scope.enabled && scope.addresses.some(rule => matchesLanAddress(rule, ip)); },
           allowOperation: (device, operation, args) => this.allow(device, operation, args),
           projectData: (device, data) => this.project(device, data),
           audit: (device, ip, operation, result) => this.local.options.log(`LAN control action device=${JSON.stringify(sanitizeOperatorMessage(device.name, 'Device'))} ip=${ip} operation=${operation} result=${result}`),

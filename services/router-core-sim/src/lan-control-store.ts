@@ -14,6 +14,18 @@ export interface LanDeviceScope { enabled: boolean; addresses: string[]; selecto
 export interface LanSettings { version: 1; enabled: boolean; address: string; port: number; devices: Record<string, LanDeviceScope> }
 export const emptyLanScope = (): LanDeviceScope => ({ enabled: false, addresses: [], selectorIds: [], groups: [] });
 export function ipv4(value: unknown): value is string { return typeof value === 'string' && isIP(value) === 4 && value !== '0.0.0.0' && Number(value.split('.')[0]) < 224; }
+export function lanAddressRule(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const parts = value.split('/');
+  return ipv4(parts[0]) && (parts.length === 1 || parts.length === 2 && /^(1[6-9]|2[0-9]|3[0-2])$/.test(parts[1]));
+}
+export function matchesLanAddress(rule: string, address: string): boolean {
+  if (!lanAddressRule(rule) || !ipv4(address)) return false;
+  const [network, prefix = '32'] = rule.split('/');
+  const number = (ip: string) => ip.split('.').reduce((value, octet) => (value * 256 + Number(octet)) >>> 0, 0);
+  const mask = (0xffffffff << (32 - Number(prefix))) >>> 0;
+  return (number(network) & mask) === (number(address) & mask);
+}
 export function lanAddresses(): string[] {
   return [...new Set(Object.values(networkInterfaces()).flatMap(entries => (entries ?? []).filter(entry => !entry.internal && entry.family === 'IPv4' && ipv4(entry.address)).map(entry => entry.address)))].sort();
 }
@@ -23,7 +35,7 @@ export function readLanScope(input: unknown): LanDeviceScope {
     if (!Array.isArray(value) || value.length > max || new Set(value).size !== value.length) return fail('INVALID');
     return value;
   };
-  const addresses = array(raw.addresses, 8); if (!addresses.every(ipv4)) fail('INVALID');
+  const addresses = array(raw.addresses, 8); if (!addresses.every(lanAddressRule)) fail('INVALID');
   const selectorIds = array(raw.selectorIds, 8).map(id => textId(id));
   const groups = array(raw.groups, LAN_GROUPS.length); if (!groups.every(group => LAN_GROUPS.includes(group as LanGroup))) fail('INVALID');
   return { enabled: boolean(raw.enabled), addresses, selectorIds, groups: groups as LanGroup[] };
@@ -125,6 +137,13 @@ export class LanSecretStore {
     return this.enqueue(async () => {
       if (!this.#value?.tokens[id]) return;
       const tokens = { ...this.#value.tokens }; delete tokens[id]; const value = { ...this.#value, tokens };
+      await writePrivateFile(this.path, JSON.stringify(value, null, 2) + '\n'); this.#value = value;
+    });
+  }
+  retainTokens(ids: Set<string>): Promise<void> {
+    return this.enqueue(async () => {
+      if (!this.#value || Object.keys(this.#value.tokens).every(id => ids.has(id))) return;
+      const value = { ...this.#value, tokens: Object.fromEntries(Object.entries(this.#value.tokens).filter(([id]) => ids.has(id))) };
       await writePrivateFile(this.path, JSON.stringify(value, null, 2) + '\n'); this.#value = value;
     });
   }

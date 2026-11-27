@@ -4,10 +4,11 @@ import { createServer as createTcpServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { VcBus } from '../services/router-core-sim/src/audio-engine.ts';
 import { LanControl } from '../services/router-core-sim/src/lan-control.ts';
-import { LanControlStore, emptyLanScope, LAN_GROUPS, type LanGroup } from '../services/router-core-sim/src/lan-control-store.ts';
+import { LanControlStore, emptyLanScope, LAN_GROUPS, matchesLanAddress, readLanScope, type LanGroup } from '../services/router-core-sim/src/lan-control-store.ts';
 import { generateLanCertificate } from '../services/router-core-sim/src/lan-certificate.ts';
 import { encodeConnectionCode, parseConnectionCode, pinnedLanRequest, type LanConnection } from '../services/router-core-sim/src/lan-client.ts';
 import { createTokenProtection } from '../services/discord-adapter/src/token-protection.ts';
@@ -17,6 +18,24 @@ import { RecorderManager } from '../services/router-core-sim/src/recorder.ts';
 import { COMMAND_POLICIES } from '../services/router-core-sim/src/external-protocol.ts';
 
 const code = (reply: any, expected: string, status: number) => { assert.equal(reply.status, status); assert.equal(reply.body.code, expected); };
+test('LAN IPv4/CIDR rules accept /16 through /32, match boundaries and preserve exact addresses', () => {
+  for (const [rule, inside, outside] of [
+    ['192.0.2.89', ['192.0.2.89'], ['192.0.2.88', '192.0.2.90']],
+    ['192.0.2.94/24', ['192.0.2.0', '192.0.2.255', '192.0.2.89'], ['192.0.1.255', '192.0.3.0']],
+    ['192.0.2.94/16', ['192.0.0.0', '192.0.255.255'], ['191.255.255.255', '192.1.0.0']],
+    ['192.0.2.94/31', ['192.0.2.94', '192.0.2.95'], ['192.0.2.93', '192.0.2.96']],
+    ['192.0.2.94/32', ['192.0.2.94'], ['192.0.2.93', '192.0.2.95']],
+  ] as const) {
+    assert.deepEqual(readLanScope({ ...emptyLanScope(), addresses: [rule] }).addresses, [rule]);
+    for (const ip of inside) assert.ok(matchesLanAddress(rule, ip));
+    for (const ip of outside) assert.equal(matchesLanAddress(rule, ip), false);
+  }
+  for (const rule of ['0.0.0.0/0', '192.0.2.0/15', '192.0.2.0/33', '192.0.2.0/024', '192.0.2.0/24/24', '192.0.02.0/24', '192.0.2.256/24', '::1/32', '192.0.2.0/', '192.0.2.0/24 ', '192.0.2/24']) {
+    assert.throws(() => readLanScope({ ...emptyLanScope(), addresses: [rule] }));
+    assert.equal(matchesLanAddress(rule, '192.0.2.89'), false);
+  }
+  assert.throws(() => readLanScope({ ...emptyLanScope(), addresses: Array.from({ length: 9 }, (_, i) => `192.0.2.${i}`) }));
+});
 async function setup(t: test.TestContext) {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const f = await fixture(t), port = await availablePort();
@@ -47,6 +66,37 @@ function raw(connection: LanConnection, headers: Record<string, string> = {}, lo
     }); request.on('error', () => reject(new Error('TLS test connection rejected'))); request.setTimeout(3000, () => request.destroy()); request.end();
   });
 }
+
+test('CIDR scope authorizes socket source ranges and survives saved configuration', async t => {
+  const f = await setup(t);
+  await f.lan.manage({ action: 'scope', deviceId: f.registration.deviceId, scope: { ...f.scope, addresses: ['127.0.0.0/24'] } });
+  assert.equal((await f.read('/state', '127.0.0.2')).status, 200);
+  code(await f.read('/state', '127.0.1.1'), 'UNAUTHORIZED', 401);
+  assert.deepEqual(new LanControlStore(f.root).scope(f.registration.deviceId).addresses, ['127.0.0.0/24']);
+});
+
+test('connection-code tokens exist only for LAN-enabled devices and are removed on OFF, revoke, delete and restore', async t => {
+  const f = await setup(t), id = f.registration.deviceId;
+  const savedIds = () => Object.keys(JSON.parse(readFileSync(join(f.root, 'lan-control-secrets.json'), 'utf8')).tokens);
+  assert.deepEqual(savedIds(), [id]);
+  await f.lan.manage({ action: 'scope', deviceId: id, scope: { ...f.scope, enabled: false } });
+  assert.deepEqual(savedIds(), []);
+  f.api.manage({ action: 'reissue', deviceId: id }); await f.lan.secrets.flush(); assert.deepEqual(savedIds(), []);
+  const another = f.api.manage({ action: 'register', name: 'Synthetic device' }) as any;
+  await f.lan.secrets.flush(); assert.deepEqual(savedIds(), []);
+  await f.grant([]);
+  assert.deepEqual(await f.lan.manage({ action: 'connection-code', deviceId: id }), { requiresReissue: true });
+  await f.lan.manage({ action: 'connection-code', deviceId: id, reissue: true }); assert.deepEqual(savedIds(), [id]);
+  f.api.manage({ action: 'revoke', deviceId: id }); await f.lan.secrets.flush(); assert.deepEqual(savedIds(), []);
+  await f.lan.manage({ action: 'scope', deviceId: another.deviceId, scope: f.scope });
+  await f.lan.manage({ action: 'connection-code', deviceId: another.deviceId, reissue: true });
+  f.api.manage({ action: 'revoke', deviceId: another.deviceId });
+  f.api.manage({ action: 'delete', deviceId: another.deviceId }); await f.lan.secrets.flush(); assert.deepEqual(savedIds(), []);
+  // Emulate a vault written by the previous version while LAN was OFF.
+  await f.lan.secrets.remember(id, f.connection.token); await f.lan.close();
+  const restored = new LanControl(f.root, f.api, () => [], () => ['127.0.0.1'], createTokenProtection('linux'));
+  t.after(() => restored.close()); await restored.secrets.flush(); assert.deepEqual(savedIds(), []);
+});
 
 test('LAN uses TLS 1.3 only, binds one selected address, rejects HTTP/other addresses and wrong Host/forwarding', async t => {
   const f = await setup(t);

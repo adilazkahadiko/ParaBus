@@ -63,7 +63,7 @@ export function mountLanControl(localSettingsAvailable, fetchRequest = fetch, cl
       const enabledLabel = document.createElement('label'), enabled = document.createElement('input'); enabled.type = 'checkbox'; enabled.checked = device.enabled; enabled.disabled = !setup;
       enabledLabel.append(enabled, document.createTextNode('別のPCから使う')); row.append(enabledLabel);
       const ipsLabel = document.createElement('label'), ips = document.createElement('textarea'); ips.rows = 2; ips.value = device.addresses.join('\n'); ips.disabled = !setup;
-      ips.placeholder = '192.0.2.10'; ipsLabel.append(document.createTextNode('許可するIPv4アドレス（完全一致、最大8件、1行に1つ）'), ips); row.append(ipsLabel);
+      ips.placeholder = '192.0.2.10 または 192.0.2.0/24'; ipsLabel.append(document.createTextNode('許可するIPv4アドレス（完全一致またはCIDR /16〜/32、最大8件、1行に1つ）'), ips); row.append(ipsLabel);
       const selectors = document.createElement('fieldset'), legend = document.createElement('legend'); legend.textContent = '操作してよいセレクター'; selectors.append(legend);
       const choices = [];
       for (const selector of state.selectors) {
@@ -79,9 +79,13 @@ export function mountLanControl(localSettingsAvailable, fetchRequest = fetch, cl
       }
       row.append(groups);
       const save = document.createElement('button'); save.type = 'button'; save.textContent = '機器の設定を保存'; save.disabled = !setup;
-      save.addEventListener('click', () => operate({ action: 'scope', deviceId: device.deviceId, scope: { enabled: enabled.checked, addresses: ips.value.split(/[\s,]+/).filter(Boolean), selectorIds: choices.filter(choice => choice.input.checked).map(choice => choice.id), groups: groupChoices.filter(choice => choice.input.checked).map(choice => choice.id) } }));
+      save.addEventListener('click', () => {
+        const addresses = ips.value.split(/[\s,]+/).filter(Boolean);
+        if (addresses.some(address => /\/(1[6-9]|2[0-3])$/.test(address)) && !confirm('共用ネットワークでは、ほかのスタジオのPCも含まれる可能性があります。この範囲を保存しますか？')) return;
+        return operate({ action: 'scope', deviceId: device.deviceId, scope: { enabled: enabled.checked, addresses, selectorIds: choices.filter(choice => choice.input.checked).map(choice => choice.id), groups: groupChoices.filter(choice => choice.input.checked).map(choice => choice.id) } });
+      });
       const masked = document.createElement('p'); masked.textContent = '接続コード: parabus1:••••••••（鍵を含むため伏せています）';
-      const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = '接続コードをコピー'; copy.disabled = !setup || !state.fingerprint; copy.addEventListener('click', () => copyCode(device.deviceId));
+      const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = '接続コードをコピー'; copy.disabled = !setup || !state.fingerprint || !device.enabled; copy.addEventListener('click', () => copyCode(device.deviceId));
       row.append(save, masked, copy); return row;
     }));
   }

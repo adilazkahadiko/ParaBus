@@ -42,6 +42,14 @@ test('LAN SETUP preserves drafts, displays persistent status, saves explicit sco
   assert.ok(!JSON.stringify([...elements.values()]).includes(copies[0])); assert.ok(!JSON.stringify(requests).includes(copies[0]));
   assert.match($('lan-control-message').textContent, /人に見せない・チャットに貼らない/);
   $('lan-control-rotate').emit('click'); await flush(); assert.ok(confirmations.some(message => message.includes('すべての機器') && message.includes('貼り直す')));
+  const count = requests.filter(request => request.action === 'scope').length;
+  fresh.children[2].children[1].value = '192.0.2.0/23';
+  context.confirm = (message: string) => { confirmations.push(message); return false; };
+  fresh.children[5].emit('click'); await flush();
+  assert.equal(requests.filter(request => request.action === 'scope').length, count);
+  assert.ok(confirmations.some(message => message.includes('共用ネットワークでは、ほかのスタジオのPCも含まれる可能性があります')));
+  context.confirm = () => true; fresh.children[5].emit('click'); await flush();
+  assert.equal(requests.at(-1).scope.addresses[0], '192.0.2.0/23');
   state.state = 'ON_AIR'; timers.at(-1)!(); await flush(); assert.ok(form.elements.every(input => input.disabled)); assert.equal($('lan-control-stop').disabled, false);
   $('lan-control-stop').emit('click'); await flush(); assert.equal($('lan-control-badge').hidden, true);
 });
