@@ -1,4 +1,5 @@
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer as createTlsServer, type ServerOptions as TlsServerOptions } from "node:https";
 import type { Duplex } from "node:stream";
 import { randomBytes } from "node:crypto";
 import type { CommandResult, ControlCommand, DiscordIngestSnapshot } from "../../../packages/shared-types/src/index.ts";
@@ -12,7 +13,7 @@ import { encodeWebSocketFrame } from "./snapshot-delivery.ts";
 import { acceptWebSocket, closeWebSocket, controlFrame, websocketReceiver } from "./websocket.ts";
 
 type Reply = { status: number; body: unknown; retryAfterSeconds?: number };
-type Cached = { at: number; payload: string; reply: Reply; operation: string; tier: string };
+type Cached = { at: number; payload: string; reply: Reply; operation: string; tier: string; scopeArgs?: RecordValue };
 type Arm = { id: string; at: number; operation: string; args: RecordValue; keys: string[]; dependencies: string; preview?: ScenePreview };
 type PreparedB = { command: ControlCommand; keys: string[]; summary: unknown; increaseDb?: number; data: () => unknown; noop?: boolean; preview?: ScenePreview };
 interface DeviceRuntime {
@@ -26,6 +27,15 @@ interface DeviceRuntime {
 interface Peer {
   socket: Duplex; device: ExternalDevice; revision: number; pongAt: number; pingAt: number; closing: boolean;
   meters?: { bindings: MeterBinding[]; hz: number; at: number }; sequence: number;
+  remote?: string; token?: string;
+}
+export interface ExternalTransport {
+  address: string; port: number; tls: TlsServerOptions;
+  enabled(): boolean;
+  authorize(device: ExternalDevice, address: string): boolean;
+  allowOperation(device: ExternalDevice, operation: string, args: RecordValue): void;
+  projectData(device: ExternalDevice, data: unknown): unknown;
+  audit(device: ExternalDevice, address: string, operation: string, result: string): void;
 }
 export interface ExternalOptions {
   control: ControlPlane; ingest: () => DiscordIngestSnapshot; store: ExternalDeviceStore;
@@ -34,6 +44,8 @@ export interface ExternalOptions {
   txIdentities?: () => readonly object[];
   configuredTx?: readonly { profileId: string; destination: string | null }[];
   log: (message: string) => void;
+  transport?: ExternalTransport;
+  onManagementChange?: (action: string, deviceId?: string, result?: unknown) => void;
 }
 
 export class ExternalControlServer {
@@ -41,7 +53,7 @@ export class ExternalControlServer {
   readonly state: ExternalState;
   readonly scenes: ExternalScenes;
   readonly meters: ExternalMeters;
-  readonly server = createServer({ requireHostHeader: false }, (request, response) => { void this.http(request, response); });
+  readonly server: ReturnType<typeof createServer> | ReturnType<typeof createTlsServer>;
   readonly port: number;
   readonly options: ExternalOptions;
   readonly now: () => number;
@@ -55,8 +67,15 @@ export class ExternalControlServer {
   #logTier = "A";
   #timer?: ReturnType<typeof setInterval>;
   #unsubscribe: () => void;
+  #connections = new Set<Duplex>();
+  #unauthorizedIps = new Map<string, Bucket>();
   constructor(options: ExternalOptions) {
-    this.options = options; this.store = options.store; this.port = this.store.port;
+    this.options = options; this.store = options.store; this.port = options.transport?.port ?? this.store.port;
+    const handler = (request: IncomingMessage, response: ServerResponse) => { void this.http(request, response); };
+    this.server = options.transport ? createTlsServer({ ...options.transport.tls, requireHostHeader: false, minVersion: 'TLSv1.3', maxVersion: 'TLSv1.3' }, handler)
+      : createServer({ requireHostHeader: false }, handler);
+    this.server.on('connection', socket => { this.#connections.add(socket); socket.once('close', () => this.#connections.delete(socket)); });
+    this.server.on('tlsClientError', (_error, socket) => socket.destroy());
     this.now = options.now ?? (() => performance.now());
     this.state = new ExternalState(options.control, options.ingest, options.txIdentities, options.configuredTx, this.store, options.log);
     this.scenes = new ExternalScenes(this.state, this.now);
@@ -73,7 +92,7 @@ export class ExternalControlServer {
   async start() {
     await new Promise<void>(resolve => {
       this.server.once("error", () => resolve());
-      this.server.listen(this.port, "127.0.0.1", () => { this.available = true; resolve(); });
+      this.server.listen(this.port, this.options.transport?.address ?? "127.0.0.1", () => { this.available = true; resolve(); });
     });
     this.#timer = setInterval(() => this.tick(), 100); this.#timer.unref();
     if (!this.store.available) this.options.log("External control registration unavailable");
@@ -85,8 +104,15 @@ export class ExternalControlServer {
     if (this.#timer) clearInterval(this.#timer);
     this.flushLogs(true);
     for (const peer of this.#peers) peer.socket.destroy(); this.#peers.clear();
+    for (const socket of this.#connections) socket.destroy(); this.#connections.clear(); this.available = false;
     await new Promise<void>(resolve => this.server.close(() => resolve())); this.server.closeAllConnections();
   }
+  invalidateDevice(id: string) {
+    const runtime = this.#devices.get(id);
+    if (runtime) { runtime.generation++; runtime.arm = undefined; runtime.previews.clear(); runtime.cache.clear(); }
+    for (const peer of this.#peers) if (peer.device.deviceId === id) { this.closePeer(peer, 4005); peer.socket.destroy(); }
+  }
+  private enabled() { return this.options.transport?.enabled() ?? this.store.enabled; }
   managementSnapshot() {
     const now = this.now(), active = this.store.list().filter(d => !d.revoked && ([...this.#peers].some(p => !p.closing && p.device.deviceId === d.deviceId)
       || now - (this.#devices.get(d.deviceId)?.lastHttp ?? -Infinity) < 30000));
@@ -98,6 +124,7 @@ export class ExternalControlServer {
     const input = object(value), action = input.action;
     if (action === "status") { fields(input, ["action"]); return this.managementSnapshot(); }
     if (action === "stop") {
+      this.options.onManagementChange?.('stop');
       fields(input, ["action"]); this.#stopGeneration++;
       this.#observing = false;
       for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.deniedArms.clear(); runtime.previews.clear(); }
@@ -110,10 +137,10 @@ export class ExternalControlServer {
     if (this.options.control.state !== "SETUP") fail("LOCKED");
     if (action === "enable") { fields(input, ["action"]); this.store.setEnabled(true); this.options.log("External control enabled"); return {}; }
     if (action === "port") { fields(input, ["action", "port"]); this.store.setPort(input.port); return {}; }
-    if (action === "register") { fields(input, ["action", "name"], ["readDisplayNames"]); return this.store.register(input.name, input.readDisplayNames ?? false); }
+    if (action === "register") { fields(input, ["action", "name"], ["readDisplayNames"]); const result = this.store.register(input.name, input.readDisplayNames ?? false); this.options.onManagementChange?.(action, result.deviceId, result); return result; }
     if (action === "delete") {
       fields(input, ["action", "deviceId"]); const result = this.store.delete(input.deviceId);
-      this.#devices.delete(input.deviceId as string); return result;
+      this.#devices.delete(input.deviceId as string); this.options.onManagementChange?.(action, input.deviceId as string, result); return result;
     }
     if (action === "revoke" || action === "reissue" || action === "permissions") {
       fields(input, ["action", "deviceId", ...(action === "permissions" ? ["readDisplayNames"] : [])], action === "permissions" ? ["allowedTierBOperations"] : []);
@@ -122,27 +149,36 @@ export class ExternalControlServer {
       if (runtime?.arm && action === "permissions") runtime.deniedArms.set(runtime.arm.id, { operation: runtime.arm.operation, at: runtime.arm.at });
       for (const peer of this.#peers) if (peer.device.deviceId === input.deviceId) this.closePeer(peer, action === "permissions" ? 4005 : 4001);
       if (runtime) { runtime.generation++; runtime.arm = undefined; runtime.previews.clear(); }
+      this.options.onManagementChange?.(action, input.deviceId as string, result);
       return result;
     }
     return fail("INVALID");
   }
   private boundary(request: IncomingMessage) {
     const headers = request.rawHeaders.filter((_v, index) => index % 2 === 0).map(h => h.toLowerCase());
-    if (request.socket.remoteFamily !== "IPv4" || request.socket.remoteAddress !== "127.0.0.1"
-      || headers.filter(h => h === "host").length !== 1 || request.headers.host !== `127.0.0.1:${this.port}`
+    const address = this.options.transport?.address ?? '127.0.0.1';
+    if (request.socket.remoteFamily !== "IPv4" || (this.options.transport ? request.socket.localAddress !== address : request.socket.remoteAddress !== "127.0.0.1")
+      || headers.filter(h => h === "host").length !== 1 || request.headers.host !== `${address}:${this.port}`
       || headers.some(h => h === "forwarded" || h.startsWith("x-forwarded-"))) fail("HOST_FORBIDDEN");
+    if (this.options.transport && headers.some(h => h === 'via' || h === 'x-real-ip')) fail('HOST_FORBIDDEN');
     if (headers.includes("origin") || headers.includes("sec-fetch-site") || request.method === "OPTIONS") fail("ORIGIN_FORBIDDEN");
   }
   private authenticate(request: IncomingMessage): ExternalDevice {
     const count = request.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === "authorization").length;
     const auth = request.headers.authorization;
     const device = count === 1 && typeof auth === "string" && /^Bearer [A-Za-z0-9_-]{43}$/.test(auth) ? this.store.authenticate(auth.slice(7)) : undefined;
-    if (!device) {
+    if (!device || this.options.transport && !this.options.transport.authorize(device, request.socket.remoteAddress ?? '')) {
       this.authFailure();
+      if (this.options.transport) {
+        const address = request.socket.remoteAddress ?? '';
+        let bucket = this.#unauthorizedIps.get(address);
+        if (!bucket) { if (this.#unauthorizedIps.size >= 1024) this.#unauthorizedIps.delete(this.#unauthorizedIps.keys().next().value!); bucket = new Bucket(10, 20, this.now()); this.#unauthorizedIps.set(address, bucket); }
+        if (!bucket.ready(this.now())) fail('RATE_LIMITED'); bucket.spend();
+      }
       if (!this.#unauthorized.ready(this.now())) fail("RATE_LIMITED");
       this.#unauthorized.spend(); fail("UNAUTHORIZED");
     }
-    if (!this.store.enabled) fail("DISABLED");
+    if (!this.enabled()) fail("DISABLED");
     this.state.assertBusAliasIntegrity();
     return device;
   }
@@ -163,13 +199,15 @@ export class ExternalControlServer {
   }
   private async http(request: IncomingMessage, response: ServerResponse) {
     let reply: Reply;
+    let authenticatedDevice: ExternalDevice | undefined;
     try {
       this.boundary(request); let device = this.authenticate(request);
+      authenticatedDevice = device;
       let runtime = this.runtime(device); runtime.lastHttp = this.now();
       if (request.method === "GET") {
         this.rate(runtime, "read"); this.observe();
         if (request.url === "/external/v1/info") reply = this.success(undefined, this.info(device));
-        else if (request.url === "/external/v1/state") reply = this.success(undefined, this.state.project(device, this.store.enabled));
+        else if (request.url === "/external/v1/state") reply = this.success(undefined, this.state.project(device, this.enabled()));
         else fail("INVALID");
       } else if (request.method === "POST" && ["/external/v1/actions", "/external/v1/arm", "/external/v1/execute"].includes(request.url ?? "")) {
         const generation = this.#stopGeneration, authorityGeneration = runtime.generation;
@@ -178,13 +216,17 @@ export class ExternalControlServer {
         catch (error) { this.rate(runtime, "normal"); throw error; }
         // Body I/O yields. Recheck stop/revocation/permissions at the synchronous commit boundary.
         device = this.authenticate(request); runtime = this.runtime(device); runtime.lastHttp = this.now();
+        authenticatedDevice = device;
         if (generation !== this.#stopGeneration) fail("DISABLED");
         if (runtime.generation !== authorityGeneration) fail("TIER_FORBIDDEN");
         const safe = request.url === "/external/v1/actions" && body && typeof body === "object" && !Array.isArray(body) ? this.safeDirection(body as RecordValue) : false;
         this.rate(runtime, safe ? "safe" : "normal");
-        reply = this.action(device, runtime, body, request.url!.split("/").at(-1) as "actions" | "arm" | "execute");
+        reply = this.action(device, runtime, body, request.url!.split("/").at(-1) as "actions" | "arm" | "execute", request.socket.remoteAddress);
       } else { this.rate(runtime, "read"); fail("INVALID"); }
     } catch (error) { reply = this.errorReply(error); }
+    if (authenticatedDevice && this.options.transport && (reply.body as { ok?: boolean }).ok) {
+      const body = reply.body as { data: unknown }; reply = { ...reply, body: { ...body, data: this.options.transport.projectData(authenticatedDevice, body.data) } };
+    }
     this.writeReply(response, reply);
   }
   private safeDirection(body: RecordValue) {
@@ -213,7 +255,7 @@ export class ExternalControlServer {
     });
     try { return strictJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { return fail("INVALID"); }
   }
-  private action(device: ExternalDevice, runtime: DeviceRuntime, value: unknown, path: "actions" | "arm" | "execute"): Reply {
+  private action(device: ExternalDevice, runtime: DeviceRuntime, value: unknown, path: "actions" | "arm" | "execute", remote = ''): Reply {
     const body = object(value);
     const requestId = uuid(body.requestId), instanceId = uuid(body.instanceId);
     const operation = path === "execute" ? (runtime.arm && runtime.arm.id === body.armId ? runtime.arm.operation
@@ -225,12 +267,16 @@ export class ExternalControlServer {
     for (const [key, item] of runtime.cache) if (now - item.at >= 60000) runtime.cache.delete(key);
     const cached = runtime.cache.get(requestId);
     if (cached) {
+      if (cached.reply.status === 200) {
+        try { this.options.transport?.allowOperation(device, cached.operation, cached.scopeArgs ?? {}); }
+        catch (error) { const reply = this.errorReply(error); this.logAction(device, cached.operation, path, reply, requestId, true, cached.tier, remote); return reply; }
+      }
       if (cached.payload !== payload) return this.errorReply(new ExternalError("INVALID"));
       if (cached.tier === "B" && !device.allowedTierBOperations.includes(cached.operation)) {
         const reply = this.errorReply(new ExternalError("TIER_FORBIDDEN"));
         this.logAction(device, cached.operation, path, reply, requestId, true, "B"); return reply;
       }
-      this.logAction(device, cached.operation, path, cached.reply, requestId, true, cached.tier); return cached.reply;
+      this.logAction(device, cached.operation, path, cached.reply, requestId, true, cached.tier, remote); return cached.reply;
     }
     if (runtime.cache.size >= 2048) {
       runtime.limited++;
@@ -238,6 +284,7 @@ export class ExternalControlServer {
       return this.errorReply(new ExternalError("RATE_LIMITED", 429, undefined, Math.max(1, Math.ceil((nextExpiry - now) / 1000))));
     }
     let reply: Reply;
+    const scopeArgs = path === 'execute' ? runtime.arm?.args : body.args as RecordValue | undefined;
     this.#logTier = !known ? "C" : ["bus.limiter.set", "bus.compressor.set", "scene.recall", "recording.start", "recording.stop"].includes(operation) || path === "execute" ? "B" : "A";
     try {
       if (path === "execute") {
@@ -266,10 +313,11 @@ export class ExternalControlServer {
         reply = this.success(requestId, this.perform(operation, object(body.args), runtime, device, path === "arm" ? "arm" : "action"));
       }
     } catch (error) { reply = this.errorReply(error); }
-    runtime.cache.set(requestId, { at: now, payload, reply, operation, tier: this.#logTier });
-    this.logAction(device, operation, path, reply, requestId, false, this.#logTier); return reply;
+    runtime.cache.set(requestId, { at: now, payload, reply, operation, tier: this.#logTier, scopeArgs });
+    this.logAction(device, operation, path, reply, requestId, false, this.#logTier, remote); return reply;
   }
   private perform(operation: string, args: RecordValue, runtime: DeviceRuntime, device: ExternalDevice, phase: "action" | "arm" | "execute", arm?: Arm): unknown {
+    this.options.transport?.allowOperation(device, operation, args);
     const control = this.options.control, engine = control.engine;
     if (operation === "scene.preview") {
       if (phase === "arm") fail("INVALID");
@@ -598,6 +646,7 @@ export class ExternalControlServer {
           if (!message || !requestId || opcode !== 1) fail("INVALID");
           let data: unknown;
           if (message.type === "meters.subscribe") {
+            if (this.options.transport) fail('TIER_FORBIDDEN');
             const subscription = this.meters.subscribe(message); peer.meters = { ...subscription, at: this.now() }; data = { hz: subscription.hz };
           } else if (message.type === "meters.unsubscribe") {
             fields(message, ["type", "requestId"]); peer.meters = undefined; data = {};
@@ -616,6 +665,7 @@ export class ExternalControlServer {
       };
       socket.on("close", disconnected); socket.on("error", disconnected);
       socket.on("end", () => { disconnected(); socket.destroy(); });
+      if (this.options.transport) { peer.remote = request.socket.remoteAddress; peer.token = request.headers.authorization!.slice(7); }
       this.observe(); this.sendState(peer); if (head.length) socket.emit("data", head);
     } catch (error) { this.socketReply(socket, this.errorReply(error)); }
   }
@@ -628,11 +678,12 @@ export class ExternalControlServer {
     peer.socket.write(frame); return true;
   }
   private sendState(peer: Peer) {
-    this.send(peer, { type: "state", payload: this.state.project(peer.device, this.store.enabled) }); peer.revision = this.state.revision;
+    const state = this.state.project(peer.device, this.enabled());
+    this.send(peer, { type: "state", payload: this.options.transport?.projectData(peer.device, state) ?? state }); peer.revision = this.state.revision;
   }
   tick() {
     const now = this.now(); this.flushLogs();
-    if (this.store.enabled) {
+    if (this.enabled()) {
       try { this.state.assertBusAliasIntegrity(); }
       catch {
         for (const runtime of this.#devices.values()) { runtime.arm = undefined; runtime.previews.clear(); }
@@ -651,6 +702,7 @@ export class ExternalControlServer {
     this.state.pruneSceneDependencies(sceneKeys); this.observe();
     for (const peer of this.#peers) {
       if (peer.closing) continue;
+      if (this.options.transport && (!this.store.authenticate(peer.token ?? '') || !this.options.transport.authorize(peer.device, peer.remote ?? ''))) { this.closePeer(peer, 4001); peer.socket.destroy(); continue; }
       if (now - peer.pongAt >= 45000) { this.closePeer(peer, 1001); continue; }
       if (now - peer.pingAt >= 15000) {
         if (peer.socket.writableLength >= LIMITS.maxWsPendingBytes) { this.closePeer(peer, 1013); continue; }
@@ -671,7 +723,7 @@ export class ExternalControlServer {
     else this.#observing = false;
   }
   private active() {
-    return this.store.enabled && ([...this.#peers].some(p => !p.closing)
+    return this.enabled() && ([...this.#peers].some(p => !p.closing)
       || [...this.#devices.values()].some(d => this.now() - d.lastHttp < 30000));
   }
   observe() {
@@ -695,10 +747,11 @@ export class ExternalControlServer {
       runtime.limited = 0; runtime.lastLog = now;
     }
   }
-  private logAction(device: ExternalDevice, operation: string, phase: string, reply: Reply, requestId: string, deduplicated: boolean, tier: string) {
+  private logAction(device: ExternalDevice, operation: string, phase: string, reply: Reply, requestId: string, deduplicated: boolean, tier: string, remote = '') {
     const known = (OPERATIONS as readonly string[]).includes(operation) || TIER_B_OPERATIONS.includes(operation);
     const result = reply.status === 200 ? "SUCCESS" : (reply.body as { code: string }).code;
     if (result === "RATE_LIMITED") return;
+    this.options.transport?.audit(device, remote, known ? operation : 'UNKNOWN', result);
     this.options.log(`External control action operation=${known ? operation : "UNKNOWN"} tier=${tier} result=${result} phase=${phase === "actions" ? "action" : phase} deviceId=${device.deviceId} requestId=${requestId} deduplicated=${deduplicated}`);
   }
 }

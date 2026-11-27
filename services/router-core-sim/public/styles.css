@@ -1509,6 +1509,12 @@ input[type="range"] {
 #external-control-setup-status { white-space: normal; overflow-wrap: anywhere; }
 #external-control-token-dialog { max-width: calc(100vw - 3rem); }
 #external-control-token { display: block; overflow-wrap: anywhere; user-select: all; margin-block: 1rem; }
+#lan-control-form, #lan-control-devices details { display: grid; gap: 12px; }
+#lan-control-form label, #lan-control-devices label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#lan-control-devices details { padding: 12px; border: 1px solid var(--border, #40505e); border-radius: 8px; margin-block: 12px; }
+#lan-control-devices fieldset { display: flex; flex-wrap: wrap; gap: 12px; }
+#lan-control-devices textarea { display: block; width: min(100%, 28rem); }
+#lan-control-fingerprint { overflow-wrap: anywhere; user-select: all; }
 
 .output-selector-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px; margin-block: 14px; }
 .output-selector-panel { min-width: 0; padding: 16px; border: 1px solid var(--border, #40505e); border-radius: 10px; background: var(--panel, #17212b); }

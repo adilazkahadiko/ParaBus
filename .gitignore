@@ -30,6 +30,10 @@ output-selectors.json.invalid-*
 output-selectors.json.*.tmp
 external-control.json
 external-control.json.*.tmp
+lan-control.json
+lan-control.json.*.tmp
+lan-control-secrets.json
+lan-control-secrets.json.*.tmp
 tokens.json
 secrets.json
 credentials.json

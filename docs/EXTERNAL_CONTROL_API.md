@@ -6,6 +6,8 @@
 
 出力セレクターの外部操作として `selector.select` / `selector.off`（A）と `state.selectors` を追加した。機器登録・認証・流量制限・重複排除・revision の既存契約を共用する。セレクターの作成・設定変更・削除は C のまま、ローカルSETUP画面で行う。
 
+**別PC向けの追加入口:** 第20節に、別listener・TLS 1.3・証明書ピン留め・機器ごとのLAN許可範囲を定義する。第1〜19節の127.0.0.1専用APIの境界・操作・状態は変更しない。
+
 実装判断: メンテナーの決定により `tx.take` は集合の大きさ・選択方式によらず段階 A。機器名はローカル管理応答だけに含める。段階2aのメンテナー決定により operational log の外部操作行には deviceId を記録する（第12節）。機器登録は settings root の `external-control.json`（最大128件、取り消し済みを含む）へ原子的に保存する。POSIX は mode 0600、Windows は公開前に継承 ACL を外して実行ユーザーのみに Full Control を付与する。破損した登録ファイルは自動上書きせず外部操作を利用不可とする。
 
 参加者の音を Bus ごとに切る・下げるには `send.mute.*` / `send.fader.*` を使う。旧 POST の Direct Out / Matrix にだけ影響する `channel.fader.adjust` / `channel.fader.set` / `channel.mute.set` / `channel.mute.toggle` は外部 API v1 では提供せず、不明操作と同じ `INVALID` で拒否する。participants の状態にも旧 POST の `faderDb` / `mute` は含めない。シーンの preview / recall が扱う項目は変更しない。
@@ -31,6 +33,7 @@
 17. [未決事項](#17-未決事項)
 18. [実装 PR で必要なテスト](#18-実装-pr-で必要なテスト)
 19. [現状調査](#19-現状調査)
+20. [別のPCからの操作（LAN・TLS）](#20-別のpcからの操作lantls)
 
 ## 1. 範囲と接続方式
 
@@ -553,7 +556,7 @@ Node の fetch / WS 接続とブラウザページからの要求を混同しな
 
 以下は設計の置き場所だけを確保し、v1 の機能・要求フィールドには含めない。
 
-- LAN: 別の接続ポリシーとしてトークンごとの「LAN 可」、IP 許可リスト、通信の保護を定義する。
+- LAN: 第20節の別listener・TLS・機器ごとの範囲として実装。127.0.0.1専用listenerは変更しない。
 - ブラウザ（HTML）: 別の browser access ポリシーとして CORS の許可リストを定義する。
 - TX ルーティング: ParaBus 内ミックスを TX ソースにするモデルと、「音 × TX Bot」の表を定義する。
 
@@ -672,3 +675,74 @@ Invoke-RestMethod "$base/actions" -Method Post -Headers $auth -ContentType 'appl
 | 指定 Node と標準全テスト、Rust / core-ipc、typecheck の実行方法 | [package.json](../package.json):16–26, 33–34; [.github/workflows/test-packages.yml](../.github/workflows/test-packages.yml):35–40, 69–75 |
 
 本書で新設する外部専用の権限・確認時間・流量制限・revision・projection の保証は、この調査で現行実装の存在を確認したものではない。実装 PR は第 18 節で検証し、本書との一致を確認して初めて提供する。
+
+## 20. 別のPCからの操作（LAN・TLS）
+
+### 待ち受けと停止
+
+従来の `http://127.0.0.1:<port>/external/v1` は第1節のままとする。LAN用には**別のHTTPS listener**を設け、既定はOFF。このPCのローカルSETUP「別のPCからの操作」からONにしたときだけ待ち受ける。許可するのは、ホストが選んだ、このPCに存在する非loopback IPv4アドレス**1つ**だけ。`0.0.0.0`、IPv6、DNS名、自動での別アドレス・別ポートへの拡大はしない。テストではIPv4一覧を注入し、loopback上だけで実接続する。
+
+既定ポートは4176、設定範囲は1024〜65535。現在のメイン画面・既存外部操作・保存済みの外部操作ポート・Tablet設定ポートと重なる設定は拒否する。ポート使用中、アドレス消失、証明書・鍵の読み込み失敗などはLANだけを利用不可にし、ローカルSETUPに理由を表示する。音声、127.0.0.1 API、通常の操作画面を停止しない。
+
+`Host`は選んだ`<IPv4>:<port>`との完全一致だけを許可する。IPv4の接続先アドレスも一致させ、`Forwarded`、`X-Forwarded-*`、`Via`、`X-Real-IP`を拒否する。Origin / Sec-Fetch-Site、Cookie、query、WS subprotocolによる認証の拒否は既存入口と同じ。認証はBearerだけである。
+
+ON/OFF・選択アドレス・ポート・機器のLAN範囲は`lan-control.json`に保存する。ONで再起動した場合はそのアドレスで再開し、画面上部にLAN待ち受けを常時表示する。保存したIPが使えなければ、設定のONという意図は保持して「待ち受け停止中」と理由を示す。別IPへ変更しない。「OFFにする」および共通の「外部操作を止める」は、LANの接続・受信中の要求・WS・待ち受けを即時に閉じ、OFFを保存する。後者は従来の外部操作も無効にする。通常のアプリ終了では保存済みONを変えない。
+
+**初回、Windowsのファイアウォールの許可画面が出たら利用者自身で許可する。ParaBusはファイアウォール規則をプログラムやコマンドで追加・変更しない。共用ネットワークでは必要な機器・IP・操作だけを許可し、使い終わったらOFFにする。** 認証なしの操作画面のLAN公開をONにする必要はない。
+
+### TLSと証明書のピン留め
+
+LANはTLS 1.3のみを使う。平文HTTPとTLS 1.2以下は受け付けない。初回ONで、このPC用の自己署名X.509 v3証明書を生成する。`node:crypto`のP-256（prime256v1）鍵生成とECDSA-SHA256署名、必要最小限のDER組み立てを使い、新しいnpm依存・外部OpenSSL実行ファイルは追加しない。乱数serial、CA=false、digitalSignature、serverAuth、選択IPv4のSANを含め、生成後に`X509Certificate`で署名・鍵の対応・IP・有効期間の形式を確認する。有効期間は生成時刻の5分前から3650日後まで。DER構造は[RFC 5280](https://datatracker.ietf.org/doc/html/rfc5280#section-4.1)、TLS設定は[Node 22 TLS API](https://nodejs.org/docs/latest-v22.x/api/tls.html)に沿う。
+
+秘密鍵と接続コード再コピー用の機器トークンは、`lan-control-secrets.json`へ保存する。従来の`external-control.json`の認証用ハッシュは変更しない。LAN用保管庫は、第2節の「認証レジストリにはハッシュだけを保存する」規則とは別の、ローカルSETUPでの接続コードコピー専用保管庫である。WindowsではBot Tokenと同じCurrentUser DPAPIの`dpapi:v1:`形式を使い、復号は必要なメモリ内だけで行う。DPAPIが使えない場合は警告し、既存のprivate-filesによるアクセス権保護で保存する。POSIXでは0600、Windowsでは既存と同じ実行ユーザー・SYSTEM・Administratorsの許可に限定し、公開前の一時ファイルにも保護を適用する。別のPC／アカウントでDPAPIを復号できなければ待ち受けを開始しない。
+
+接続側は、証明書DER全体のSHA-256を計算し、接続コードの指紋と一致することを確認してからAuthorizationや操作本文を送る。通常のCA信頼だけ、自己署名証明書を無条件で受け入れるだけでは不可。参照用のNodeクライアントは`services/router-core-sim/src/lan-client.ts`の`pinnedLanRequest`。個別のTLS接続で自己署名を扱い、指紋・TLS版・期限・自己署名を確認した後だけHTTP要求を書き込む。指紋不一致や期限不正では、鍵を送らず切断する。全体のTLS検証を環境変数で無効にして回避しない。
+
+SETUPの「証明書を作り直す」は確認必須。新しい鍵と証明書になり指紋が変わるため、全機器で接続コードのコピー・貼り直しが必要となる。旧指紋にピン留めしたコードでは参照クライアントが接続を拒否する。トークンの漏えい時は、証明書更新とは別に、その機器の鍵の再発行・取り消しを行う。
+
+### 接続コード `parabus1:`
+
+1本のコードは`parabus1:`に、以下のJSONオブジェクトのUTF-8をpaddingなしbase64urlにしたものを連結する。暗号化形式ではなく、**トークンを含む秘密情報**である。未知のキー・重複キー・未知の版・非IPv4・不正なポート／トークン／指紋を拒否する。全体は最大4096文字。
+
+| JSONキー | 内容 |
+| --- | --- |
+| `v` | 数値`1` |
+| `address` | ホストが選んだIPv4アドレスの文字列 |
+| `port` | 待ち受けポートの整数 |
+| `token` | その機器の32バイト乱数トークン、43文字のbase64url |
+| `fingerprint` | 証明書DERのSHA-256、小文字16進64文字、コロンなし |
+
+画面には伏せた`parabus1:••••••••`だけを表示し、コピー操作時だけローカルnonce/Origin保護付き管理APIからコードを取得してクリップボードへ渡す。DOMやlocalStorage、URL、ログへ実値を残さない。「人に見せない・チャットに貼らない」と表示する。過去の機器トークンを保管庫に持たない場合は、ホストが鍵の再発行に同意した場合だけ新しいコードを発行する。再発行・取り消し後、古いトークンを含むコードは401となる。IP／ポートの変更後もコードをコピーし直す。
+
+LAN APIのベースURLは`https://<address>:<port>/external/v1`、WSは`wss://<address>:<port>/external/v1/ws`。HTTPと同じinfo/state/actions/arm/executeパスを提供し、Bodyの形式、Tier A/B、期限、重複排除、流量、instanceId/対象revisionの検証、内部commit経路は共用する。listenerごとにinstanceId・revision・重複排除・armを持つため、127.0.0.1入口とLAN入口をまたいでinstanceIdや確認を使い回さない。Bus/セレクターの公開ID規則と保存済み別名鍵は共通。LANのONは従来入口を有効化せず、従来入口の起動時無効化も変えない。
+
+### 機器の範囲と追加操作
+
+既存の登録機器ごとに、LAN使用許可（既定OFF）、接続元IPv4の完全一致リスト（最大8件）、操作してよいセレクター（最大8個）、追加グループを設定する。設定欄はローカルSETUPだけに公開する。接続元は実際のsocket.remoteAddressで検査し、ヘッダーから推測しない。有効なBearerでもLAN許可がOFF、IPが候補外、鍵が取り消し済みなら、未知のBearerと同じ401本文・認証ヘッダーで拒否する。
+
+既定で使えるのは、許可したセレクターの`selector.select` / `selector.off`だけ。操作の種類・候補Bus・no-op・OFF・最後の1チームの制約は第6節と同じ。追加グループはすべて既定OFF。
+
+| グループ | 追加で許可できる操作 |
+| --- | --- |
+| `mix`（ミュートとフェーダー） | `bus.fader.*`、`bus.mute.*`、`send.fader.*`、`send.mute.*`、`tx.fader.*` |
+| `cue` | `pfl.set` |
+| `emergency` | `emergency.set` |
+| `tx` | `tx.start`、`tx.stop`、`tx.clear`、`tx.targets.set`、`tx.take` |
+| `recording` | `recording.start`、`recording.stop` |
+| `scenes` | `scene.preview`、`scene.recall` |
+
+グループを許可しても、Bの操作はその機器の既存`allowedTierBOperations`とarm/executeが必要。設定ロック、Bot接続、機器登録、データ削除、セレクター構造変更などのC、表にない操作はLANから常に拒否する。Busミュート／フェーダー、PFL、録音でセレクター自体を指定する場合も担当範囲を維持する。シーンが含むセレクターもすべて許可されている必要がある。範囲・鍵・既存権限の変更で確認・キャッシュ・WSを失効させ、受信中のHTTP本文の後にも認証と権限世代を再検査する。
+
+### 返す状態と記録
+
+セレクターだけの機器には、共通の接続・安全・revision情報、許可された`selectors[]`、そのセレクターと候補Busの`buses[{busId,label?}]`、適用権限だけを返す。参加者、参加者順序、参加者revision、TX、PFL、シーン、録音、出力数を含めない。
+
+- `mix`ではフェーダー／ミュートとSendの状態、`cue`ではPFLと対象選択に必要なBus・オンライン参加者、`tx`ではTX対象と稼働状態を追加する。
+- `recording.start`がグループとB権限の両方で許可された場合だけ、録音対象選択のためオンライン参加者と出力数を追加する。録音停止だけの許可では参加者を返さない。
+- `scenes`ではシーンIDと現在のシーンを追加する。参加者に関わる操作の許可がなければpreview/arm summaryの参加者差分も隠すが、サーバー内では本来の差分と依存関係の検証を維持する。
+- 参加者名・VC Bus名は既存の`readDisplayNames`に従う。運用者が設定するセレクター名は第10節どおり常に返す。内部IDは新しいフィールドへ含めない。
+- HTTPとTLS WSは同じ範囲へ絞る。このLAN入口ではメーター購読を提供せず、meters.subscribeは拒否する。infoの操作・機能・権限も機器の範囲に合わせる。
+
+LAN操作は、無害化した機器名・実接続元IP・操作名・結果をローカル運用ログへ記録する。参加者名・参加者ID・引数・トークン・接続コード・秘密鍵は記録しない。認証失敗は既存の10件/秒・burst20の未認証枠に加えて接続元IPごとにも同じ枠を適用し、IP追跡は最大1024件。認証済み操作は既存の通常／安全枠・機器単位・全体単位の制限を通る。トークンやIPを偽装するための転送ヘッダーは使わない。
+
+鍵・接続コードはログへの混入を除去し、LAN設定／保管庫は公開ZIPへ含めない。診断ZIPは既存の明示的allowlistのみを読み、LANファイルを含めず、LAN操作履歴も従来の外部操作履歴と同じく除外する。クライアント側もコードをプロファイル書き出しやチャットへ含めず、対応クライアントの秘密用保存先を使う。

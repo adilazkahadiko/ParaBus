@@ -19,6 +19,7 @@ import { stateBroadcastScheduler } from "./state-broadcast-scheduler.ts";
 import { acceptWebSocket, controlFrame, websocketReceiver } from "./websocket.ts";
 import { ExternalDeviceStore } from "./external-device-store.ts";
 import { ExternalControlServer } from "./external-control.ts";
+import { LanControl } from "./lan-control.ts";
 import { ExternalError, strictJson } from "./external-protocol.ts";
 import { AudioInputManager, inputTimingSummary } from "./audio-input.ts";
 import { AsioDuplexStream } from "./asio-duplex.ts";
@@ -155,7 +156,8 @@ const externalControl = new ExternalControlServer({
   version: JSON.parse(readFileSync(join(projectDirectory, "package.json"), "utf8")).version,
   log: message => operationalLog.append({ at: new Date().toISOString(), level: "INFO", message }),
 });
-discordIngest.onControlStateChange(() => externalControl.noteChange());
+const lanControl = new LanControl(settingsRoot, externalControl, () => [port, externalControl.port, externalControl.store.port, startupSettings.tablet.port], undefined, undefined, message => control.recordExternalEvent('WARNING', message));
+discordIngest.onControlStateChange(() => { externalControl.noteChange(); lanControl.noteChange(); });
 discordIngest.setReceiverEventHandler((level, message) => control.recordExternalEvent(level, message));
 const systemMonitor = new SystemMonitor();
 let supportBundleBusy = false;
@@ -372,6 +374,23 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
     }
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
     if (await participantDataRequest(request, response, url.pathname)) return;
+    if (url.pathname === "/api/lan-control") {
+      requireLocalSettingsRequest(request); requireDesktopControlRequest(request);
+      if (request.method === 'GET') return writeJson(response, 200, { ok: true, data: lanControl.snapshot() });
+      if (request.method === 'POST') {
+        if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '') || request.headers['content-encoding'] !== undefined) return writeJson(response, 415, { ok: false, error: 'JSONが必要です' });
+        try {
+          const chunks: Buffer[] = []; let size = 0;
+          for await (const chunk of request) { size += chunk.length; if (size > 16384) return writeJson(response, 413, { ok: false, error: '要求が大きすぎます' }); chunks.push(chunk); }
+          const data = await lanControl.manage(strictJson(Buffer.concat(chunks).toString('utf8')));
+          return writeJson(response, 200, { ok: true, data });
+        } catch (error) {
+          if (error instanceof ExternalError) return writeJson(response, error.status, { ...error.body(), error: error.message });
+          return writeJson(response, 500, { ok: false, error: 'LAN操作を変更できません。SETUP・アドレス・ポート・証明書・保存先の権限を確認してください。' });
+        }
+      }
+      return writeJson(response, 405, { ok: false, error: 'Method not allowed' });
+    }
     if (url.pathname === "/api/external-control") {
       requireLocalSettingsRequest(request);
       requireDesktopControlRequest(request);
@@ -707,6 +726,7 @@ setInterval(() => {
 
 programAudioShadow.start();
 await Promise.all([discordIngest.start(), rustManagement.start(), externalControl.start()]);
+await lanControl.start();
 if (rustManagement.isAvailable()) {
   try {
     await rustManagement.refreshEndpoints();
@@ -724,7 +744,7 @@ server.listen(port, host, () => {
   console.log(maskDiscordIds(`${engine.channels.size} synthetic RX channels, ${engine.outputs.length} outputs, ${engine.sampleRate} Hz`));
   console.log(maskDiscordIds("Discord Opus IPC listening"));
   if (desktopAccess.lanEnabled) {
-    const warning = "LAN公開中（認証なし）: 同じLANの誰でも操作できます。共有LANでは使わないでください。";
+    const warning = "LAN公開中（認証なし）: 同じLANの誰でも操作できます。共有LANでは使わないでください。別のPCからセレクターなどを操作するだけなら、認証つきの『別のPCからの操作』を使ってください。";
     console.log(maskDiscordIds(warning)); control.recordExternalEvent("WARNING", warning);
     for (const url of desktopAccess.urls) { console.log(maskDiscordIds(`LAN公開中: ${url}`)); control.recordExternalEvent("INFO", `LAN公開中: ${url}`); }
   }
@@ -752,6 +772,7 @@ function shutdown(exitCode = 0): void {
     outputSelectorStore.save(engine).then(() => outputSelectorStore.flush()),
     receiverOwnershipStore.flush(),
     externalControl.close(),
+    lanControl.close(),
     rustManagement.close(),
     discordIngest.close(),
     recorder.close(),

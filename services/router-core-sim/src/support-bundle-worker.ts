@@ -41,6 +41,8 @@ function text(value: string, idKind = "user"): string {
   let safe = value;
   for (const secret of [...secrets].sort((a, b) => b.length - a.length)) safe = safe.split(secret).join("[REDACTED]");
   return safe.replace(/\b\d{17,20}\b/g, (id) => alias(idKind, id))
+    .replace(/parabus1:[A-Za-z0-9_-]+/g, "[REDACTED]")
+    .replace(/-----BEGIN (?:EC |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:EC |ENCRYPTED )?PRIVATE KEY-----/g, "[REDACTED]")
     .replace(/dpapi:v1:[A-Za-z0-9+/=]+/g, "[REDACTED]")
     .replace(/(?:mfa\.[A-Za-z0-9_-]{20,}|\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b)/g, "[REDACTED]")
     .replace(/(?:[A-Za-z]:[\\/]|\/(?:home|Users|tmp|var|etc|opt|srv|run)\/)[^\s"'<>]*/g, "[PATH]");
@@ -153,7 +155,7 @@ async function* sanitizedLog(path: string, consoleInfo?: ConsoleLogInfo) {
   for await (const line of logLines(path, consoleInfo)) {
     if (!line.trim()) continue;
     // External action history is not part of a shared bundle, including console captures.
-    if (line.includes("External control ")) continue;
+    if (line.includes("External control ") || line.includes("LAN control ")) continue;
     if (consoleInfo) {
       const bytes = Buffer.from(`${text(diagnosticMessage(line))}\n`);
       tail.push(bytes); consoleInfo.exportedBytes += bytes.length;

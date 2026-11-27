@@ -24,6 +24,8 @@ const SAFE_ERRORS: Record<OperatorErrorComponent, SafeOperatorError> = {
 export function sanitizeOperatorMessage(value: unknown, fallback = "Operation unavailable"): string {
   const source = typeof value === "string" ? value : value instanceof Error ? value.message : fallback;
   const sanitized = source
+    .replace(/parabus1:[A-Za-z0-9_-]+/g, "[CONNECTION CODE REDACTED]")
+    .replace(/-----BEGIN (?:EC |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:EC |ENCRYPTED )?PRIVATE KEY-----/g, "[CREDENTIAL REDACTED]")
     .replace(/dpapi:v1:[A-Za-z0-9+/=]+/g, "[CREDENTIAL REDACTED]")
     .replace(/(?:mfa\.[A-Za-z0-9_-]{20,}|\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b)/g, "[CREDENTIAL REDACTED]")
     .replace(/<Buffer\s+[^>]*>/gi, "[AUDIO DATA]")

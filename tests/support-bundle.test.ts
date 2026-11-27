@@ -15,6 +15,9 @@ import type { DiscordBotSnapshot } from "../packages/shared-types/src/index.ts";
 import { AudioSchedulerTiming, OutputWriteTiming, RxQueueTiming, audioTimingSummary } from "../services/router-core-sim/src/audio-timing.ts";
 import { AUDIO_FAULT_CLASSIFICATIONS } from "../services/router-core-sim/src/audio-fault-diagnostics.ts";
 import { OperationalLog } from "../services/router-core-sim/src/operational-log.ts";
+import { generateLanCertificate } from "../services/router-core-sim/src/lan-certificate.ts";
+import { encodeConnectionCode } from "../services/router-core-sim/src/lan-client.ts";
+import { randomBytes } from "node:crypto";
 
 const userId = "100000000000000123", guildId = "200000000000000123", vcId = "300000000000000123";
 const participant = "秘密参加者🦊", guild = "会社の秘密Guild", vc = "非公開のVC";
@@ -40,6 +43,20 @@ test("Support diagnostics retain only driver family and numeric RX playout count
   diagnostics = supportDiagnostics(state);
   assert.equal(diagnostics.output.selectedHostApi, null);
   assert.doesNotMatch(JSON.stringify(diagnostics), /private-device-secret/);
+});
+
+test('LAN keys, connection codes, settings and LAN action history never enter a diagnostics ZIP', async t => {
+  const { root, request } = await fixture(t), material = await generateLanCertificate('127.0.0.1'), lanToken = randomBytes(32).toString('base64url');
+  const code = encodeConnectionCode({ v: 1, address: '127.0.0.1', port: 4176, token: lanToken, fingerprint: material.fingerprint });
+  await writeFile(join(root, 'lan-control-secrets.json'), JSON.stringify({ key: material.key, token: lanToken }));
+  await writeFile(join(root, 'lan-control.json'), 'LAN_PRIVATE_CONFIG_MARKER');
+  const log = new OperationalLog(root, 7, () => new Date(now));
+  log.append({ at: now, level: 'INFO', message: `LAN control action device="LAN_PRIVATE_DEVICE_MARKER" ip=192.0.2.10 operation=selector.off result=SUCCESS` });
+  log.append({ at: now, level: 'WARNING', message: code }); log.append({ at: now, level: 'WARNING', message: material.key }); await log.close();
+  const bundle = await createSupportBundle(request), bytes = await readFile(bundle.path), entries = unzip(bytes);
+  assert.ok(!entries.has('lan-control-secrets.json') && !entries.has('lan-control.json'));
+  for (const secret of [material.key, code, lanToken, 'LAN_PRIVATE_CONFIG_MARKER', 'LAN_PRIVATE_DEVICE_MARKER']) assert.ok(!bytes.includes(Buffer.from(secret)));
+  const local = await readFile(log.pathFor(), 'utf8'); assert.ok(local.includes('LAN_PRIVATE_DEVICE_MARKER')); assert.ok(!local.includes(code)); assert.ok(!local.includes(material.key));
 });
 
 function snapshot() {
